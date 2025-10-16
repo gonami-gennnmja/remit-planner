@@ -1,0 +1,69 @@
+export type Worker = {
+  id: string;
+  name: string;
+  phone: string; // in E.164 or local format
+  kakaoRoomUrl?: string; // deep link or web link
+  bankAccount: string; // masked or raw account identifier
+  hourlyWage: number; // KRW per hour
+  taxWithheld: boolean;
+  taxRate?: number; // 0..1 (optional, default 3.3% for taxWithheld)
+};
+
+export type WorkPeriod = {
+  id?: string; // Optional ID for database
+  start: string; // ISO date-time
+  end: string; // ISO date-time
+};
+
+export type ScheduleCategory = 'education' | 'event' | 'meeting' | 'others';
+
+export type Schedule = {
+  id: string;
+  title: string;
+  date: string; // ISO date (YYYY-MM-DD)
+  description?: string;
+  category: ScheduleCategory;
+  workers: Array<{
+    worker: Worker;
+    periods: WorkPeriod[]; // one or more days/hours
+    paid: boolean;
+  }>;
+};
+
+export type PaymentInstruction = {
+  account: string;
+  amount: number; // KRW
+};
+
+export function calculatePayForWorker(
+  hourlyWage: number,
+  periods: WorkPeriod[],
+  taxWithheld: boolean,
+  taxRate: number
+): number {
+  const totalHours = periods.reduce((sum, p) => {
+    const start = new Date(p.start).getTime();
+    const end = new Date(p.end).getTime();
+    const hours = Math.max(0, (end - start) / (1000 * 60 * 60));
+    return sum + hours;
+  }, 0);
+  const gross = hourlyWage * totalHours;
+  if (!taxWithheld) return Math.round(gross);
+  const net = gross * (1 - taxRate);
+  return Math.round(net);
+}
+
+export function getCategoryColor(category: ScheduleCategory): string {
+  switch (category) {
+    case 'education':
+      return '#f8b4c2'; // light pink
+    case 'event':
+      return '#ffcc99'; // light orange
+    case 'meeting':
+      return '#a5b4fc'; // indigo light
+    default:
+      return '#93c5fd'; // blue light
+  }
+}
+
+
