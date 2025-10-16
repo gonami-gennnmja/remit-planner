@@ -8,6 +8,7 @@ export const CREATE_TABLES = `
     bank_account TEXT NOT NULL,
     hourly_wage INTEGER NOT NULL,
     tax_withheld INTEGER DEFAULT 0,
+    memo TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
@@ -19,6 +20,9 @@ export const CREATE_TABLES = `
     description TEXT,
     date TEXT NOT NULL,
     category TEXT NOT NULL,
+    location TEXT,
+    address TEXT,
+    memo TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
@@ -30,6 +34,10 @@ export const CREATE_TABLES = `
     worker_id TEXT NOT NULL,
     paid INTEGER DEFAULT 0,
     work_hours REAL,
+    full_period INTEGER DEFAULT 1,
+    work_start_date TEXT,
+    work_end_date TEXT,
+    hourly_wage INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
@@ -40,6 +48,7 @@ export const CREATE_TABLES = `
   CREATE TABLE IF NOT EXISTS work_periods (
     id TEXT PRIMARY KEY,
     schedule_worker_id TEXT NOT NULL,
+    work_date TEXT NOT NULL,
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,

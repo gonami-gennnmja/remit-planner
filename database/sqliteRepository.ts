@@ -36,15 +36,16 @@ export class SQLiteRepository implements IDatabase {
     this.checkPlatform();
     const id = worker.id || uuidv4().toString();
     await sqliteDb.executeUpdate(
-      `INSERT INTO workers (id, name, phone, bank_account, hourly_wage, tax_withheld)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO workers (id, name, phone, bank_account, hourly_wage, tax_withheld, memo)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         worker.name,
         worker.phone,
         worker.bankAccount,
         worker.hourlyWage,
-        worker.taxWithheld ? 1 : 0
+        worker.taxWithheld ? 1 : 0,
+        worker.memo || null
       ]
     );
     return id;
@@ -65,7 +66,8 @@ export class SQLiteRepository implements IDatabase {
       phone: row.phone,
       bankAccount: row.bank_account,
       hourlyWage: row.hourly_wage,
-      taxWithheld: row.tax_withheld === 1
+      taxWithheld: row.tax_withheld === 1,
+      memo: row.memo
     };
   }
 
@@ -80,7 +82,8 @@ export class SQLiteRepository implements IDatabase {
       phone: row.phone,
       bankAccount: row.bank_account,
       hourlyWage: row.hourly_wage,
-      taxWithheld: row.tax_withheld === 1
+      taxWithheld: row.tax_withheld === 1,
+      memo: row.memo
     }));
   }
 
@@ -107,6 +110,10 @@ export class SQLiteRepository implements IDatabase {
     if (worker.taxWithheld !== undefined) {
       updates.push('tax_withheld = ?');
       params.push(worker.taxWithheld ? 1 : 0);
+    }
+    if (worker.memo !== undefined) {
+      updates.push('memo = ?');
+      params.push(worker.memo);
     }
 
     if (updates.length > 0) {
@@ -231,6 +238,18 @@ export class SQLiteRepository implements IDatabase {
     if (schedule.category !== undefined) {
       updates.push('category = ?');
       params.push(schedule.category);
+    }
+    if (schedule.location !== undefined) {
+      updates.push('location = ?');
+      params.push(schedule.location);
+    }
+    if (schedule.address !== undefined) {
+      updates.push('address = ?');
+      params.push(schedule.address);
+    }
+    if (schedule.memo !== undefined) {
+      updates.push('memo = ?');
+      params.push(schedule.memo);
     }
 
     if (updates.length > 0) {

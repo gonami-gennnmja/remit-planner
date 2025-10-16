@@ -7,6 +7,7 @@ export type Worker = {
   hourlyWage: number; // KRW per hour
   taxWithheld: boolean;
   taxRate?: number; // 0..1 (optional, default 3.3% for taxWithheld)
+  memo?: string; // 메모
 };
 
 export type WorkPeriod = {
@@ -24,6 +25,7 @@ export type Schedule = {
   endDate: string; // ISO date (YYYY-MM-DD) - 종료 날짜
   description?: string;
   location?: string; // 위치 정보
+  address?: string; // 상세 주소
   memo?: string; // 메모
   category: ScheduleCategory;
   workers: Array<{

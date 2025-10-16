@@ -7,9 +7,11 @@ import {
 } from "@/utils/bankUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import dayjs from "dayjs";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -30,6 +32,7 @@ interface Worker {
   taxWithheld: boolean;
   workTags: string[];
   schedules: string[];
+  memo?: string;
   scheduleDetails?: Array<{
     id: string;
     title: string;
@@ -50,6 +53,7 @@ interface WorkersScreenProps {
   allWorkers?: any[];
   onAddWorker?: (worker: any) => void;
   onUpdateWorker?: (workerId: string, updates: any) => void;
+  onDeleteWorker?: (id: string) => void;
   onBackPress?: () => void;
 }
 
@@ -58,6 +62,7 @@ export default function WorkersScreen({
   allWorkers = [],
   onAddWorker,
   onUpdateWorker,
+  onDeleteWorker,
   onBackPress,
 }: WorkersScreenProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,6 +80,7 @@ export default function WorkersScreen({
     hourlyWage: "",
     taxWithheld: true,
     selectedBankCode: "",
+    memo: "",
   });
 
   const [detectedBank, setDetectedBank] = useState<BankInfo | null>(null);
@@ -133,6 +139,7 @@ export default function WorkersScreen({
           schedules: participatedSchedules.map((s) => s.title),
           scheduleDetails: participatedSchedules,
           scheduleWages: [],
+          memo: worker.memo || "",
         };
       });
     } else {
@@ -159,6 +166,7 @@ export default function WorkersScreen({
               workTags: [],
               schedules: [],
               scheduleWages: [],
+              memo: workerInfo.worker.memo || "",
             });
           }
 
@@ -207,6 +215,49 @@ export default function WorkersScreen({
     );
   }, [processedWorkers, searchQuery]);
 
+  // 전화 걸기
+  const makeCall = (phoneNumber: string) => {
+    const phoneUrl = `tel:${phoneNumber}`;
+    Linking.openURL(phoneUrl).catch((err) => {
+      Alert.alert("오류", "전화를 걸 수 없습니다.");
+    });
+  };
+
+  // 문자 보내기
+  const sendSMS = (phoneNumber: string) => {
+    const smsUrl = `sms:${phoneNumber}`;
+    Linking.openURL(smsUrl).catch((err) => {
+      Alert.alert("오류", "문자를 보낼 수 없습니다.");
+    });
+  };
+
+  // 참여일정을 최신순으로 정렬하고 3개 초과시 요약
+  const getSortedSchedules = (schedules: any[]) => {
+    if (!schedules || schedules.length === 0) return [];
+
+    // 날짜순으로 정렬 (최신순)
+    const sortedSchedules = schedules.sort((a, b) => {
+      const dateA = dayjs(a.date || a.startDate);
+      const dateB = dayjs(b.date || b.startDate);
+      return dateB.diff(dateA);
+    });
+
+    // 3개 초과시 요약
+    if (sortedSchedules.length > 3) {
+      return {
+        schedules: sortedSchedules.slice(0, 3),
+        hasMore: true,
+        totalCount: sortedSchedules.length,
+      };
+    }
+
+    return {
+      schedules: sortedSchedules,
+      hasMore: false,
+      totalCount: sortedSchedules.length,
+    };
+  };
+
   const addWorkTag = (workerId: string) => {
     if (!newTag.trim()) return;
 
@@ -228,6 +279,7 @@ export default function WorkersScreen({
       bankAccount: worker.bankAccount,
       hourlyWage: worker.hourlyWage.toString(),
       taxWithheld: worker.taxWithheld,
+      memo: worker.memo || "",
     });
     setShowWorkerModal(true);
   };
@@ -252,6 +304,7 @@ export default function WorkersScreen({
       hourlyWage: "",
       taxWithheld: true,
       selectedBankCode: "",
+      memo: "",
     });
     setDetectedBank(null);
     setShowBankPicker(false);
@@ -288,6 +341,7 @@ export default function WorkersScreen({
         bankInfo: selectedBank,
         hourlyWage: parseInt(workerForm.hourlyWage),
         taxWithheld: workerForm.taxWithheld,
+        memo: workerForm.memo,
       };
 
       if (onUpdateWorker) {
@@ -306,6 +360,7 @@ export default function WorkersScreen({
         bankInfo: selectedBank,
         hourlyWage: parseInt(workerForm.hourlyWage),
         taxWithheld: workerForm.taxWithheld,
+        memo: workerForm.memo,
       };
 
       if (onAddWorker) {
@@ -315,6 +370,35 @@ export default function WorkersScreen({
       Alert.alert("추가 완료", `${workerForm.name}님이 추가되었습니다.`);
       setShowAddWorkerModal(false);
     }
+  };
+
+  const handleDeleteWorker = () => {
+    if (!selectedWorker) return;
+
+    Alert.alert(
+      "근로자 삭제",
+      `${selectedWorker.name}님을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`,
+      [
+        {
+          text: "취소",
+          style: "cancel",
+        },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: () => {
+            if (onDeleteWorker) {
+              onDeleteWorker(selectedWorker.id);
+            }
+            Alert.alert(
+              "삭제 완료",
+              `${selectedWorker.name}님이 삭제되었습니다.`
+            );
+            setShowWorkerModal(false);
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -362,47 +446,76 @@ export default function WorkersScreen({
             <View style={styles.workerInfo}>
               <View style={styles.workerHeader}>
                 <Text style={styles.workerName}>{worker.name}</Text>
-                <View style={styles.workerStatus}>
-                  <View
-                    style={[
-                      styles.statusDot,
-                      {
-                        backgroundColor: worker.taxWithheld
-                          ? "#10b981"
-                          : "#f59e0b",
-                      },
-                    ]}
-                  />
-                  <Text style={styles.statusText}>
-                    {worker.taxWithheld ? "세금공제" : "일반"}
-                  </Text>
+                <View style={styles.actionButtons}>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => makeCall(worker.phone)}
+                  >
+                    <Ionicons name="call" size={14} color="#000000" />
+                  </Pressable>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => sendSMS(worker.phone)}
+                  >
+                    <Ionicons name="chatbubble" size={14} color="#000000" />
+                  </Pressable>
                 </View>
               </View>
 
               <Text style={styles.workerPhone}>📞 {worker.phone}</Text>
-              <Text style={styles.workerBank}>
-                🏦{" "}
-                {worker.bankInfo
-                  ? `${worker.bankInfo.shortName} ${worker.bankAccount}`
-                  : worker.bankAccount}
-              </Text>
-              <Text style={styles.workerWage}>
-                💰 {worker.hourlyWage.toLocaleString()}원/시간
-              </Text>
 
-              {/* 참여한 스케줄들 */}
+              {/* 메모 미리보기 */}
+              {worker.memo && (
+                <View style={styles.memoContainer}>
+                  <Text style={styles.memoLabel}>메모:</Text>
+                  <Text style={styles.memoPreview}>
+                    {worker.memo.length > 20
+                      ? `${worker.memo.substring(0, 20)}...`
+                      : worker.memo}
+                  </Text>
+                </View>
+              )}
+
+              {/* 참여한 스케줄들 - 최신순으로 정렬 */}
               <View style={styles.schedulesContainer}>
-                <Text style={styles.schedulesLabel}>참여 일정:</Text>
-                <View style={styles.schedulesList}>
-                  {worker.schedules.map((schedule, index) => (
-                    <Pressable
-                      key={index}
-                      style={styles.scheduleTag}
-                      onPress={() => handleScheduleTagPress(schedule, worker)}
-                    >
-                      <Text style={styles.scheduleTagText}>{schedule}</Text>
-                    </Pressable>
-                  ))}
+                <View style={styles.schedulesRow}>
+                  <Text style={styles.schedulesLabel}>참여 일정:</Text>
+                  <View style={styles.schedulesList}>
+                    {(() => {
+                      const sortedSchedules = getSortedSchedules(
+                        worker.scheduleDetails || []
+                      );
+                      return (
+                        <>
+                          {sortedSchedules.schedules.map((schedule, index) => (
+                            <Pressable
+                              key={index}
+                              style={styles.scheduleTag}
+                              onPress={() =>
+                                handleScheduleTagPress(schedule.title, worker)
+                              }
+                            >
+                              <Text style={styles.scheduleTagText}>
+                                {schedule.title}
+                              </Text>
+                              <Text style={styles.scheduleDateText}>
+                                {dayjs(
+                                  schedule.date || schedule.startDate
+                                ).format("M/D")}
+                              </Text>
+                            </Pressable>
+                          ))}
+                          {sortedSchedules.hasMore && (
+                            <View style={styles.moreSchedulesTag}>
+                              <Text style={styles.moreSchedulesText}>
+                                +{sortedSchedules.totalCount - 3}개 더
+                              </Text>
+                            </View>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </View>
                 </View>
               </View>
 
@@ -590,76 +703,17 @@ export default function WorkersScreen({
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailLabel}>세금공제 여부</Text>
-                    <View style={styles.taxButtonsContainer}>
-                      <Pressable
-                        style={[
-                          styles.taxButton,
-                          workerForm.taxWithheld && styles.taxButtonActive,
-                        ]}
-                        onPress={() =>
-                          setWorkerForm({ ...workerForm, taxWithheld: true })
-                        }
-                      >
-                        <Text
-                          style={[
-                            styles.taxButtonText,
-                            workerForm.taxWithheld &&
-                              styles.taxButtonTextActive,
-                          ]}
-                        >
-                          Y
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        style={[
-                          styles.taxButton,
-                          !workerForm.taxWithheld && styles.taxButtonActive,
-                        ]}
-                        onPress={() =>
-                          setWorkerForm({ ...workerForm, taxWithheld: false })
-                        }
-                      >
-                        <Text
-                          style={[
-                            styles.taxButtonText,
-                            !workerForm.taxWithheld &&
-                              styles.taxButtonTextActive,
-                          ]}
-                        >
-                          N
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailLabel}>일정별 시급</Text>
-                    <View style={styles.scheduleWagesList}>
-                      {selectedWorker.scheduleWages.map(
-                        (scheduleWage, index) => (
-                          <View key={index} style={styles.scheduleWageItem}>
-                            <View style={styles.scheduleWageHeader}>
-                              <Text style={styles.scheduleWageTitle}>
-                                {scheduleWage.scheduleTitle}
-                              </Text>
-                              <Text style={styles.scheduleWageHours}>
-                                {scheduleWage.workHours.toFixed(1)}시간
-                              </Text>
-                            </View>
-                            <View style={styles.scheduleWageDetails}>
-                              <Text style={styles.scheduleWageRate}>
-                                시급: {scheduleWage.hourlyWage.toLocaleString()}
-                                원
-                              </Text>
-                              <Text style={styles.scheduleWageTotal}>
-                                총액: {scheduleWage.totalPay.toLocaleString()}원
-                              </Text>
-                            </View>
-                          </View>
-                        )
-                      )}
-                    </View>
+                    <Text style={styles.detailLabel}>메모</Text>
+                    <TextInput
+                      style={[styles.detailInput, styles.memoInput]}
+                      value={workerForm.memo}
+                      onChangeText={(text) =>
+                        setWorkerForm({ ...workerForm, memo: text })
+                      }
+                      placeholder="메모를 입력하세요"
+                      multiline
+                      numberOfLines={3}
+                    />
                   </View>
 
                   <View style={styles.detailSection}>
@@ -674,10 +728,16 @@ export default function WorkersScreen({
                   </View>
                 </ScrollView>
 
-                {/* 저장 버튼 */}
+                {/* 저장/삭제 버튼 */}
                 <View style={styles.modalFooter}>
                   <Pressable
-                    style={styles.saveButton}
+                    style={[styles.actionButton, styles.deleteButton]}
+                    onPress={handleDeleteWorker}
+                  >
+                    <Text style={styles.deleteButtonText}>삭제</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.actionButton, styles.saveButton]}
                     onPress={handleSaveWorker}
                   >
                     <Text style={styles.saveButtonText}>저장</Text>
@@ -882,6 +942,20 @@ export default function WorkersScreen({
                   </Pressable>
                 </View>
               </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>메모</Text>
+                <TextInput
+                  style={[styles.detailInput, styles.memoInput]}
+                  value={workerForm.memo}
+                  onChangeText={(text) =>
+                    setWorkerForm({ ...workerForm, memo: text })
+                  }
+                  placeholder="메모를 입력하세요"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
             </ScrollView>
 
             {/* 추가 버튼 */}
@@ -1056,6 +1130,7 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.sizes.lg,
     fontWeight: Theme.typography.weights.semibold,
     color: Theme.colors.text.primary,
+    flex: 1,
   },
   workerStatus: {
     flexDirection: "row",
@@ -1076,6 +1151,38 @@ const styles = StyleSheet.create({
     color: Theme.colors.text.secondary,
     marginBottom: Theme.spacing.xs,
   },
+  actionButtons: {
+    flexDirection: "row",
+    gap: Theme.spacing.xs,
+  },
+  actionButton: {
+    width: 28,
+    height: 28,
+    borderRadius: Theme.borderRadius.md,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Theme.shadows.sm,
+    borderWidth: 1,
+    borderColor: Theme.colors.border.light,
+  },
+  memoContainer: {
+    marginBottom: Theme.spacing.sm,
+  },
+  memoLabel: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
+    marginBottom: Theme.spacing.xs,
+  },
+  memoPreview: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.primary,
+    fontStyle: "italic",
+  },
+  memoInput: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
   workerBank: {
     fontSize: Theme.typography.sizes.sm,
     color: Theme.colors.text.secondary,
@@ -1089,15 +1196,20 @@ const styles = StyleSheet.create({
   schedulesContainer: {
     marginBottom: Theme.spacing.sm,
   },
+  schedulesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Theme.spacing.sm,
+  },
   schedulesLabel: {
     fontSize: Theme.typography.sizes.xs,
     color: Theme.colors.text.secondary,
-    marginBottom: Theme.spacing.xs,
   },
   schedulesList: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Theme.spacing.xs,
+    flex: 1,
   },
   scheduleTag: {
     backgroundColor: Theme.colors.surface,
@@ -1106,11 +1218,32 @@ const styles = StyleSheet.create({
     borderRadius: Theme.borderRadius.md,
     marginRight: Theme.spacing.xs,
     marginBottom: Theme.spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Theme.spacing.xs,
   },
   scheduleTagText: {
     fontSize: Theme.typography.sizes.xs,
     color: Theme.colors.text.primary,
     fontWeight: Theme.typography.weights.medium,
+  },
+  scheduleDateText: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.tertiary,
+    fontWeight: Theme.typography.weights.medium,
+  },
+  moreSchedulesTag: {
+    backgroundColor: Theme.colors.primary,
+    paddingHorizontal: Theme.spacing.sm,
+    paddingVertical: Theme.spacing.xs,
+    borderRadius: Theme.borderRadius.md,
+    marginRight: Theme.spacing.xs,
+    marginBottom: Theme.spacing.xs,
+  },
+  moreSchedulesText: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.inverse,
+    fontWeight: Theme.typography.weights.semibold,
   },
   participantList: {
     marginTop: Theme.spacing.sm,
@@ -1374,14 +1507,27 @@ const styles = StyleSheet.create({
     padding: Theme.spacing.xl,
     borderTopWidth: 1,
     borderTopColor: Theme.colors.border.light,
+    flexDirection: "row",
+    gap: Theme.spacing.md,
   },
-  saveButton: {
-    backgroundColor: Theme.colors.primary,
+  actionButton: {
+    flex: 1,
     paddingVertical: Theme.spacing.md,
     borderRadius: Theme.borderRadius.md,
     alignItems: "center",
   },
+  saveButton: {
+    backgroundColor: Theme.colors.primary,
+  },
   saveButtonText: {
+    color: Theme.colors.text.inverse,
+    fontSize: Theme.typography.sizes.md,
+    fontWeight: Theme.typography.weights.semibold,
+  },
+  deleteButton: {
+    backgroundColor: "#ef4444",
+  },
+  deleteButtonText: {
     color: Theme.colors.text.inverse,
     fontSize: Theme.typography.sizes.md,
     fontWeight: Theme.typography.weights.semibold,

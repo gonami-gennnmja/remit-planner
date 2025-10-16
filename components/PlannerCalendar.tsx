@@ -1,6 +1,14 @@
+import AddressSearchModal from "@/components/AddressSearchModal";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
+import { getDatabase } from "@/database/platformDatabase";
 import { Schedule, ScheduleCategory, Worker } from "@/models/types";
+import {
+  openAddressSearch,
+  openKakaoMap,
+  openMapApp,
+  openNaverMap,
+} from "@/utils/daumMapApi";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
@@ -12,6 +20,7 @@ import {
   Clipboard,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +33,48 @@ import { PanGestureHandler, State } from "react-native-gesture-handler";
 
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
+
+// 은행 감지 함수
+function detectBankFromAccount(accountNumber: string) {
+  const cleanAccount = accountNumber.replace(/[^0-9]/g, "");
+
+  const bankPatterns = {
+    "110": { name: "국민은행", shortName: "KB" },
+    "111": { name: "신한은행", shortName: "신한" },
+    "112": { name: "우리은행", shortName: "우리" },
+    "113": { name: "하나은행", shortName: "하나" },
+    "114": { name: "농협은행", shortName: "농협" },
+    "115": { name: "기업은행", shortName: "기업" },
+    "116": { name: "수협은행", shortName: "수협" },
+    "117": { name: "한국씨티은행", shortName: "씨티" },
+    "118": { name: "카카오뱅크", shortName: "카뱅" },
+    "119": { name: "토스뱅크", shortName: "토스" },
+  };
+
+  const firstThree = cleanAccount.substring(0, 3);
+  return (
+    bankPatterns[firstThree as keyof typeof bankPatterns] || {
+      name: "알 수 없음",
+      shortName: "?",
+    }
+  );
+}
+
+// 전화번호 포맷팅 함수
+function formatPhoneNumber(phone: string) {
+  const cleaned = phone.replace(/[^0-9]/g, "");
+  if (cleaned.length === 11) {
+    return cleaned.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+  } else if (cleaned.length === 10) {
+    return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+  }
+  return phone;
+}
+
+// 숫자에 콤마 추가
+function formatNumber(num: number) {
+  return num.toLocaleString("ko-KR");
+}
 
 function getCategoryColor(category: ScheduleCategory): string {
   const colors: Record<ScheduleCategory, string> = {
@@ -118,7 +169,9 @@ function WorkerCard({
       </View>
 
       <View style={styles.workerFooter}>
-        <Text style={styles.phoneNumber}>{worker.phone}</Text>
+        <Text style={styles.phoneNumber}>
+          {formatPhoneNumber(worker.phone)}
+        </Text>
         <View style={styles.actionButtons}>
           <Pressable
             style={styles.actionButton}
@@ -182,6 +235,7 @@ export default function PlannerCalendar() {
     null
   );
   const [modalVisible, setModalVisible] = useState(false);
+  const [isAddressSearchVisible, setIsAddressSearchVisible] = useState(false);
   const [modalType, setModalType] = useState<
     "timetable" | "detail" | "worker-detail" | null
   >(null);
@@ -199,8 +253,19 @@ export default function PlannerCalendar() {
     name: "",
     phone: "",
     bankAccount: "",
-    hourlyWage: 0,
+    hourlyWage: 11000,
     taxWithheld: true,
+    memo: "",
+    fullPeriod: true,
+    workStartDate: "",
+    workEndDate: "",
+    workTimes: [{ startTime: "09:00", endTime: "18:00" }],
+    isWorkHoursSameEveryDay: true,
+    dailyWorkPeriods: [] as Array<{
+      date: string;
+      startTime: string;
+      endTime: string;
+    }>,
   });
   // 정적 테스트 데이터
   const [schedules, setSchedules] = useState<Schedule[]>(() => {
@@ -538,6 +603,37 @@ export default function PlannerCalendar() {
       prevSchedules.map((schedule) => {
         if (schedule.id === scheduleId) {
           const newWorkerId = `w${Date.now()}`;
+
+          // 근무 기간 결정
+          let workStartDate = schedule.startDate;
+          let workEndDate = schedule.endDate;
+
+          if (!worker.fullPeriod) {
+            workStartDate = worker.workStartDate || schedule.startDate;
+            workEndDate = worker.workEndDate || schedule.endDate;
+          }
+
+          // 근무 시간에 따른 periods 생성
+          let periods = [];
+
+          if (worker.isWorkHoursSameEveryDay) {
+            // 매일 동일한 근무시간인 경우
+            periods = worker.workTimes.map((workTime: any, index: number) => ({
+              id: `p${Date.now()}_${index}`,
+              start: `${workStartDate}T${workTime.startTime}:00+09:00`,
+              end: `${workStartDate}T${workTime.endTime}:00+09:00`,
+            }));
+          } else {
+            // 매일 다른 근무시간인 경우
+            periods = worker.dailyWorkPeriods.map(
+              (period: any, index: number) => ({
+                id: `p${Date.now()}_${index}`,
+                start: `${period.date}T${period.startTime}:00+09:00`,
+                end: `${period.date}T${period.endTime}:00+09:00`,
+              })
+            );
+          }
+
           const newWorkerInfo = {
             worker: {
               id: newWorkerId,
@@ -546,15 +642,14 @@ export default function PlannerCalendar() {
               bankAccount: worker.bankAccount,
               hourlyWage: worker.hourlyWage,
               taxWithheld: worker.taxWithheld,
+              memo: worker.memo,
             },
-            periods: [
-              {
-                id: `p${Date.now()}`,
-                start: `${schedule.startDate}T09:00:00+09:00`,
-                end: `${schedule.startDate}T17:00:00+09:00`,
-              },
-            ],
+            periods: periods,
             paid: false,
+            fullPeriod: worker.fullPeriod,
+            workStartDate: workStartDate,
+            workEndDate: workEndDate,
+            workTimes: worker.workTimes,
           };
           return {
             ...schedule,
@@ -577,18 +672,66 @@ export default function PlannerCalendar() {
       return;
     }
 
+    // 전일정 근무가 아닌 경우 근무 기간 확인
+    if (
+      !newWorker.fullPeriod &&
+      (!newWorker.workStartDate || !newWorker.workEndDate)
+    ) {
+      Alert.alert("오류", "근무 기간을 입력해주세요.");
+      return;
+    }
+
     // 현재 선택된 스케줄에 근로자 추가
     if (selectedScheduleId) {
+      console.log("Adding worker to schedule:", selectedScheduleId, newWorker);
       addWorkerToSchedule(selectedScheduleId, newWorker);
       setShowAddWorkerModal(false);
       setNewWorker({
         name: "",
         phone: "",
         bankAccount: "",
-        hourlyWage: 0,
+        hourlyWage: 11000,
         taxWithheld: true,
+        memo: "",
+        fullPeriod: true,
+        workStartDate: "",
+        workEndDate: "",
+        workTimes: [{ startTime: "09:00", endTime: "18:00" }],
+        isWorkHoursSameEveryDay: true,
+        dailyWorkPeriods: [],
       });
       Alert.alert("성공", "근로자가 추가되었습니다.");
+    } else {
+      console.log("No selectedScheduleId:", selectedScheduleId);
+      Alert.alert("오류", "스케줄이 선택되지 않았습니다.");
+    }
+  };
+
+  const handleAddressSelect = async (address: string) => {
+    console.log("=== PlannerCalendar: 주소 선택됨 ===");
+    console.log("받은 주소:", address);
+    console.log("선택된 스케줄 ID:", selectedScheduleId);
+
+    if (selectedScheduleId) {
+      // 먼저 state 업데이트
+      setSchedules((prevSchedules) =>
+        prevSchedules.map((s) =>
+          s.id === selectedScheduleId ? { ...s, address: address } : s
+        )
+      );
+
+      // DB에 저장
+      try {
+        const db = getDatabase();
+        await db.updateSchedule(selectedScheduleId, { address: address });
+        console.log("주소가 DB에 저장되었습니다");
+      } catch (error) {
+        console.error("주소 저장 오류:", error);
+        Alert.alert("오류", "주소 저장에 실패했습니다.");
+      }
+    } else {
+      console.error("선택된 스케줄이 없습니다!");
+      Alert.alert("오류", "스케줄이 선택되지 않았습니다.");
     }
   };
 
@@ -676,70 +819,320 @@ export default function PlannerCalendar() {
             const handleDayPress = () => {
               setSelectedDate(key);
               setSelectedScheduleId(null);
+              if (Platform.OS === "web") {
+                setModalType("timetable");
+                setTimeout(() => {
+                  showModal();
+                }, 0);
+              }
+              // 앱에서는 모달을 열지 않고 하단에 스케줄 목록만 표시
+            };
+
+            if (Platform.OS === "web") {
+              // 웹에서는 기존 스타일 사용
+              return (
+                <Pressable
+                  style={{ flex: 1, minHeight: 100, padding: 2 }}
+                  onPress={handleDayPress}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "500",
+                      textAlign: "center",
+                      marginBottom: 4,
+                      color: Theme.colors.text.primary,
+                    }}
+                  >
+                    {date?.day}
+                  </Text>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    {sorted.slice(0, 3).map((schedule, index) => (
+                      <Pressable
+                        key={schedule.id}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          onSchedulePress(schedule.id);
+                        }}
+                        style={{
+                          backgroundColor: getCategoryColor(schedule.category),
+                          borderRadius: 4,
+                          padding: 2,
+                          marginBottom: 1,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            color: "white",
+                            fontWeight: "500",
+                          }}
+                          numberOfLines={1}
+                        >
+                          {schedule.title}
+                        </Text>
+                      </Pressable>
+                    ))}
+                    {sorted.length > 3 && (
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          color: Theme.colors.text.tertiary,
+                          textAlign: "center",
+                        }}
+                      >
+                        +{sorted.length - 3} more
+                      </Text>
+                    )}
+                  </View>
+                </Pressable>
+              );
+            } else {
+              // 앱에서는 더 안전한 스타일 사용
+              return (
+                <View
+                  style={{
+                    width: "100%",
+                    height: 60,
+                    padding: 1,
+                    justifyContent: "flex-start",
+                    alignItems: "center",
+                  }}
+                >
+                  <Pressable
+                    onPress={handleDayPress}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      justifyContent: "flex-start",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "500",
+                        textAlign: "center",
+                        marginBottom: 2,
+                        color: Theme.colors.text.primary,
+                      }}
+                    >
+                      {date?.day}
+                    </Text>
+                    <View
+                      style={{
+                        width: "100%",
+                        flex: 1,
+                        justifyContent: "flex-start",
+                        alignItems: "center",
+                      }}
+                    >
+                      {sorted.slice(0, 2).map((schedule, index) => (
+                        <Pressable
+                          key={schedule.id}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            if (Platform.OS === "web") {
+                              onSchedulePress(schedule.id);
+                            } else {
+                              // 앱에서는 날짜 클릭과 동일하게 처리
+                              handleDayPress();
+                            }
+                          }}
+                          style={{
+                            backgroundColor: getCategoryColor(
+                              schedule.category
+                            ),
+                            borderRadius: 2,
+                            paddingHorizontal: 2,
+                            paddingVertical: 1,
+                            marginBottom: 1,
+                            width: "90%",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 7,
+                              color: "white",
+                              fontWeight: "500",
+                            }}
+                            numberOfLines={1}
+                          >
+                            {schedule.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                      {sorted.length > 2 && (
+                        <Text
+                          style={{
+                            fontSize: 7,
+                            color: Theme.colors.text.tertiary,
+                            textAlign: "center",
+                          }}
+                        >
+                          +{sorted.length - 2}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                </View>
+              );
+            }
+          }}
+          onDayPress={(day) => {
+            setSelectedDate(day.dateString);
+            setSelectedScheduleId(null);
+            if (Platform.OS === "web") {
               setModalType("timetable");
               setTimeout(() => {
                 showModal();
               }, 0);
-            };
-
-            return (
-              <Pressable
-                style={{ flex: 1, minHeight: 80, padding: 2 }}
-                onPress={handleDayPress}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "500",
-                    textAlign: "center",
-                    marginBottom: 4,
-                  }}
-                >
-                  {date?.day}
-                </Text>
-                <View style={{ flex: 1, gap: 2 }}>
-                  {sorted.slice(0, 3).map((schedule, index) => (
-                    <Pressable
-                      key={schedule.id}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        onSchedulePress(schedule.id);
-                      }}
-                      style={{
-                        backgroundColor: getCategoryColor(schedule.category),
-                        borderRadius: 4,
-                        padding: 2,
-                        marginBottom: 1,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          color: "white",
-                          fontWeight: "500",
-                        }}
-                        numberOfLines={1}
-                      >
-                        {schedule.title}
-                      </Text>
-                    </Pressable>
-                  ))}
-                  {sorted.length > 3 && (
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: "#6b7280",
-                        textAlign: "center",
-                      }}
-                    >
-                      +{sorted.length - 3} more
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
-            );
+            }
+            // 앱에서는 모달을 열지 않고 하단에 스케줄 목록만 표시
           }}
+          onMonthChange={(month) => {
+            setCurrentMonth(month.dateString);
+          }}
+          enableSwipeMonths={true}
+          hideExtraDays={false}
+          showWeekNumbers={false}
+          disableMonthChange={false}
         />
+
+        {/* 앱에서만 표시되는 선택된 날짜의 스케줄 목록 */}
+        {Platform.OS !== "web" && selectedDate && (
+          <View style={styles.mobileScheduleList}>
+            <Text style={styles.mobileScheduleListTitle}>
+              {dayjs(selectedDate).format("M월 D일 dddd")} 일정
+            </Text>
+            {(() => {
+              const dailySchedules = schedules.filter((s) => {
+                const startDate = dayjs(s.startDate);
+                const endDate = dayjs(s.endDate);
+                const selected = dayjs(selectedDate);
+                return (
+                  selected.isSameOrAfter(startDate, "day") &&
+                  selected.isSameOrBefore(endDate, "day")
+                );
+              });
+
+              const sortedSchedules = dailySchedules.slice().sort((a, b) => {
+                const aStart = a.workers
+                  .flatMap((w) => w.periods.map((p) => dayjs(p.start)))
+                  .sort((x, y) => x.valueOf() - y.valueOf())[0];
+                const bStart = b.workers
+                  .flatMap((w) => w.periods.map((p) => dayjs(p.start)))
+                  .sort((x, y) => x.valueOf() - y.valueOf())[0];
+                return (aStart?.valueOf() ?? 0) - (bStart?.valueOf() ?? 0);
+              });
+
+              if (sortedSchedules.length === 0) {
+                return (
+                  <Text style={styles.noScheduleText}>
+                    이 날에는 일정이 없습니다.
+                  </Text>
+                );
+              }
+
+              return (
+                <ScrollView
+                  style={styles.scheduleScrollView}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {sortedSchedules.map((schedule) => {
+                    const scheduleStart = schedule.workers
+                      .flatMap((w) => w.periods.map((p) => dayjs(p.start)))
+                      .sort((x, y) => x.valueOf() - y.valueOf())[0];
+                    const scheduleEnd = schedule.workers
+                      .flatMap((w) => w.periods.map((p) => dayjs(p.end)))
+                      .sort((x, y) => y.valueOf() - x.valueOf())[0];
+
+                    return (
+                      <Pressable
+                        key={schedule.id}
+                        style={styles.mobileScheduleItem}
+                        onPress={() => onSchedulePress(schedule.id)}
+                      >
+                        <View style={styles.mobileScheduleContent}>
+                          <View style={styles.mobileScheduleLeft}>
+                            <Text style={styles.mobileScheduleTitle}>
+                              {schedule.title}
+                            </Text>
+                            <Text style={styles.mobileScheduleLocation}>
+                              {schedule.address ||
+                                schedule.location ||
+                                "위치 정보 없음"}
+                            </Text>
+                            {/* 모바일에서 지도 연동 버튼 */}
+                            {(schedule.address || schedule.location) && (
+                              <View style={styles.mobileMapButtons}>
+                                <Pressable
+                                  style={styles.mobileMapButton}
+                                  onPress={() => {
+                                    const address =
+                                      schedule.address || schedule.location!;
+                                    if (Platform.OS === "web") {
+                                      openKakaoMap(address);
+                                    } else {
+                                      openMapApp(address, "kakao");
+                                    }
+                                  }}
+                                >
+                                  <Ionicons
+                                    name="map"
+                                    size={12}
+                                    color="#FFEB3B"
+                                  />
+                                  <Text style={styles.mobileMapButtonText}>
+                                    카카오맵
+                                  </Text>
+                                </Pressable>
+                                <Pressable
+                                  style={styles.mobileMapButton}
+                                  onPress={() => {
+                                    const address =
+                                      schedule.address || schedule.location!;
+                                    if (Platform.OS === "web") {
+                                      openNaverMap(address);
+                                    } else {
+                                      openMapApp(address, "naver");
+                                    }
+                                  }}
+                                >
+                                  <Ionicons
+                                    name="map"
+                                    size={12}
+                                    color="#03C75A"
+                                  />
+                                  <Text style={styles.mobileMapButtonText}>
+                                    네이버지도
+                                  </Text>
+                                </Pressable>
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.mobileScheduleRight}>
+                            <Text style={styles.mobileScheduleTime}>
+                              {scheduleStart
+                                ? scheduleStart.format("A h:mm")
+                                : "시간 미정"}
+                            </Text>
+                            <Text style={styles.mobileScheduleTime}>
+                              {scheduleEnd
+                                ? scheduleEnd.format("A h:mm")
+                                : "시간 미정"}
+                            </Text>
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              );
+            })()}
+          </View>
+        )}
       </View>
 
       {/* 모달 */}
@@ -1001,11 +1394,50 @@ export default function PlannerCalendar() {
                       {/* 상세 내용 */}
                       <View style={{ padding: 16 }}>
                         {(() => {
+                          console.log(
+                            "Selected Schedule ID:",
+                            selectedScheduleId
+                          );
+                          console.log(
+                            "Available schedules:",
+                            schedules.map((s) => ({ id: s.id, title: s.title }))
+                          );
                           const schedule = schedules.find(
                             (s) => s.id === selectedScheduleId
                           );
-                          if (!schedule)
-                            return <Text>스케쥴을 찾을 수 없습니다.</Text>;
+                          if (!schedule) {
+                            console.log(
+                              "Schedule not found for ID:",
+                              selectedScheduleId
+                            );
+                            return (
+                              <View>
+                                <Text
+                                  style={{
+                                    fontSize: 16,
+                                    color: "#ef4444",
+                                    marginBottom: 16,
+                                  }}
+                                >
+                                  스케쥴을 찾을 수 없습니다. (ID:{" "}
+                                  {selectedScheduleId})
+                                </Text>
+                                <Text
+                                  style={{ fontSize: 14, color: "#6b7280" }}
+                                >
+                                  사용 가능한 스케쥴:
+                                </Text>
+                                {schedules.map((s, index) => (
+                                  <Text
+                                    key={index}
+                                    style={{ fontSize: 12, color: "#6b7280" }}
+                                  >
+                                    - {s.title} (ID: {s.id})
+                                  </Text>
+                                ))}
+                              </View>
+                            );
+                          }
                           return (
                             <View>
                               <Text
@@ -1013,11 +1445,18 @@ export default function PlannerCalendar() {
                                   fontSize: 24,
                                   fontWeight: "bold",
                                   marginBottom: 16,
+                                  color: "#1f2937",
                                 }}
                               >
                                 {schedule.title}
                               </Text>
-                              <Text style={{ fontSize: 16, marginBottom: 16 }}>
+                              <Text
+                                style={{
+                                  fontSize: 16,
+                                  marginBottom: 16,
+                                  color: "#374151",
+                                }}
+                              >
                                 {schedule.startDate === schedule.endDate
                                   ? dayjs(schedule.startDate).format(
                                       "YYYY년 M월 D일 dddd"
@@ -1028,9 +1467,277 @@ export default function PlannerCalendar() {
                                       "M월 D일"
                                     )}`}
                               </Text>
-                              <Text style={{ fontSize: 16, marginBottom: 16 }}>
-                                {schedule.description}
+                              <Text
+                                style={{
+                                  fontSize: 16,
+                                  marginBottom: 16,
+                                  color: "#374151",
+                                }}
+                              >
+                                {schedule.description || "설명이 없습니다."}
                               </Text>
+
+                              {/* 주소 정보 */}
+                              <View style={{ marginBottom: 16 }}>
+                                <Text
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: "600",
+                                    color: "#374151",
+                                    marginBottom: 8,
+                                  }}
+                                >
+                                  주소
+                                </Text>
+                                <View style={{ flexDirection: "row", gap: 8 }}>
+                                  <TextInput
+                                    style={{
+                                      flex: 1,
+                                      borderWidth: 1,
+                                      borderColor: "#d1d5db",
+                                      borderRadius: 6,
+                                      padding: 12,
+                                      fontSize: 14,
+                                      backgroundColor: "white",
+                                    }}
+                                    value={schedule.address || ""}
+                                    onChangeText={(text) => {
+                                      setSchedules((prevSchedules) =>
+                                        prevSchedules.map((s) =>
+                                          s.id === selectedScheduleId
+                                            ? { ...s, address: text }
+                                            : s
+                                        )
+                                      );
+                                    }}
+                                    onBlur={async () => {
+                                      // 입력이 끝나면 DB에 저장
+                                      if (selectedScheduleId) {
+                                        try {
+                                          const db = getDatabase();
+                                          const currentSchedule =
+                                            schedules.find(
+                                              (s) => s.id === selectedScheduleId
+                                            );
+                                          if (currentSchedule) {
+                                            await db.updateSchedule(
+                                              selectedScheduleId,
+                                              {
+                                                address:
+                                                  currentSchedule.address,
+                                              }
+                                            );
+                                            console.log(
+                                              "주소가 DB에 저장되었습니다"
+                                            );
+                                          }
+                                        } catch (error) {
+                                          console.error(
+                                            "주소 저장 오류:",
+                                            error
+                                          );
+                                        }
+                                      }
+                                    }}
+                                    placeholder="주소를 입력하세요"
+                                  />
+                                  <Pressable
+                                    style={{
+                                      backgroundColor: "#2563eb",
+                                      paddingHorizontal: 12,
+                                      paddingVertical: 12,
+                                      borderRadius: 6,
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                    onPress={() => {
+                                      if (Platform.OS === "web") {
+                                        // 웹에서는 기존 방식 사용
+                                        openAddressSearch((result) => {
+                                          setSchedules((prevSchedules) =>
+                                            prevSchedules.map((s) =>
+                                              s.id === selectedScheduleId
+                                                ? {
+                                                    ...s,
+                                                    address: result.roadAddress,
+                                                  }
+                                                : s
+                                            )
+                                          );
+                                          Alert.alert(
+                                            "주소 선택",
+                                            `선택된 주소: ${result.roadAddress}`
+                                          );
+                                        });
+                                      } else {
+                                        // 앱에서는 WebView 모달 사용
+                                        setIsAddressSearchVisible(true);
+                                      }
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: "white",
+                                        fontSize: 12,
+                                        fontWeight: "600",
+                                      }}
+                                    >
+                                      주소 검색
+                                    </Text>
+                                  </Pressable>
+                                </View>
+
+                                {/* 지도 연동 버튼들 */}
+                                {(schedule.address || schedule.location) && (
+                                  <View style={{ marginTop: 8 }}>
+                                    <Text
+                                      style={{
+                                        fontSize: 12,
+                                        color: "#6b7280",
+                                        marginBottom: 8,
+                                      }}
+                                    >
+                                      지도에서 보기
+                                    </Text>
+                                    <View
+                                      style={{ flexDirection: "row", gap: 8 }}
+                                    >
+                                      <Pressable
+                                        style={{
+                                          backgroundColor: "#FFEB3B",
+                                          paddingHorizontal: 12,
+                                          paddingVertical: 8,
+                                          borderRadius: 6,
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          flex: 1,
+                                        }}
+                                        onPress={() => {
+                                          const address =
+                                            schedule.address ||
+                                            schedule.location!;
+                                          if (Platform.OS === "web") {
+                                            openKakaoMap(address);
+                                          } else {
+                                            openMapApp(address, "kakao");
+                                          }
+                                        }}
+                                      >
+                                        <View
+                                          style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            gap: 4,
+                                          }}
+                                        >
+                                          <Text
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: "600",
+                                              color: "#000",
+                                            }}
+                                          >
+                                            카카오맵
+                                          </Text>
+                                          <Ionicons
+                                            name="map"
+                                            size={14}
+                                            color="#000"
+                                          />
+                                        </View>
+                                      </Pressable>
+
+                                      <Pressable
+                                        style={{
+                                          backgroundColor: "#03C75A",
+                                          paddingHorizontal: 12,
+                                          paddingVertical: 8,
+                                          borderRadius: 6,
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          flex: 1,
+                                        }}
+                                        onPress={() => {
+                                          const address =
+                                            schedule.address ||
+                                            schedule.location!;
+                                          if (Platform.OS === "web") {
+                                            openNaverMap(address);
+                                          } else {
+                                            openMapApp(address, "naver");
+                                          }
+                                        }}
+                                      >
+                                        <View
+                                          style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            gap: 4,
+                                          }}
+                                        >
+                                          <Text
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: "600",
+                                              color: "#fff",
+                                            }}
+                                          >
+                                            네이버지도
+                                          </Text>
+                                          <Ionicons
+                                            name="map"
+                                            size={14}
+                                            color="#fff"
+                                          />
+                                        </View>
+                                      </Pressable>
+
+                                      {Platform.OS !== "web" && (
+                                        <Pressable
+                                          style={{
+                                            backgroundColor: "#4285F4",
+                                            paddingHorizontal: 12,
+                                            paddingVertical: 8,
+                                            borderRadius: 6,
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            flex: 1,
+                                          }}
+                                          onPress={() => {
+                                            const address =
+                                              schedule.address ||
+                                              schedule.location!;
+                                            openMapApp(address, "google");
+                                          }}
+                                        >
+                                          <View
+                                            style={{
+                                              flexDirection: "row",
+                                              alignItems: "center",
+                                              gap: 4,
+                                            }}
+                                          >
+                                            <Text
+                                              style={{
+                                                fontSize: 12,
+                                                fontWeight: "600",
+                                                color: "#fff",
+                                              }}
+                                            >
+                                              구글맵
+                                            </Text>
+                                            <Ionicons
+                                              name="map"
+                                              size={14}
+                                              color="#fff"
+                                            />
+                                          </View>
+                                        </Pressable>
+                                      )}
+                                    </View>
+                                  </View>
+                                )}
+                              </View>
 
                               {/* 일하는 사람들 간단 정보 */}
                               <View style={{ marginTop: 16 }}>
@@ -1054,9 +1761,58 @@ export default function PlannerCalendar() {
                                     style={{ flexDirection: "row", gap: 8 }}
                                   >
                                     <Pressable
-                                      onPress={() =>
-                                        setShowAddWorkerModal(true)
-                                      }
+                                      onPress={() => {
+                                        console.log(
+                                          "Opening add worker modal for schedule:",
+                                          selectedScheduleId
+                                        );
+                                        const currentSchedule = schedules.find(
+                                          (s) => s.id === selectedScheduleId
+                                        );
+                                        if (currentSchedule) {
+                                          // 근무 기간 생성
+                                          const workStartDate =
+                                            currentSchedule.startDate;
+                                          const workEndDate =
+                                            currentSchedule.endDate;
+                                          const startDate =
+                                            dayjs(workStartDate);
+                                          const endDate = dayjs(workEndDate);
+                                          const dailyPeriods: Array<{
+                                            date: string;
+                                            startTime: string;
+                                            endTime: string;
+                                          }> = [];
+
+                                          let currentDate = startDate;
+                                          while (
+                                            currentDate.isSameOrBefore(
+                                              endDate,
+                                              "day"
+                                            )
+                                          ) {
+                                            dailyPeriods.push({
+                                              date: currentDate.format(
+                                                "YYYY-MM-DD"
+                                              ),
+                                              startTime: "09:00",
+                                              endTime: "18:00",
+                                            });
+                                            currentDate = currentDate.add(
+                                              1,
+                                              "day"
+                                            );
+                                          }
+
+                                          setNewWorker((prev) => ({
+                                            ...prev,
+                                            workStartDate: workStartDate,
+                                            workEndDate: workEndDate,
+                                            dailyWorkPeriods: dailyPeriods,
+                                          }));
+                                        }
+                                        setShowAddWorkerModal(true);
+                                      }}
                                       style={{
                                         backgroundColor: "#10b981",
                                         paddingHorizontal: 12,
@@ -1189,7 +1945,54 @@ export default function PlannerCalendar() {
                                   일하는 사람들 관리
                                 </Text>
                                 <Pressable
-                                  onPress={() => setShowAddWorkerModal(true)}
+                                  onPress={() => {
+                                    console.log(
+                                      "Opening add worker modal for schedule:",
+                                      selectedScheduleId
+                                    );
+                                    const currentSchedule = schedules.find(
+                                      (s) => s.id === selectedScheduleId
+                                    );
+                                    if (currentSchedule) {
+                                      // 근무 기간 생성
+                                      const workStartDate =
+                                        currentSchedule.startDate;
+                                      const workEndDate =
+                                        currentSchedule.endDate;
+                                      const startDate = dayjs(workStartDate);
+                                      const endDate = dayjs(workEndDate);
+                                      const dailyPeriods: Array<{
+                                        date: string;
+                                        startTime: string;
+                                        endTime: string;
+                                      }> = [];
+
+                                      let currentDate = startDate;
+                                      while (
+                                        currentDate.isSameOrBefore(
+                                          endDate,
+                                          "day"
+                                        )
+                                      ) {
+                                        dailyPeriods.push({
+                                          date: currentDate.format(
+                                            "YYYY-MM-DD"
+                                          ),
+                                          startTime: "09:00",
+                                          endTime: "18:00",
+                                        });
+                                        currentDate = currentDate.add(1, "day");
+                                      }
+
+                                      setNewWorker((prev) => ({
+                                        ...prev,
+                                        workStartDate: workStartDate,
+                                        workEndDate: workEndDate,
+                                        dailyWorkPeriods: dailyPeriods,
+                                      }));
+                                    }
+                                    setShowAddWorkerModal(true);
+                                  }}
                                   style={{
                                     backgroundColor: "#10b981",
                                     paddingHorizontal: 12,
@@ -1266,7 +2069,10 @@ export default function PlannerCalendar() {
                                             textDecorationLine: "underline",
                                           }}
                                         >
-                                          📞 {workerInfo.worker.phone}
+                                          📞{" "}
+                                          {formatPhoneNumber(
+                                            workerInfo.worker.phone
+                                          )}
                                         </Text>
                                       </Pressable>
                                     </View>
@@ -1470,15 +2276,37 @@ export default function PlannerCalendar() {
                                           justifyContent: "space-between",
                                         }}
                                       >
-                                        <Text
+                                        <View
                                           style={{
-                                            fontSize: 12,
-                                            color: "#1f2937",
                                             flex: 1,
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            gap: 8,
                                           }}
                                         >
-                                          {workerInfo.worker.bankAccount}
-                                        </Text>
+                                          <Text
+                                            style={{
+                                              fontSize: 12,
+                                              color: "#6b7280",
+                                              minWidth: 40,
+                                            }}
+                                          >
+                                            {
+                                              detectBankFromAccount(
+                                                workerInfo.worker.bankAccount
+                                              ).shortName
+                                            }
+                                          </Text>
+                                          <Text
+                                            style={{
+                                              fontSize: 12,
+                                              color: "#1f2937",
+                                              flex: 1,
+                                            }}
+                                          >
+                                            {workerInfo.worker.bankAccount}
+                                          </Text>
+                                        </View>
                                         <View
                                           style={{
                                             flexDirection: "row",
@@ -1532,6 +2360,30 @@ export default function PlannerCalendar() {
                                         </View>
                                       </View>
                                     </View>
+
+                                    {/* 메모 */}
+                                    {workerInfo.worker.memo && (
+                                      <View style={{ marginBottom: 12 }}>
+                                        <Text
+                                          style={{
+                                            fontSize: 12,
+                                            color: "#6b7280",
+                                            marginBottom: 4,
+                                          }}
+                                        >
+                                          메모
+                                        </Text>
+                                        <Text
+                                          style={{
+                                            fontSize: 12,
+                                            color: "#1f2937",
+                                            fontStyle: "italic",
+                                          }}
+                                        >
+                                          {workerInfo.worker.memo}
+                                        </Text>
+                                      </View>
+                                    )}
 
                                     {/* 급여 설정 */}
                                     <View
@@ -1779,10 +2631,11 @@ export default function PlannerCalendar() {
                   padding: 12,
                   fontSize: 16,
                 }}
-                value={newWorker.phone}
-                onChangeText={(text) =>
-                  setNewWorker({ ...newWorker, phone: text })
-                }
+                value={formatPhoneNumber(newWorker.phone)}
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, "");
+                  setNewWorker({ ...newWorker, phone: cleaned });
+                }}
                 placeholder="010-1234-5678"
                 keyboardType="phone-pad"
               />
@@ -1792,20 +2645,28 @@ export default function PlannerCalendar() {
               <Text style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}>
                 계좌번호
               </Text>
-              <TextInput
-                style={{
-                  borderWidth: 1,
-                  borderColor: "#d1d5db",
-                  borderRadius: 6,
-                  padding: 12,
-                  fontSize: 16,
-                }}
-                value={newWorker.bankAccount}
-                onChangeText={(text) =>
-                  setNewWorker({ ...newWorker, bankAccount: text })
-                }
-                placeholder="123-456-789"
-              />
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Text style={{ fontSize: 14, color: "#6b7280", minWidth: 60 }}>
+                  {detectBankFromAccount(newWorker.bankAccount).shortName}
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#d1d5db",
+                    borderRadius: 6,
+                    padding: 12,
+                    fontSize: 16,
+                    flex: 1,
+                  }}
+                  value={newWorker.bankAccount}
+                  onChangeText={(text) =>
+                    setNewWorker({ ...newWorker, bankAccount: text })
+                  }
+                  placeholder="123-456-789"
+                />
+              </View>
             </View>
 
             <View style={{ marginBottom: 16 }}>
@@ -1820,71 +2681,530 @@ export default function PlannerCalendar() {
                   padding: 12,
                   fontSize: 16,
                 }}
-                value={newWorker.hourlyWage.toString()}
+                value={formatNumber(newWorker.hourlyWage)}
                 onChangeText={(text) => {
-                  const wage = parseInt(text) || 0;
+                  const cleaned = text.replace(/[^0-9]/g, "");
+                  const wage = parseInt(cleaned) || 0;
                   setNewWorker({ ...newWorker, hourlyWage: wage });
                 }}
-                placeholder="50000"
+                placeholder="11,000"
                 keyboardType="numeric"
               />
             </View>
 
-            <View style={{ marginBottom: 20 }}>
+            <View style={{ marginBottom: 16 }}>
               <Text style={{ fontSize: 14, marginBottom: 8, color: "#374151" }}>
                 세금공제
               </Text>
-              <View style={{ flexDirection: "row", gap: 12 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 16 }}
+              >
                 <Pressable
                   onPress={() =>
                     setNewWorker({ ...newWorker, taxWithheld: true })
                   }
-                  style={{
-                    backgroundColor: newWorker.taxWithheld
-                      ? "#2563eb"
-                      : "#e5e7eb",
-                    paddingHorizontal: 16,
-                    paddingVertical: 8,
-                    borderRadius: 6,
-                    flex: 1,
-                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
                 >
-                  <Text
+                  <View
                     style={{
-                      color: newWorker.taxWithheld ? "white" : "#6b7280",
-                      textAlign: "center",
-                      fontWeight: "600",
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: newWorker.taxWithheld
+                        ? "#2563eb"
+                        : "#d1d5db",
+                      backgroundColor: newWorker.taxWithheld
+                        ? "#2563eb"
+                        : "white",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    Y (3.3% 공제)
-                  </Text>
+                    {newWorker.taxWithheld && (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: "white",
+                        }}
+                      />
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 14, color: "#374151" }}>Y</Text>
                 </Pressable>
                 <Pressable
                   onPress={() =>
                     setNewWorker({ ...newWorker, taxWithheld: false })
                   }
-                  style={{
-                    backgroundColor: !newWorker.taxWithheld
-                      ? "#2563eb"
-                      : "#e5e7eb",
-                    paddingHorizontal: 16,
-                    paddingVertical: 8,
-                    borderRadius: 6,
-                    flex: 1,
-                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
                 >
-                  <Text
+                  <View
                     style={{
-                      color: !newWorker.taxWithheld ? "white" : "#6b7280",
-                      textAlign: "center",
-                      fontWeight: "600",
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: !newWorker.taxWithheld
+                        ? "#2563eb"
+                        : "#d1d5db",
+                      backgroundColor: !newWorker.taxWithheld
+                        ? "#2563eb"
+                        : "white",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    N (공제 없음)
-                  </Text>
+                    {!newWorker.taxWithheld && (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: "white",
+                        }}
+                      />
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 14, color: "#374151" }}>N</Text>
                 </Pressable>
               </View>
             </View>
+
+            {/* 메모 필드 */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}>
+                메모
+              </Text>
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#d1d5db",
+                  borderRadius: 6,
+                  padding: 12,
+                  fontSize: 16,
+                  minHeight: 80,
+                  textAlignVertical: "top",
+                }}
+                value={newWorker.memo}
+                onChangeText={(text) =>
+                  setNewWorker({ ...newWorker, memo: text })
+                }
+                placeholder="메모를 입력하세요"
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* 전일정 근무 여부 */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, marginBottom: 8, color: "#374151" }}>
+                전일정 근무
+              </Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 16 }}
+              >
+                <Pressable
+                  onPress={() =>
+                    setNewWorker({ ...newWorker, fullPeriod: true })
+                  }
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: newWorker.fullPeriod ? "#2563eb" : "#d1d5db",
+                      backgroundColor: newWorker.fullPeriod
+                        ? "#2563eb"
+                        : "white",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {newWorker.fullPeriod && (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: "white",
+                        }}
+                      />
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 14, color: "#374151" }}>Y</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    setNewWorker({ ...newWorker, fullPeriod: false })
+                  }
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: !newWorker.fullPeriod
+                        ? "#2563eb"
+                        : "#d1d5db",
+                      backgroundColor: !newWorker.fullPeriod
+                        ? "#2563eb"
+                        : "white",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {!newWorker.fullPeriod && (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: "white",
+                        }}
+                      />
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 14, color: "#374151" }}>N</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* 근무 기간 선택 (전일정 근무가 N일 때만 표시) */}
+            {!newWorker.fullPeriod && (
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 8, color: "#374151" }}
+                >
+                  근무 기간
+                </Text>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        marginBottom: 4,
+                        color: "#6b7280",
+                      }}
+                    >
+                      시작일
+                    </Text>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: "#d1d5db",
+                        borderRadius: 6,
+                        padding: 12,
+                        fontSize: 14,
+                      }}
+                      value={newWorker.workStartDate}
+                      onChangeText={(text) =>
+                        setNewWorker({ ...newWorker, workStartDate: text })
+                      }
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        marginBottom: 4,
+                        color: "#6b7280",
+                      }}
+                    >
+                      종료일
+                    </Text>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: "#d1d5db",
+                        borderRadius: 6,
+                        padding: 12,
+                        fontSize: 14,
+                      }}
+                      value={newWorker.workEndDate}
+                      onChangeText={(text) =>
+                        setNewWorker({ ...newWorker, workEndDate: text })
+                      }
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* 근무시간 매일 동일한지 */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, marginBottom: 8, color: "#374151" }}>
+                근무시간 매일 동일한지
+              </Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 16 }}
+              >
+                <Pressable
+                  onPress={() =>
+                    setNewWorker({
+                      ...newWorker,
+                      isWorkHoursSameEveryDay: true,
+                    })
+                  }
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: newWorker.isWorkHoursSameEveryDay
+                        ? "#2563eb"
+                        : "#d1d5db",
+                      backgroundColor: newWorker.isWorkHoursSameEveryDay
+                        ? "#2563eb"
+                        : "white",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {newWorker.isWorkHoursSameEveryDay && (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: "white",
+                        }}
+                      />
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 14, color: "#374151" }}>Y</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    setNewWorker({
+                      ...newWorker,
+                      isWorkHoursSameEveryDay: false,
+                    })
+                  }
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: !newWorker.isWorkHoursSameEveryDay
+                        ? "#2563eb"
+                        : "#d1d5db",
+                      backgroundColor: !newWorker.isWorkHoursSameEveryDay
+                        ? "#2563eb"
+                        : "white",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {!newWorker.isWorkHoursSameEveryDay && (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: "white",
+                        }}
+                      />
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 14, color: "#374151" }}>N</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* 근무 시간 - 매일 동일한 경우 */}
+            {newWorker.isWorkHoursSameEveryDay && (
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 8, color: "#374151" }}
+                >
+                  근무 시간
+                </Text>
+                {newWorker.workTimes.map((workTime, index) => (
+                  <View
+                    key={index}
+                    style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}
+                  >
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: "#d1d5db",
+                        borderRadius: 6,
+                        padding: 12,
+                        fontSize: 14,
+                        flex: 1,
+                      }}
+                      value={workTime.startTime}
+                      onChangeText={(text) => {
+                        const newWorkTimes = [...newWorker.workTimes];
+                        newWorkTimes[index].startTime = text;
+                        setNewWorker({ ...newWorker, workTimes: newWorkTimes });
+                      }}
+                      placeholder="09:00"
+                    />
+                    <Text style={{ alignSelf: "center", color: "#6b7280" }}>
+                      ~
+                    </Text>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: "#d1d5db",
+                        borderRadius: 6,
+                        padding: 12,
+                        fontSize: 14,
+                        flex: 1,
+                      }}
+                      value={workTime.endTime}
+                      onChangeText={(text) => {
+                        const newWorkTimes = [...newWorker.workTimes];
+                        newWorkTimes[index].endTime = text;
+                        setNewWorker({ ...newWorker, workTimes: newWorkTimes });
+                      }}
+                      placeholder="18:00"
+                    />
+                    {newWorker.workTimes.length > 1 && (
+                      <Pressable
+                        onPress={() => {
+                          const newWorkTimes = newWorker.workTimes.filter(
+                            (_, i) => i !== index
+                          );
+                          setNewWorker({
+                            ...newWorker,
+                            workTimes: newWorkTimes,
+                          });
+                        }}
+                        style={{
+                          backgroundColor: "#ef4444",
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 6,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text style={{ color: "white", fontSize: 12 }}>
+                          삭제
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+                <Pressable
+                  onPress={() => {
+                    setNewWorker({
+                      ...newWorker,
+                      workTimes: [
+                        ...newWorker.workTimes,
+                        { startTime: "09:00", endTime: "18:00" },
+                      ],
+                    });
+                  }}
+                  style={{
+                    backgroundColor: "#10b981",
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 6,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: "white", fontSize: 12 }}>
+                    시간 추가
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* 날짜별 근무 시간 - 매일 다른 경우 */}
+            {!newWorker.isWorkHoursSameEveryDay && !newWorker.fullPeriod && (
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 8, color: "#374151" }}
+                >
+                  날짜별 근무 시간
+                </Text>
+                {newWorker.dailyWorkPeriods.map((period, index) => (
+                  <View
+                    key={index}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                      borderRadius: 6,
+                      padding: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: "#6b7280",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {dayjs(period.date).format("MM월 DD일")}
+                    </Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <TextInput
+                        style={{
+                          borderWidth: 1,
+                          borderColor: "#d1d5db",
+                          borderRadius: 4,
+                          padding: 8,
+                          fontSize: 12,
+                          flex: 1,
+                        }}
+                        value={period.startTime}
+                        onChangeText={(text) => {
+                          const newPeriods = [...newWorker.dailyWorkPeriods];
+                          newPeriods[index].startTime = text;
+                          setNewWorker({
+                            ...newWorker,
+                            dailyWorkPeriods: newPeriods,
+                          });
+                        }}
+                        placeholder="09:00"
+                      />
+                      <Text style={{ alignSelf: "center", color: "#6b7280" }}>
+                        ~
+                      </Text>
+                      <TextInput
+                        style={{
+                          borderWidth: 1,
+                          borderColor: "#d1d5db",
+                          borderRadius: 4,
+                          padding: 8,
+                          fontSize: 12,
+                          flex: 1,
+                        }}
+                        value={period.endTime}
+                        onChangeText={(text) => {
+                          const newPeriods = [...newWorker.dailyWorkPeriods];
+                          newPeriods[index].endTime = text;
+                          setNewWorker({
+                            ...newWorker,
+                            dailyWorkPeriods: newPeriods,
+                          });
+                        }}
+                        placeholder="18:00"
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Pressable
@@ -1929,6 +3249,18 @@ export default function PlannerCalendar() {
           </View>
         </View>
       </Modal>
+
+      {/* 주소 검색 모달 (앱에서만) */}
+      <AddressSearchModal
+        visible={isAddressSearchVisible}
+        onClose={() => setIsAddressSearchVisible(false)}
+        onSelectAddress={handleAddressSelect}
+        currentAddress={
+          selectedScheduleId
+            ? schedules.find((s) => s.id === selectedScheduleId)?.address || ""
+            : ""
+        }
+      />
     </View>
   );
 }
@@ -1999,5 +3331,85 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     justifyContent: "center",
     alignItems: "center",
+  },
+  // 모바일 스케줄 목록 스타일
+  mobileScheduleList: {
+    backgroundColor: Theme.colors.background,
+    borderTopWidth: 1,
+    borderTopColor: Theme.colors.border.light,
+    paddingHorizontal: Theme.spacing.md,
+    paddingTop: Theme.spacing.md,
+    maxHeight: 300,
+  },
+  mobileScheduleListTitle: {
+    fontSize: Theme.typography.sizes.lg,
+    fontWeight: Theme.typography.weights.semibold,
+    color: Theme.colors.text.primary,
+    marginBottom: Theme.spacing.sm,
+  },
+  noScheduleText: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.secondary,
+    textAlign: "center",
+    paddingVertical: Theme.spacing.lg,
+  },
+  scheduleScrollView: {
+    maxHeight: 250,
+  },
+  mobileScheduleItem: {
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.md,
+    marginBottom: Theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Theme.colors.border.light,
+    ...Theme.shadows.sm,
+  },
+  mobileScheduleContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Theme.spacing.md,
+  },
+  mobileScheduleLeft: {
+    flex: 1,
+    marginRight: Theme.spacing.sm,
+  },
+  mobileScheduleTitle: {
+    fontSize: Theme.typography.sizes.md,
+    fontWeight: Theme.typography.weights.semibold,
+    color: Theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  mobileScheduleLocation: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.secondary,
+  },
+  mobileScheduleRight: {
+    alignItems: "flex-end",
+  },
+  mobileScheduleTime: {
+    fontSize: Theme.typography.sizes.sm,
+    fontWeight: Theme.typography.weights.medium,
+    color: Theme.colors.text.primary,
+    marginBottom: 2,
+  },
+  mobileMapButtons: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  mobileMapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 4,
+  },
+  mobileMapButtonText: {
+    fontSize: 10,
+    color: "#374151",
+    fontWeight: "500",
   },
 });

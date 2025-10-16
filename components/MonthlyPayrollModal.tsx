@@ -1,3 +1,4 @@
+import DatePicker from "@/components/DatePicker";
 import { Theme } from "@/constants/Theme";
 import { Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,7 +13,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { Calendar } from "react-native-calendars";
 
 interface MonthlyPayrollModalProps {
   visible: boolean;
@@ -30,62 +30,45 @@ export default function MonthlyPayrollModal({
   const [totalPayroll, setTotalPayroll] = useState(0);
   const [selectedSchedules, setSelectedSchedules] = useState<Schedule[]>([]);
   const [selectedWorkers, setSelectedWorkers] = useState<any[]>([]);
-  const [showStartCalendar, setShowStartCalendar] = useState(false);
-  const [showEndCalendar, setShowEndCalendar] = useState(false);
 
   // 기본값을 현재 달 1일~말일로 설정
   useEffect(() => {
     const today = dayjs();
     const firstDay = today.startOf("month").format("YYYY-MM-DD");
     const lastDay = today.endOf("month").format("YYYY-MM-DD");
-
     setStartDate(firstDay);
     setEndDate(lastDay);
   }, []);
 
-  // 시작 날짜가 변경되면 끝 날짜를 자동으로 한 달 후로 설정
-  useEffect(() => {
-    if (startDate) {
-      const newEndDate = dayjs(startDate)
-        .add(1, "month")
-        .subtract(1, "day")
-        .format("YYYY-MM-DD");
-      setEndDate(newEndDate);
-    }
-  }, [startDate]);
-
-  // 급여 계산
+  // 날짜가 변경될 때마다 급여 계산
   useEffect(() => {
     if (startDate && endDate) {
-      const result = calculatePayroll(startDate, endDate);
-      setTotalPayroll(result.total);
-      setSelectedSchedules(result.schedules);
-      setSelectedWorkers(result.workers);
+      calculatePayroll();
     }
   }, [startDate, endDate, schedules]);
 
-  const calculatePayroll = (start: string, end: string) => {
+  const calculatePayroll = () => {
     let total = 0;
-    const matchingSchedules: Schedule[] = [];
-    const matchingWorkers: any[] = [];
+    const schedulesInRange: Schedule[] = [];
+    const workersInRange: any[] = [];
 
     schedules.forEach((schedule) => {
       const scheduleStart = dayjs(schedule.startDate);
       const scheduleEnd = dayjs(schedule.endDate);
-      const periodStart = dayjs(start);
-      const periodEnd = dayjs(end);
+      const periodStart = dayjs(startDate);
+      const periodEnd = dayjs(endDate);
 
       // 스케줄이 선택된 기간과 겹치는지 확인
       if (
         scheduleStart.isSameOrBefore(periodEnd) &&
         scheduleEnd.isSameOrAfter(periodStart)
       ) {
-        matchingSchedules.push(schedule);
+        schedulesInRange.push(schedule);
 
         schedule.workers.forEach((workerInfo) => {
           const hourlyWage = workerInfo.worker.hourlyWage;
           const taxWithheld = workerInfo.worker.taxWithheld;
-          const taxRate = 0.033; // 3.3%
+          const taxRate = 0.033;
 
           // 근무 시간 계산
           const totalHours = workerInfo.periods.reduce((sum, period) => {
@@ -94,7 +77,6 @@ export default function MonthlyPayrollModal({
             return sum + end.diff(start, "hour", true);
           }, 0);
 
-          // 급여 계산
           let grossPay = hourlyWage * totalHours;
           let netPay = grossPay;
 
@@ -104,20 +86,21 @@ export default function MonthlyPayrollModal({
 
           total += Math.round(netPay);
 
-          // 근로자 정보 저장
-          matchingWorkers.push({
-            ...workerInfo.worker,
-            scheduleId: schedule.id,
+          workersInRange.push({
+            id: workerInfo.worker.id,
+            name: workerInfo.worker.name,
+            phone: workerInfo.worker.phone,
             scheduleTitle: schedule.title,
             workHours: totalHours,
             netPay: Math.round(netPay),
-            grossPay: Math.round(grossPay),
           });
         });
       }
     });
 
-    return { total, schedules: matchingSchedules, workers: matchingWorkers };
+    setTotalPayroll(total);
+    setSelectedSchedules(schedulesInRange);
+    setSelectedWorkers(workersInRange);
   };
 
   const formatCurrency = (amount: number) => {
@@ -136,11 +119,7 @@ export default function MonthlyPayrollModal({
         <View style={styles.header}>
           <Text style={styles.headerTitle}>급여 현황</Text>
           <Pressable style={styles.closeButton} onPress={onClose}>
-            <Ionicons
-              name="close"
-              size={24}
-              color={Theme.colors.text.primary}
-            />
+            <Ionicons name="close" size={24} color="white" />
           </Pressable>
         </View>
 
@@ -149,38 +128,18 @@ export default function MonthlyPayrollModal({
           <View style={styles.periodSection}>
             <Text style={styles.sectionTitle}>기간 선택</Text>
             <View style={styles.dateInputContainer}>
-              <View style={styles.dateInputWrapper}>
-                <Text style={styles.dateLabel}>시작 날짜</Text>
-                <Pressable
-                  style={styles.dateButton}
-                  onPress={() => setShowStartCalendar(true)}
-                >
-                  <Text style={styles.dateButtonText}>
-                    {dayjs(startDate).format("YYYY년 M월 D일")}
-                  </Text>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={Theme.colors.text.secondary}
-                  />
-                </Pressable>
-              </View>
-              <View style={styles.dateInputWrapper}>
-                <Text style={styles.dateLabel}>끝 날짜</Text>
-                <Pressable
-                  style={styles.dateButton}
-                  onPress={() => setShowEndCalendar(true)}
-                >
-                  <Text style={styles.dateButtonText}>
-                    {dayjs(endDate).format("YYYY년 M월 D일")}
-                  </Text>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={Theme.colors.text.secondary}
-                  />
-                </Pressable>
-              </View>
+              <DatePicker
+                label="시작 날짜"
+                value={startDate}
+                onDateChange={setStartDate}
+                placeholder="시작 날짜를 선택하세요"
+              />
+              <DatePicker
+                label="끝 날짜"
+                value={endDate}
+                onDateChange={setEndDate}
+                placeholder="끝 날짜를 선택하세요"
+              />
             </View>
           </View>
 
@@ -189,38 +148,8 @@ export default function MonthlyPayrollModal({
             <View style={styles.totalCard}>
               <Text style={styles.totalLabel}>총 급여</Text>
               <Text style={styles.totalAmount}>
-                {formatCurrency(totalPayroll)}원
+                ₩{formatCurrency(totalPayroll)}
               </Text>
-            </View>
-          </View>
-
-          {/* 기간 정보 */}
-          <View style={styles.periodInfo}>
-            <Text style={styles.periodText}>
-              {dayjs(startDate).format("M월 D일")} ~{" "}
-              {dayjs(endDate).format("M월 D일")}
-            </Text>
-            <Text style={styles.periodDays}>
-              ({dayjs(endDate).diff(dayjs(startDate), "day") + 1}일간)
-            </Text>
-          </View>
-
-          {/* 상세 정보 */}
-          <View style={styles.detailSection}>
-            <Text style={styles.sectionTitle}>상세 정보</Text>
-            <View style={styles.detailCard}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>계산된 스케줄 수</Text>
-                <Text style={styles.detailValue}>
-                  {selectedSchedules.length}개
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>참여 근로자 수</Text>
-                <Text style={styles.detailValue}>
-                  {selectedWorkers.length}명
-                </Text>
-              </View>
             </View>
           </View>
 
@@ -296,126 +225,6 @@ export default function MonthlyPayrollModal({
             </View>
           )}
         </ScrollView>
-
-        {/* 시작 날짜 달력 */}
-        {showStartCalendar && (
-          <Modal
-            visible={showStartCalendar}
-            animationType="slide"
-            presentationStyle="pageSheet"
-            onRequestClose={() => setShowStartCalendar(false)}
-          >
-            <View style={styles.calendarContainer}>
-              <View style={styles.calendarHeader}>
-                <Text style={styles.calendarTitle}>시작 날짜 선택</Text>
-                <Pressable
-                  style={styles.calendarCloseButton}
-                  onPress={() => setShowStartCalendar(false)}
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={Theme.colors.text.primary}
-                  />
-                </Pressable>
-              </View>
-              <Calendar
-                onDayPress={(day) => {
-                  setStartDate(day.dateString);
-                  setShowStartCalendar(false);
-                }}
-                markedDates={{
-                  [startDate]: {
-                    selected: true,
-                    selectedColor: Theme.colors.primary,
-                  },
-                }}
-                theme={{
-                  selectedDayBackgroundColor: Theme.colors.primary,
-                  todayTextColor: Theme.colors.primary,
-                  arrowColor: Theme.colors.primary,
-                  calendarBackground: Theme.colors.background,
-                  textSectionTitleColor: Theme.colors.text.primary,
-                  dayTextColor: Theme.colors.text.primary,
-                  monthTextColor: Theme.colors.text.primary,
-                  textDisabledColor: Theme.colors.text.tertiary,
-                  textDayFontSize: 12,
-                  textMonthFontSize: 14,
-                  textDayHeaderFontSize: 10,
-                  agendaDayTextColor: Theme.colors.text.primary,
-                  agendaDayNumColor: Theme.colors.text.primary,
-                  agendaTodayColor: Theme.colors.primary,
-                }}
-                style={styles.calendar}
-                hideExtraDays={true}
-                firstDay={1}
-                showWeekNumbers={false}
-                disableMonthChange={false}
-                enableSwipeMonths={true}
-              />
-            </View>
-          </Modal>
-        )}
-
-        {/* 끝 날짜 달력 */}
-        {showEndCalendar && (
-          <Modal
-            visible={showEndCalendar}
-            animationType="slide"
-            presentationStyle="pageSheet"
-            onRequestClose={() => setShowEndCalendar(false)}
-          >
-            <View style={styles.calendarContainer}>
-              <View style={styles.calendarHeader}>
-                <Text style={styles.calendarTitle}>끝 날짜 선택</Text>
-                <Pressable
-                  style={styles.calendarCloseButton}
-                  onPress={() => setShowEndCalendar(false)}
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={Theme.colors.text.primary}
-                  />
-                </Pressable>
-              </View>
-              <Calendar
-                onDayPress={(day) => {
-                  setEndDate(day.dateString);
-                  setShowEndCalendar(false);
-                }}
-                markedDates={{
-                  [endDate]: {
-                    selected: true,
-                    selectedColor: Theme.colors.primary,
-                  },
-                }}
-                theme={{
-                  selectedDayBackgroundColor: Theme.colors.primary,
-                  todayTextColor: Theme.colors.primary,
-                  arrowColor: Theme.colors.primary,
-                  calendarBackground: Theme.colors.background,
-                  textSectionTitleColor: Theme.colors.text.primary,
-                  dayTextColor: Theme.colors.text.primary,
-                  monthTextColor: Theme.colors.text.primary,
-                  textDisabledColor: Theme.colors.text.tertiary,
-                  textDayFontSize: 12,
-                  textMonthFontSize: 14,
-                  textDayHeaderFontSize: 10,
-                  agendaDayTextColor: Theme.colors.text.primary,
-                  agendaDayNumColor: Theme.colors.text.primary,
-                  agendaTodayColor: Theme.colors.primary,
-                }}
-                style={styles.calendar}
-                hideExtraDays={true}
-                firstDay={1}
-                showWeekNumbers={false}
-                disableMonthChange={false}
-                enableSwipeMonths={true}
-              />
-            </View>
-          </Modal>
-        )}
       </View>
     </Modal>
   );
@@ -427,25 +236,24 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.background,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Theme.spacing.xl,
+    backgroundColor: Theme.colors.primary,
     paddingTop: 60,
-    paddingBottom: Theme.spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
+    paddingBottom: 20,
+    paddingHorizontal: Theme.spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerTitle: {
     fontSize: Theme.typography.sizes.xl,
     fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.primary,
+    color: Theme.colors.text.inverse,
   },
   closeButton: {
     width: 40,
     height: 40,
     borderRadius: Theme.borderRadius.full,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -466,90 +274,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Theme.spacing.md,
   },
-  dateInputWrapper: {
-    flex: 1,
-  },
-  dateLabel: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
-    marginBottom: Theme.spacing.xs,
-  },
-  dateButton: {
-    borderWidth: 1,
-    borderColor: Theme.colors.border.medium,
-    borderRadius: Theme.borderRadius.md,
-    paddingHorizontal: Theme.spacing.md,
-    paddingVertical: Theme.spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Theme.colors.background,
-  },
-  dateButtonText: {
-    fontSize: Theme.typography.sizes.md,
-    color: Theme.colors.text.primary,
-  },
   totalSection: {
     marginBottom: Theme.spacing.xl,
   },
   totalCard: {
-    backgroundColor: Theme.colors.primary,
+    backgroundColor: Theme.colors.card,
     borderRadius: Theme.borderRadius.lg,
     padding: Theme.spacing.xl,
     alignItems: "center",
-    ...Theme.shadows.md,
-  },
-  totalLabel: {
-    fontSize: Theme.typography.sizes.md,
-    color: Theme.colors.text.inverse,
-    marginBottom: Theme.spacing.sm,
-  },
-  totalAmount: {
-    fontSize: Theme.typography.sizes.xxxl,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.inverse,
-  },
-  periodInfo: {
-    alignItems: "center",
-    marginBottom: Theme.spacing.xl,
-  },
-  periodText: {
-    fontSize: Theme.typography.sizes.md,
-    color: Theme.colors.text.primary,
-    fontWeight: Theme.typography.weights.medium,
-  },
-  periodDays: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
-    marginTop: Theme.spacing.xs,
-  },
-  detailSection: {
-    marginBottom: Theme.spacing.xl,
-  },
-  detailCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.lg,
     borderWidth: 1,
     borderColor: Theme.colors.border.light,
     ...Theme.shadows.sm,
   },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: Theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
-  },
-  detailLabel: {
-    fontSize: Theme.typography.sizes.sm,
+  totalLabel: {
+    fontSize: Theme.typography.sizes.md,
     color: Theme.colors.text.secondary,
+    marginBottom: Theme.spacing.sm,
   },
-  detailValue: {
-    fontSize: Theme.typography.sizes.sm,
+  totalAmount: {
+    fontSize: Theme.typography.sizes.xxl,
+    fontWeight: Theme.typography.weights.bold,
     color: Theme.colors.text.primary,
-    fontWeight: Theme.typography.weights.medium,
   },
   listSection: {
     marginBottom: Theme.spacing.xl,
@@ -582,7 +327,7 @@ const styles = StyleSheet.create({
   },
   scheduleLocation: {
     fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
+    color: Theme.colors.text.tertiary,
   },
   workerCard: {
     backgroundColor: Theme.colors.card,
@@ -608,7 +353,7 @@ const styles = StyleSheet.create({
   workerSchedule: {
     fontSize: Theme.typography.sizes.sm,
     color: Theme.colors.text.secondary,
-    marginBottom: Theme.spacing.xs,
+    marginBottom: Theme.spacing.sm,
   },
   workerDetails: {
     flexDirection: "row",
@@ -617,43 +362,11 @@ const styles = StyleSheet.create({
   },
   workerHours: {
     fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
+    color: Theme.colors.text.tertiary,
   },
   workerPay: {
     fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.semibold,
-    color: Theme.colors.success,
-  },
-  calendarContainer: {
-    flex: 1,
-    backgroundColor: Theme.colors.background,
-  },
-  calendarHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Theme.spacing.lg,
-    paddingTop: 50,
-    paddingBottom: Theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
-  },
-  calendarTitle: {
-    fontSize: Theme.typography.sizes.lg,
-    fontWeight: Theme.typography.weights.bold,
+    fontWeight: Theme.typography.weights.medium,
     color: Theme.colors.text.primary,
-  },
-  calendarCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: Theme.borderRadius.full,
-    backgroundColor: Theme.colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  calendar: {
-    height: 250,
-    paddingHorizontal: Theme.spacing.sm,
-    paddingBottom: Theme.spacing.sm,
   },
 });
