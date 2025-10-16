@@ -1,6 +1,10 @@
 import { Text } from "@/components/Themed";
-import { Schedule, ScheduleCategory } from "@/models/types";
+import { Theme } from "@/constants/Theme";
+import { Schedule, ScheduleCategory, Worker } from "@/models/types";
+import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
+import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import React, { useMemo, useState } from "react";
 import {
   Alert,
@@ -10,12 +14,16 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Switch,
   TextInput,
   View,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { PanGestureHandler, State } from "react-native-gesture-handler";
+
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 function getCategoryColor(category: ScheduleCategory): string {
   const colors: Record<ScheduleCategory, string> = {
@@ -25,6 +33,109 @@ function getCategoryColor(category: ScheduleCategory): string {
     others: "#6b7280",
   };
   return colors[category] || colors.others;
+}
+
+// 작은 근로자 카드 컴포넌트
+function WorkerCard({
+  worker,
+  periods,
+  paid,
+  onTogglePaid,
+  onCall,
+  onSMS,
+}: {
+  worker: Worker;
+  periods: any[];
+  paid: boolean;
+  onTogglePaid: (paid: boolean) => void;
+  onCall: (phone: string) => void;
+  onSMS: (phone: string) => void;
+}) {
+  const getPosition = (name: string) => {
+    if (name.includes("선생") || name.includes("Teacher")) return "강사";
+    if (name.includes("개발") || name.includes("Developer")) return "개발자";
+    if (name.includes("이벤트") || name.includes("Event")) return "이벤트 담당";
+    return "근로자";
+  };
+
+  const getWorkTime = (periods: any[]) => {
+    if (periods.length === 0) return "시간 미정";
+
+    const totalMinutes = periods.reduce((total, period) => {
+      const start = dayjs(period.start);
+      const end = dayjs(period.end);
+      return total + end.diff(start, "minute");
+    }, 0);
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours > 0 && minutes > 0) {
+      return `${hours}시간 ${minutes}분`;
+    } else if (hours > 0) {
+      return `${hours}시간`;
+    } else {
+      return `${minutes}분`;
+    }
+  };
+
+  const getTimeRange = (periods: any[]) => {
+    if (periods.length === 0) return "시간 미정";
+
+    const times = periods.map((p) => ({
+      start: dayjs(p.start).format("HH:mm"),
+      end: dayjs(p.end).format("HH:mm"),
+    }));
+
+    if (times.length === 1) {
+      return `${times[0].start} - ${times[0].end}`;
+    } else {
+      const start = times[0].start;
+      const end = times[times.length - 1].end;
+      return `${start} - ${end}`;
+    }
+  };
+
+  return (
+    <View style={styles.workerCard}>
+      <View style={styles.workerHeader}>
+        <View style={styles.workerInfo}>
+          <Text style={styles.workerName}>{worker.name}</Text>
+          <Text style={styles.workerPosition}>{getPosition(worker.name)}</Text>
+        </View>
+        <Switch
+          value={paid}
+          onValueChange={onTogglePaid}
+          trackColor={{ false: "#e5e7eb", true: "#10b981" }}
+          thumbColor={paid ? "#ffffff" : "#ffffff"}
+          style={styles.paidSwitch}
+        />
+      </View>
+
+      <View style={styles.workerDetails}>
+        <Text style={styles.workTime}>{getWorkTime(periods)}</Text>
+        <Text style={styles.timeRange}>{getTimeRange(periods)}</Text>
+      </View>
+
+      <View style={styles.workerFooter}>
+        <Text style={styles.phoneNumber}>{worker.phone}</Text>
+        <View style={styles.actionButtons}>
+          <Pressable
+            style={styles.actionButton}
+            onPress={() => onCall(worker.phone)}
+          >
+            <Ionicons name="call" size={16} color="#3b82f6" />
+          </Pressable>
+          <Pressable
+            style={styles.actionButton}
+            onPress={() => onSMS(worker.phone)}
+          >
+            <Ionicons name="chatbubble" size={16} color="#10b981" />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 function getSchedulePosition(
@@ -95,12 +206,14 @@ export default function PlannerCalendar() {
   const [schedules, setSchedules] = useState<Schedule[]>(() => {
     const today = dayjs().format("YYYY-MM-DD");
     const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
+    const dayAfter = dayjs().add(2, "day").format("YYYY-MM-DD");
 
     return [
       {
         id: "1",
         title: "수학 과외",
-        date: today,
+        startDate: today,
+        endDate: today,
         description: "고등학교 2학년 수학 과외",
         category: "education",
         workers: [
@@ -109,7 +222,7 @@ export default function PlannerCalendar() {
               id: "w1",
               name: "김선생",
               phone: "010-1234-5678",
-              bankAccount: "123-456-789",
+              bankAccount: "110-1234-5678",
               hourlyWage: 50000,
               taxWithheld: true,
             },
@@ -127,7 +240,8 @@ export default function PlannerCalendar() {
       {
         id: "2",
         title: "영어 회화",
-        date: today,
+        startDate: today,
+        endDate: today,
         description: "성인 영어 회화 수업",
         category: "education",
         workers: [
@@ -136,7 +250,7 @@ export default function PlannerCalendar() {
               id: "w2",
               name: "Sarah Johnson",
               phone: "010-9876-5432",
-              bankAccount: "987-654-321",
+              bankAccount: "3333-12-3456789",
               hourlyWage: 80000,
               taxWithheld: false,
             },
@@ -154,7 +268,8 @@ export default function PlannerCalendar() {
       {
         id: "3",
         title: "프로젝트 회의",
-        date: tomorrow,
+        startDate: tomorrow,
+        endDate: tomorrow,
         description: "웹 개발 프로젝트 진행 회의",
         category: "meeting",
         workers: [
@@ -163,7 +278,7 @@ export default function PlannerCalendar() {
               id: "w3",
               name: "이개발",
               phone: "010-5555-1234",
-              bankAccount: "555-123-456",
+              bankAccount: "1002-123-456789",
               hourlyWage: 100000,
               taxWithheld: true,
             },
@@ -172,6 +287,44 @@ export default function PlannerCalendar() {
                 id: "p3",
                 start: `${tomorrow}T10:00:00+09:00`,
                 end: `${tomorrow}T12:00:00+09:00`,
+              },
+            ],
+            paid: false,
+          },
+        ],
+      },
+      {
+        id: "4",
+        title: "이벤트 준비",
+        startDate: today,
+        endDate: dayAfter,
+        description: "3일간 이벤트 준비 및 진행",
+        category: "event",
+        workers: [
+          {
+            worker: {
+              id: "w4",
+              name: "박이벤트",
+              phone: "010-7777-8888",
+              bankAccount: "110-9999-8888",
+              hourlyWage: 60000,
+              taxWithheld: true,
+            },
+            periods: [
+              {
+                id: "p4-1",
+                start: `${today}T09:00:00+09:00`,
+                end: `${today}T18:00:00+09:00`,
+              },
+              {
+                id: "p4-2",
+                start: `${tomorrow}T09:00:00+09:00`,
+                end: `${tomorrow}T18:00:00+09:00`,
+              },
+              {
+                id: "p4-3",
+                start: `${dayAfter}T09:00:00+09:00`,
+                end: `${dayAfter}T15:00:00+09:00`,
               },
             ],
             paid: false,
@@ -228,14 +381,22 @@ export default function PlannerCalendar() {
     > = {};
 
     schedules.forEach((schedule: Schedule) => {
-      const date = dayjs(schedule.date).format("YYYY-MM-DD");
-      if (!marks[date]) {
-        marks[date] = { dots: [] };
+      const startDate = dayjs(schedule.startDate);
+      const endDate = dayjs(schedule.endDate);
+
+      // 시작일부터 종료일까지 모든 날짜에 마킹
+      let currentDate = startDate;
+      while (currentDate.isSameOrBefore(endDate, "day")) {
+        const dateStr = currentDate.format("YYYY-MM-DD");
+        if (!marks[dateStr]) {
+          marks[dateStr] = { dots: [] };
+        }
+        marks[dateStr].dots.push({
+          color: getCategoryColor(schedule.category),
+        });
+        marks[dateStr].marked = true;
+        currentDate = currentDate.add(1, "day");
       }
-      marks[date].dots.push({
-        color: getCategoryColor(schedule.category),
-      });
-      marks[date].marked = true;
     });
 
     return marks;
@@ -243,7 +404,15 @@ export default function PlannerCalendar() {
 
   const selectedDateSchedules = useMemo(() => {
     return schedules
-      .filter((s) => s.date === selectedDate)
+      .filter((s) => {
+        const startDate = dayjs(s.startDate);
+        const endDate = dayjs(s.endDate);
+        const selected = dayjs(selectedDate);
+        return (
+          selected.isSameOrAfter(startDate, "day") &&
+          selected.isSameOrBefore(endDate, "day")
+        );
+      })
       .slice()
       .sort((a, b) => {
         const aStart = a.workers
@@ -381,8 +550,8 @@ export default function PlannerCalendar() {
             periods: [
               {
                 id: `p${Date.now()}`,
-                start: `${schedule.date}T09:00:00+09:00`,
-                end: `${schedule.date}T17:00:00+09:00`,
+                start: `${schedule.startDate}T09:00:00+09:00`,
+                end: `${schedule.startDate}T17:00:00+09:00`,
               },
             ],
             paid: false,
@@ -471,21 +640,29 @@ export default function PlannerCalendar() {
           }}
           theme={{
             selectedDayBackgroundColor: "transparent",
-            todayTextColor: "#2563eb",
-            calendarBackground: "white",
-            textSectionTitleColor: "#6b7280",
-            dayTextColor: "#1f2937",
-            textDisabledColor: "#d1d5db",
-            arrowColor: "#2563eb",
-            monthTextColor: "#1f2937",
-            indicatorColor: "#2563eb",
-            textDayFontWeight: "500",
-            textMonthFontWeight: "600",
-            textDayHeaderFontWeight: "600",
+            todayTextColor: Theme.colors.primary,
+            calendarBackground: Theme.colors.background,
+            textSectionTitleColor: Theme.colors.text.secondary,
+            dayTextColor: Theme.colors.text.primary,
+            textDisabledColor: Theme.colors.text.tertiary,
+            arrowColor: Theme.colors.primary,
+            monthTextColor: Theme.colors.text.primary,
+            indicatorColor: Theme.colors.primary,
+            textDayFontWeight: Theme.typography.weights.medium,
+            textMonthFontWeight: Theme.typography.weights.semibold,
+            textDayHeaderFontWeight: Theme.typography.weights.semibold,
           }}
           dayComponent={({ date }) => {
             const key = date?.dateString ?? "";
-            const daily = schedules.filter((s) => s.date === key);
+            const daily = schedules.filter((s) => {
+              const startDate = dayjs(s.startDate);
+              const endDate = dayjs(s.endDate);
+              const selected = dayjs(key);
+              return (
+                selected.isSameOrAfter(startDate, "day") &&
+                selected.isSameOrBefore(endDate, "day")
+              );
+            });
             const sorted = daily.slice().sort((a, b) => {
               const aStart = a.workers
                 .flatMap((w) => w.periods.map((p) => dayjs(p.start)))
@@ -841,9 +1018,15 @@ export default function PlannerCalendar() {
                                 {schedule.title}
                               </Text>
                               <Text style={{ fontSize: 16, marginBottom: 16 }}>
-                                {dayjs(schedule.date).format(
-                                  "YYYY년 M월 D일 dddd"
-                                )}
+                                {schedule.startDate === schedule.endDate
+                                  ? dayjs(schedule.startDate).format(
+                                      "YYYY년 M월 D일 dddd"
+                                    )
+                                  : `${dayjs(schedule.startDate).format(
+                                      "M월 D일"
+                                    )} - ${dayjs(schedule.endDate).format(
+                                      "M월 D일"
+                                    )}`}
                               </Text>
                               <Text style={{ fontSize: 16, marginBottom: 16 }}>
                                 {schedule.description}
@@ -909,215 +1092,43 @@ export default function PlannerCalendar() {
                                 </View>
 
                                 {schedule.workers.map((workerInfo, index) => (
-                                  <View
+                                  <WorkerCard
                                     key={index}
-                                    style={{
-                                      backgroundColor: "#f8f9fa",
-                                      padding: 16,
-                                      borderRadius: 8,
-                                      marginBottom: 12,
+                                    worker={workerInfo.worker}
+                                    periods={workerInfo.periods}
+                                    paid={workerInfo.paid}
+                                    onTogglePaid={(paid) => {
+                                      const updatedSchedules = [...schedules];
+                                      const scheduleIndex =
+                                        updatedSchedules.findIndex(
+                                          (s) => s.id === schedule.id
+                                        );
+                                      if (scheduleIndex !== -1) {
+                                        updatedSchedules[scheduleIndex].workers[
+                                          index
+                                        ].paid = paid;
+                                        setSchedules(updatedSchedules);
+                                      }
                                     }}
-                                  >
-                                    {/* 근로자 이름 */}
-                                    <Text
-                                      style={{
-                                        fontSize: 18,
-                                        fontWeight: "600",
-                                        marginBottom: 8,
-                                      }}
-                                    >
-                                      {workerInfo.worker.name}
-                                    </Text>
-
-                                    {/* 포지션 */}
-                                    <Text
-                                      style={{
-                                        fontSize: 14,
-                                        color: "#6b7280",
-                                        marginBottom: 6,
-                                      }}
-                                    >
-                                      포지션:{" "}
-                                      {workerInfo.worker.name.includes("선생")
-                                        ? "강사"
-                                        : workerInfo.worker.name.includes(
-                                            "개발"
-                                          )
-                                        ? "개발자"
-                                        : workerInfo.worker.name.includes(
-                                            "이벤트"
-                                          )
-                                        ? "이벤트 담당"
-                                        : "근로자"}
-                                    </Text>
-
-                                    {/* 근무여부 */}
-                                    <View
-                                      style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        marginBottom: 8,
-                                      }}
-                                    >
-                                      <View
-                                        style={{
-                                          width: 8,
-                                          height: 8,
-                                          borderRadius: 4,
-                                          backgroundColor: workerInfo.paid
-                                            ? "#10b981"
-                                            : "#f59e0b",
-                                          marginRight: 6,
-                                        }}
-                                      />
-                                      <Text
-                                        style={{
-                                          fontSize: 14,
-                                          color: workerInfo.paid
-                                            ? "#10b981"
-                                            : "#f59e0b",
-                                          fontWeight: "500",
-                                        }}
-                                      >
-                                        {workerInfo.paid
-                                          ? "근무완료"
-                                          : "근무예정"}
-                                      </Text>
-                                    </View>
-
-                                    {/* 전화번호와 연락 버튼들 */}
-                                    <View
-                                      style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        marginBottom: 12,
-                                      }}
-                                    >
-                                      <Text
-                                        style={{
-                                          fontSize: 14,
-                                          color: "#1f2937",
-                                          flex: 1,
-                                        }}
-                                      >
-                                        {workerInfo.worker.phone}
-                                      </Text>
-                                      <View
-                                        style={{ flexDirection: "row", gap: 8 }}
-                                      >
-                                        <Pressable
-                                          onPress={() =>
-                                            makePhoneCall(
-                                              workerInfo.worker.phone
-                                            )
-                                          }
-                                          style={{
-                                            backgroundColor: "#2563eb",
-                                            paddingHorizontal: 8,
-                                            paddingVertical: 4,
-                                            borderRadius: 4,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              color: "white",
-                                              fontSize: 12,
-                                            }}
-                                          >
-                                            📞
-                                          </Text>
-                                        </Pressable>
-                                        <Pressable
-                                          onPress={() =>
-                                            sendSMS(workerInfo.worker.phone)
-                                          }
-                                          style={{
-                                            backgroundColor: "#10b981",
-                                            paddingHorizontal: 8,
-                                            paddingVertical: 4,
-                                            borderRadius: 4,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              color: "white",
-                                              fontSize: 12,
-                                            }}
-                                          >
-                                            💬
-                                          </Text>
-                                        </Pressable>
-                                        <Pressable
-                                          onPress={() =>
-                                            showContactOptions(
-                                              workerInfo.worker.phone
-                                            )
-                                          }
-                                          style={{
-                                            backgroundColor: "#6b7280",
-                                            paddingHorizontal: 8,
-                                            paddingVertical: 4,
-                                            borderRadius: 4,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              color: "white",
-                                              fontSize: 12,
-                                            }}
-                                          >
-                                            ⋯
-                                          </Text>
-                                        </Pressable>
-                                      </View>
-                                    </View>
-
-                                    {/* 시급 및 근무시간 */}
-                                    <View
-                                      style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                      }}
-                                    >
-                                      <Text
-                                        style={{
-                                          fontSize: 12,
-                                          color: "#6b7280",
-                                        }}
-                                      >
-                                        시급:{" "}
-                                        {workerInfo.worker.hourlyWage.toLocaleString()}
-                                        원
-                                      </Text>
-                                      <Text
-                                        style={{
-                                          fontSize: 12,
-                                          color: "#6b7280",
-                                        }}
-                                      >
-                                        근무시간:{" "}
-                                        {(() => {
-                                          const totalHours =
-                                            workerInfo.periods.reduce(
-                                              (total, period) => {
-                                                const start = dayjs(
-                                                  period.start
-                                                );
-                                                const end = dayjs(period.end);
-                                                return (
-                                                  total +
-                                                  end.diff(start, "hour", true)
-                                                );
-                                              },
-                                              0
-                                            );
-                                          return `${totalHours.toFixed(1)}시간`;
-                                        })()}
-                                      </Text>
-                                    </View>
-                                  </View>
+                                    onCall={(phone) => {
+                                      const url = `tel:${phone}`;
+                                      Linking.openURL(url).catch(() => {
+                                        Alert.alert(
+                                          "오류",
+                                          "전화 앱을 열 수 없습니다."
+                                        );
+                                      });
+                                    }}
+                                    onSMS={(phone) => {
+                                      const url = `sms:${phone}`;
+                                      Linking.openURL(url).catch(() => {
+                                        Alert.alert(
+                                          "오류",
+                                          "메시지 앱을 열 수 없습니다."
+                                        );
+                                      });
+                                    }}
+                                  />
                                 ))}
                               </View>
                             </View>
@@ -1921,3 +1932,72 @@ export default function PlannerCalendar() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  workerCard: {
+    backgroundColor: Theme.colors.card,
+    padding: Theme.spacing.md,
+    borderRadius: Theme.borderRadius.md,
+    marginBottom: Theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Theme.colors.border.light,
+    ...Theme.shadows.sm,
+  },
+  workerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Theme.spacing.sm,
+  },
+  workerInfo: {
+    flex: 1,
+  },
+  workerName: {
+    fontSize: Theme.typography.sizes.md,
+    fontWeight: Theme.typography.weights.semibold,
+    color: Theme.colors.text.primary,
+    marginBottom: 2,
+  },
+  workerPosition: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
+  },
+  paidSwitch: {
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
+  },
+  workerDetails: {
+    marginBottom: Theme.spacing.sm,
+  },
+  workTime: {
+    fontSize: Theme.typography.sizes.sm,
+    fontWeight: Theme.typography.weights.medium,
+    color: Theme.colors.text.primary,
+    marginBottom: 2,
+  },
+  timeRange: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
+  },
+  workerFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  phoneNumber: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
+    flex: 1,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: Theme.spacing.sm,
+  },
+  actionButton: {
+    width: 24,
+    height: 24,
+    borderRadius: Theme.borderRadius.full,
+    backgroundColor: Theme.colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});

@@ -20,8 +20,11 @@ export type ScheduleCategory = 'education' | 'event' | 'meeting' | 'others';
 export type Schedule = {
   id: string;
   title: string;
-  date: string; // ISO date (YYYY-MM-DD)
+  startDate: string; // ISO date (YYYY-MM-DD) - 시작 날짜
+  endDate: string; // ISO date (YYYY-MM-DD) - 종료 날짜
   description?: string;
+  location?: string; // 위치 정보
+  memo?: string; // 메모
   category: ScheduleCategory;
   workers: Array<{
     worker: Worker;

@@ -56,6 +56,11 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="main" options={{ headerShown: false }} />
+        <Stack.Screen name="schedule" options={{ headerShown: false }} />
+        <Stack.Screen name="workers" options={{ headerShown: false }} />
+        <Stack.Screen name="payroll" options={{ headerShown: false }} />
+        <Stack.Screen name="reports" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
         <Stack.Screen name="schedule/[id]" options={{ title: "스케쥴 상세" }} />

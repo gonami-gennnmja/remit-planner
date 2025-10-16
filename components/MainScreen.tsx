@@ -1,7 +1,16 @@
+import MonthlyPayrollModal from "@/components/MonthlyPayrollModal";
+import StaffWorkStatusModal from "@/components/StaffWorkStatusModal";
+import TodayScheduleModal from "@/components/TodayScheduleModal";
+import UnpaidScheduleModal from "@/components/UnpaidScheduleModal";
+import { Theme } from "@/constants/Theme";
+import { Schedule } from "@/models/types";
+import { getCurrentUser, logout, User } from "@/utils/authUtils";
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
-import React from "react";
+import dayjs from "dayjs";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Pressable,
   ScrollView,
@@ -13,6 +22,185 @@ import {
 const { width } = Dimensions.get("window");
 
 export default function MainScreen() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedDate, setSelectedDate] = useState(
+    dayjs().format("YYYY-MM-DD")
+  );
+
+  // 모달 상태
+  const [showTodaySchedule, setShowTodaySchedule] = useState(false);
+  const [showMonthlyPayroll, setShowMonthlyPayroll] = useState(false);
+  const [showStaffWorkStatus, setShowStaffWorkStatus] = useState(false);
+  const [showUnpaidSchedule, setShowUnpaidSchedule] = useState(false);
+
+  useEffect(() => {
+    loadUser();
+    loadSchedules();
+  }, []);
+
+  const loadUser = async () => {
+    const user = await getCurrentUser();
+    setCurrentUser(user);
+  };
+
+  const loadSchedules = () => {
+    // 임시 데이터 - 실제로는 데이터베이스에서 가져와야 함
+    const today = dayjs().format("YYYY-MM-DD");
+    const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
+
+    const tempSchedules: Schedule[] = [
+      {
+        id: "1",
+        title: "수학 과외",
+        startDate: today,
+        endDate: today,
+        description: "고등학교 2학년 수학 과외",
+        location: "강남구 학원",
+        memo: "교재 준비 필요",
+        category: "education",
+        workers: [
+          {
+            worker: {
+              id: "w1",
+              name: "김선생",
+              phone: "010-1234-5678",
+              bankAccount: "110-1234-5678",
+              hourlyWage: 50000,
+              taxWithheld: true,
+            },
+            periods: [
+              {
+                id: "p1",
+                start: `${today}T14:00:00+09:00`,
+                end: `${today}T16:00:00+09:00`,
+              },
+            ],
+            paid: false,
+          },
+        ],
+      },
+      {
+        id: "2",
+        title: "영어 회화",
+        startDate: today,
+        endDate: today,
+        description: "성인 영어 회화 수업",
+        location: "서초구 문화센터",
+        memo: "원어민 강사",
+        category: "education",
+        workers: [
+          {
+            worker: {
+              id: "w2",
+              name: "Sarah Johnson",
+              phone: "010-9876-5432",
+              bankAccount: "3333-12-3456789",
+              hourlyWage: 80000,
+              taxWithheld: false,
+            },
+            periods: [
+              {
+                id: "p2",
+                start: `${today}T19:00:00+09:00`,
+                end: `${today}T21:00:00+09:00`,
+              },
+            ],
+            paid: true,
+          },
+        ],
+      },
+    ];
+
+    setSchedules(tempSchedules);
+  };
+
+  // 통계 계산
+  const getTodayScheduleCount = () => {
+    return schedules.filter((schedule) => {
+      const scheduleStart = dayjs(schedule.startDate);
+      const scheduleEnd = dayjs(schedule.endDate);
+      const today = dayjs(selectedDate);
+      return (
+        today.isSameOrAfter(scheduleStart) && today.isSameOrBefore(scheduleEnd)
+      );
+    }).length;
+  };
+
+  const getMonthlyPayroll = () => {
+    const today = dayjs();
+    const firstDay = today.startOf("month").format("YYYY-MM-DD");
+    const lastDay = today.endOf("month").format("YYYY-MM-DD");
+
+    let total = 0;
+    schedules.forEach((schedule) => {
+      const scheduleStart = dayjs(schedule.startDate);
+      const scheduleEnd = dayjs(schedule.endDate);
+      const periodStart = dayjs(firstDay);
+      const periodEnd = dayjs(lastDay);
+
+      if (
+        scheduleStart.isSameOrBefore(periodEnd) &&
+        scheduleEnd.isSameOrAfter(periodStart)
+      ) {
+        schedule.workers.forEach((workerInfo) => {
+          const hourlyWage = workerInfo.worker.hourlyWage;
+          const taxWithheld = workerInfo.worker.taxWithheld;
+          const taxRate = 0.033;
+
+          const totalHours = workerInfo.periods.reduce((sum, period) => {
+            const start = dayjs(period.start);
+            const end = dayjs(period.end);
+            return sum + end.diff(start, "hour", true);
+          }, 0);
+
+          let grossPay = hourlyWage * totalHours;
+          let netPay = grossPay;
+
+          if (taxWithheld) {
+            netPay = grossPay * (1 - taxRate);
+          }
+
+          total += Math.round(netPay);
+        });
+      }
+    });
+
+    return total;
+  };
+
+  const getUnpaidCount = () => {
+    const today = dayjs();
+    let count = 0;
+
+    schedules.forEach((schedule) => {
+      schedule.workers.forEach((workerInfo) => {
+        workerInfo.periods.forEach((period) => {
+          const workEnd = dayjs(period.end);
+          if (workEnd.isBefore(today) && !workerInfo.paid) {
+            count++;
+          }
+        });
+      });
+    });
+
+    return count;
+  };
+
+  const handleLogout = () => {
+    Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "로그아웃",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/");
+        },
+      },
+    ]);
+  };
+
   const menuItems = [
     {
       id: "calendar",
@@ -20,7 +208,7 @@ export default function MainScreen() {
       description: "일정을 확인하고 관리하세요",
       icon: "calendar-outline",
       color: "#3b82f6",
-      route: "/(tabs)",
+      route: "/schedule",
     },
     {
       id: "workers",
@@ -28,7 +216,7 @@ export default function MainScreen() {
       description: "근로자 정보를 관리하세요",
       icon: "people-outline",
       color: "#10b981",
-      route: "/(tabs)/workers",
+      route: "/workers",
     },
     {
       id: "payments",
@@ -36,31 +224,64 @@ export default function MainScreen() {
       description: "급여 계산 및 지급을 관리하세요",
       icon: "card-outline",
       color: "#f59e0b",
-      route: "/(tabs)/payments",
+      route: "/payroll",
     },
     {
-      id: "reports",
-      title: "보고서",
-      description: "월별 보고서를 확인하세요",
-      icon: "bar-chart-outline",
+      id: "uncollected",
+      title: "미수급 건수",
+      description: "업체에서 받는 수입을 관리하세요",
+      icon: "cash-outline",
       color: "#8b5cf6",
-      route: "/(tabs)/reports",
+      route: "/uncollected",
     },
   ];
 
   const quickStats = [
-    { label: "오늘 일정", value: "3건", color: "#3b82f6" },
-    { label: "등록된 근로자", value: "12명", color: "#10b981" },
-    { label: "이번 달 급여", value: "₩2,400,000", color: "#f59e0b" },
-    { label: "미지급 건수", value: "2건", color: "#ef4444" },
+    {
+      label: "오늘 일정",
+      value: `${getTodayScheduleCount()}건`,
+      color: "#3b82f6",
+      onPress: () => setShowTodaySchedule(true),
+    },
+    {
+      label: "이번 달 급여",
+      value: `₩${new Intl.NumberFormat("ko-KR").format(getMonthlyPayroll())}`,
+      color: "#f59e0b",
+      onPress: () => setShowMonthlyPayroll(true),
+    },
+    {
+      label: "스태프 근무 현황",
+      value: "상세보기",
+      color: "#10b981",
+      onPress: () => setShowStaffWorkStatus(true),
+    },
+    {
+      label: "미지급 건수",
+      value: `${getUnpaidCount()}건`,
+      color: "#ef4444",
+      onPress: () => setShowUnpaidSchedule(true),
+    },
   ];
+
+  const handleMenuPress = (route: string) => {
+    router.push(route as any);
+  };
 
   return (
     <ScrollView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>리밋 플래너</Text>
-        <Text style={styles.headerSubtitle}>효율적인 스케줄 & 급여 관리</Text>
+        <View>
+          <Text style={styles.headerTitle}>리밋 플래너</Text>
+          <Text style={styles.headerSubtitle}>
+            {currentUser
+              ? `${currentUser.name}님 환영합니다`
+              : "효율적인 스케줄 & 급여 관리"}
+          </Text>
+        </View>
+        <Pressable style={styles.logoutButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={24} color="white" />
+        </Pressable>
       </View>
 
       {/* 빠른 통계 */}
@@ -68,12 +289,16 @@ export default function MainScreen() {
         <Text style={styles.sectionTitle}>오늘의 현황</Text>
         <View style={styles.statsGrid}>
           {quickStats.map((stat, index) => (
-            <View key={index} style={styles.statCard}>
+            <Pressable
+              key={index}
+              style={styles.statCard}
+              onPress={stat.onPress}
+            >
               <View style={[styles.statIcon, { backgroundColor: stat.color }]}>
                 <Text style={styles.statValue}>{stat.value}</Text>
               </View>
               <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -83,17 +308,17 @@ export default function MainScreen() {
         <Text style={styles.sectionTitle}>주요 기능</Text>
         <View style={styles.menuGrid}>
           {menuItems.map((item) => (
-            <Link key={item.id} href={item.route} asChild>
-              <Pressable style={styles.menuItem}>
-                <View
-                  style={[styles.menuIcon, { backgroundColor: item.color }]}
-                >
-                  <Ionicons name={item.icon as any} size={32} color="white" />
-                </View>
-                <Text style={styles.menuTitle}>{item.title}</Text>
-                <Text style={styles.menuDescription}>{item.description}</Text>
-              </Pressable>
-            </Link>
+            <Pressable
+              key={item.id}
+              style={styles.menuItem}
+              onPress={() => handleMenuPress(item.route)}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: item.color }]}>
+                <Ionicons name={item.icon as any} size={32} color="white" />
+              </View>
+              <Text style={styles.menuTitle}>{item.title}</Text>
+              <Text style={styles.menuDescription}>{item.description}</Text>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -131,6 +356,32 @@ export default function MainScreen() {
           </View>
         </View>
       </View>
+
+      {/* 모달들 */}
+      <TodayScheduleModal
+        visible={showTodaySchedule}
+        onClose={() => setShowTodaySchedule(false)}
+        schedules={schedules}
+        selectedDate={selectedDate}
+      />
+
+      <MonthlyPayrollModal
+        visible={showMonthlyPayroll}
+        onClose={() => setShowMonthlyPayroll(false)}
+        schedules={schedules}
+      />
+
+      <StaffWorkStatusModal
+        visible={showStaffWorkStatus}
+        onClose={() => setShowStaffWorkStatus(false)}
+        schedules={schedules}
+      />
+
+      <UnpaidScheduleModal
+        visible={showUnpaidSchedule}
+        onClose={() => setShowUnpaidSchedule(false)}
+        schedules={schedules}
+      />
     </ScrollView>
   );
 }
@@ -138,152 +389,151 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: Theme.colors.background,
   },
   header: {
-    backgroundColor: "#1e40af",
+    backgroundColor: Theme.colors.primary,
     paddingTop: 60,
     paddingBottom: 30,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingHorizontal: Theme.spacing.xl,
+    borderBottomLeftRadius: Theme.borderRadius.xl,
+    borderBottomRightRadius: Theme.borderRadius.xl,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  logoutButton: {
+    width: 44,
+    height: 44,
+    borderRadius: Theme.borderRadius.full,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "white",
-    marginBottom: 4,
+    fontSize: Theme.typography.sizes.xxl,
+    fontWeight: Theme.typography.weights.bold,
+    color: Theme.colors.text.inverse,
+    marginBottom: Theme.spacing.xs,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: "#bfdbfe",
+    fontSize: Theme.typography.sizes.md,
+    color: "rgba(255, 255, 255, 0.8)",
   },
   statsContainer: {
-    padding: 20,
+    padding: Theme.spacing.xl,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 16,
+    fontSize: Theme.typography.sizes.xl,
+    fontWeight: Theme.typography.weights.semibold,
+    color: Theme.colors.text.primary,
+    marginBottom: Theme.spacing.lg,
   },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: Theme.spacing.md,
   },
   statCard: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.lg,
     alignItems: "center",
     width: (width - 52) / 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Theme.shadows.sm,
   },
   statIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: Theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: Theme.spacing.sm,
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "white",
+    fontSize: Theme.typography.sizes.md,
+    fontWeight: Theme.typography.weights.bold,
+    color: Theme.colors.text.inverse,
   },
   statLabel: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
     textAlign: "center",
   },
   menuContainer: {
-    padding: 20,
+    padding: Theme.spacing.xl,
   },
   menuGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
+    gap: Theme.spacing.lg,
   },
   menuItem: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.xl,
     width: (width - 56) / 2,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Theme.shadows.sm,
   },
   menuIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: Theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: Theme.spacing.md,
   },
   menuTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontSize: Theme.typography.sizes.md,
+    fontWeight: Theme.typography.weights.semibold,
+    color: Theme.colors.text.primary,
+    marginBottom: Theme.spacing.xs,
     textAlign: "center",
   },
   menuDescription: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
     textAlign: "center",
     lineHeight: 16,
   },
   activityContainer: {
-    padding: 20,
+    padding: Theme.spacing.xl,
     paddingBottom: 40,
   },
   activityList: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.lg,
+    ...Theme.shadows.sm,
   },
   activityItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: Theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: Theme.colors.border.light,
   },
   activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f3f4f6",
+    width: 36,
+    height: 36,
+    borderRadius: Theme.borderRadius.full,
+    backgroundColor: Theme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: Theme.spacing.md,
   },
   activityContent: {
     flex: 1,
   },
   activityTitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1f2937",
+    fontSize: Theme.typography.sizes.sm,
+    fontWeight: Theme.typography.weights.medium,
+    color: Theme.colors.text.primary,
     marginBottom: 2,
   },
   activityTime: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
   },
 });

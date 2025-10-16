@@ -6,6 +6,7 @@ import { Pressable } from 'react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import HamburgerMenu from '@/components/HamburgerMenu';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -31,6 +32,7 @@ export default function TabLayout() {
         options={{
           title: 'Tab One',
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          headerLeft: () => <HamburgerMenu currentScreen="calendar" />,
           headerRight: () => (
             <Link href="/modal" asChild>
               <Pressable>
@@ -52,6 +54,7 @@ export default function TabLayout() {
         options={{
           title: 'Tab Two',
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          headerLeft: () => <HamburgerMenu currentScreen="workers" />,
         }}
       />
     </Tabs>
