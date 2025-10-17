@@ -16,7 +16,37 @@ export type WorkPeriod = {
   end: string; // ISO date-time
 };
 
-export type ScheduleCategory = 'education' | 'event' | 'meeting' | 'others';
+export type ScheduleCategory = string;
+
+export type Category = {
+  id: string;
+  name: string;
+  color: string;
+  createdAt?: string;
+};
+
+export type ClientContact = {
+  id: string;
+  name: string; // 담당자명
+  position?: string; // 직급/직책
+  phone: string; // 연락처
+  memo?: string; // 간단한 메모
+  isPrimary?: boolean; // 대표 담당자 여부
+};
+
+export type Client = {
+  id: string;
+  name: string; // 거래처명
+  contacts: ClientContact[]; // 담당자 목록 (배열)
+  phone: string; // 대표 연락처
+  email?: string; // 이메일
+  address?: string; // 주소
+  businessNumber?: string; // 사업자등록번호
+  memo?: string; // 메모
+  createdAt?: string;
+  totalRevenue?: number; // 총 매출
+  unpaidAmount?: number; // 미수금
+};
 
 export type Schedule = {
   id: string;

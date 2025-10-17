@@ -1,57 +1,53 @@
 import { Theme } from "@/constants/Theme";
+import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 export default function ScheduleDetailScreen() {
   const { id } = useLocalSearchParams();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
 
   useEffect(() => {
-    // 임시 데이터 - 실제로는 데이터베이스에서 가져와야 함
-    const today = dayjs().format("YYYY-MM-DD");
+    const loadSchedule = async () => {
+      try {
+        const db = getDatabase();
+        await db.init();
 
-    const tempSchedule: Schedule = {
-      id: id as string,
-      title: "수학 과외",
-      startDate: today,
-      endDate: today,
-      description: "고등학교 2학년 수학 과외",
-      location: "강남구 학원",
-      memo: "교재 준비 필요",
-      category: "education",
-      workers: [
-        {
-          worker: {
-            id: "w1",
-            name: "김선생",
-            phone: "010-1234-5678",
-            bankAccount: "110-1234-5678",
-            hourlyWage: 50000,
-            taxWithheld: true,
-          },
-          periods: [
-            {
-              id: "p1",
-              start: `${today}T14:00:00+09:00`,
-              end: `${today}T16:00:00+09:00`,
-            },
-          ],
-          paid: false,
-        },
-      ],
+        const scheduleData = await db.getSchedule(id as string);
+        setSchedule(scheduleData);
+      } catch (error) {
+        console.error("Failed to load schedule:", error);
+      }
     };
 
-    setSchedule(tempSchedule);
+    if (id) {
+      loadSchedule();
+    }
   }, [id]);
 
   if (!schedule) {
     return (
-      <View style={styles.container}>
-        <Text>로딩 중...</Text>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color={Theme.colors.primary} />
+        <Text style={{ marginTop: 16, color: Theme.colors.text.secondary }}>
+          로딩 중...
+        </Text>
       </View>
     );
   }

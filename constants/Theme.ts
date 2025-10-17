@@ -16,11 +16,28 @@ export const Theme = {
 			inverse: "#ffffff",
 		},
 
-		// 상태 색상
-		success: "#10b981",
-		warning: "#f59e0b",
-		error: "#ef4444",
-		info: "#3b82f6",
+		// 상태 색상 (최신 트렌드 컬러)
+		success: "#22c55e", // 에메랄드 그린
+		warning: "#f97316", // 오렌지
+		error: "#ef4444",   // 레드 (유지)
+		info: "#6366f1",    // 인디고 바이올렛
+
+		// 카테고리별 컬러 (최신 트렌드)
+		category: {
+			education: "#8b5cf6", // 바이올렛
+			work: "#06b6d4",      // 시안
+			event: "#f59e0b",     // 앰버
+			personal: "#ec4899",  // 핑크
+			other: "#6b7280",     // 그레이
+		},
+
+		// 그라데이션 컬러
+		gradient: {
+			primary: "#6366f1",   // 인디고
+			secondary: "#8b5cf6", // 바이올렛
+			accent: "#06b6d4",    // 시안
+			warm: "#f59e0b",      // 앰버
+		},
 
 		// 테두리 및 구분선
 		border: {

@@ -197,6 +197,29 @@ export class SQLiteRepository implements IDatabase {
     return schedules;
   }
 
+  async getAllSchedules(): Promise<Schedule[]> {
+    const results = await sqliteDb.executeQuery<any>(
+      'SELECT * FROM schedules ORDER BY date DESC',
+      []
+    );
+
+    const schedules: Schedule[] = [];
+    for (const row of results) {
+      const workers = await this.getScheduleWorkers(row.id);
+      schedules.push({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        startDate: row.date,
+        endDate: row.date,
+        category: row.category as ScheduleCategory,
+        workers
+      });
+    }
+
+    return schedules;
+  }
+
   async getSchedulesByDateRange(startDate: string, endDate: string): Promise<Schedule[]> {
     const results = await sqliteDb.executeQuery<any>(
       'SELECT * FROM schedules WHERE date >= ? AND date <= ? ORDER BY date, title',
@@ -210,7 +233,8 @@ export class SQLiteRepository implements IDatabase {
         id: row.id,
         title: row.title,
         description: row.description,
-        date: row.date,
+        startDate: row.date,
+        endDate: row.date,
         category: row.category as ScheduleCategory,
         workers
       });
@@ -373,6 +397,74 @@ export class SQLiteRepository implements IDatabase {
        SET tax_withheld = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [taxWithheld ? 1 : 0, workerId]
+    );
+  }
+
+  // ==================== Activity Operations ====================
+
+  async createActivity(activity: {
+    id: string;
+    type: 'schedule' | 'worker' | 'payment';
+    title: string;
+    description?: string;
+    relatedId?: string;
+    icon?: string;
+    color?: string;
+  }): Promise<string> {
+    await sqliteDb.executeUpdate(
+      `INSERT INTO activities (id, type, title, description, related_id, icon, color)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        activity.id,
+        activity.type,
+        activity.title,
+        activity.description || '',
+        activity.relatedId || '',
+        activity.icon || '',
+        activity.color || '',
+      ]
+    );
+    return activity.id;
+  }
+
+  async getRecentActivities(limit: number = 10): Promise<Array<{
+    id: string;
+    type: string;
+    title: string;
+    description?: string;
+    relatedId?: string;
+    icon?: string;
+    color?: string;
+    timestamp: string;
+  }>> {
+    const rows = await sqliteDb.executeQuery(
+      `SELECT id, type, title, description, related_id as relatedId, icon, color, created_at as timestamp
+       FROM activities
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      [limit]
+    );
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      type: row.type,
+      title: row.title,
+      description: row.description || undefined,
+      relatedId: row.relatedId || undefined,
+      icon: row.icon || undefined,
+      color: row.color || undefined,
+      timestamp: row.timestamp,
+    }));
+  }
+
+  async clearOldActivities(daysToKeep: number = 30): Promise<void> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+    const cutoffDateStr = cutoffDate.toISOString();
+
+    await sqliteDb.executeUpdate(
+      'DELETE FROM activities WHERE created_at < ?',
+      [cutoffDateStr]
     );
   }
 

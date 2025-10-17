@@ -1,6 +1,6 @@
 // Platform-specific database factory
-import { Platform } from 'react-native';
 import { IDatabase } from './interface';
+import { SupabaseRepository } from './supabaseRepository';
 
 // Web fallback database
 class WebDatabase implements IDatabase {
@@ -246,17 +246,102 @@ class WebDatabase implements IDatabase {
 		this.workPeriods.clear();
 		this.saveToLocalStorage();
 	}
+
+	// Activity operations
+	async createActivity(activity: {
+		id: string;
+		type: string;
+		title: string;
+		description?: string;
+		related_id?: string;
+		icon?: string;
+		color?: string;
+	}): Promise<string> {
+		// For web, we'll store activities in localStorage
+		try {
+			const activitiesData = localStorage.getItem('remit_planner_activities');
+			const activities = activitiesData ? JSON.parse(activitiesData) : [];
+
+			activities.push({
+				...activity,
+				timestamp: new Date().toISOString(),
+				created_at: new Date().toISOString()
+			});
+
+			localStorage.setItem('remit_planner_activities', JSON.stringify(activities));
+			return activity.id;
+		} catch (error) {
+			console.warn('Failed to create activity:', error);
+			return activity.id;
+		}
+	}
+
+	async getRecentActivities(limit: number = 10): Promise<Array<{
+		id: string;
+		type: string;
+		title: string;
+		description?: string;
+		related_id?: string;
+		icon?: string;
+		color?: string;
+		timestamp: string;
+		created_at: string;
+	}>> {
+		try {
+			const activitiesData = localStorage.getItem('remit_planner_activities');
+			if (!activitiesData) return [];
+
+			const activities = JSON.parse(activitiesData);
+			return activities
+				.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+				.slice(0, limit);
+		} catch (error) {
+			console.warn('Failed to get activities:', error);
+			return [];
+		}
+	}
+
+	async clearOldActivities(daysToKeep: number = 30): Promise<void> {
+		try {
+			const activitiesData = localStorage.getItem('remit_planner_activities');
+			if (!activitiesData) return;
+
+			const activities = JSON.parse(activitiesData);
+			const cutoffDate = new Date();
+			cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+			const filteredActivities = activities.filter((activity: any) =>
+				new Date(activity.created_at) > cutoffDate
+			);
+
+			localStorage.setItem('remit_planner_activities', JSON.stringify(filteredActivities));
+		} catch (error) {
+			console.warn('Failed to clear old activities:', error);
+		}
+	}
 }
 
 // Create platform-specific database
 let database: IDatabase;
 
-if (Platform.OS === 'web') {
-	database = new WebDatabase();
+// 환경 변수 확인
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (supabaseUrl && supabaseKey && supabaseUrl !== 'YOUR_SUPABASE_URL') {
+	// Supabase 설정이 완료된 경우
+	console.log('🗄️ Using Supabase database');
+	database = new SupabaseRepository();
 } else {
-	// For native platforms, we'll use a simple in-memory database for now
-	// to avoid SQLite WebAssembly issues
+	// Supabase 설정이 안된 경우 로컬 데이터베이스 사용
+	console.log('💾 Using local database (Supabase not configured)');
 	database = new WebDatabase();
 }
 
+// Export the database instance
 export { database };
+
+// Export a function to get the database instance
+export const getDatabase = (): IDatabase => {
+	return database;
+};
