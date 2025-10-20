@@ -1,8 +1,9 @@
+import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { Calendar } from "react-native-calendars";
 
 interface DatePickerProps {

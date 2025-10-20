@@ -2,6 +2,7 @@ import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule, ScheduleCategory } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -15,8 +16,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
+
+// 웹 환경에서 window 객체 타입 선언
+declare const window: any;
 
 export default function ScheduleListScreen() {
   const params = useLocalSearchParams();
@@ -24,25 +29,38 @@ export default function ScheduleListScreen() {
   const [filteredSchedules, setFilteredSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "upcoming" | "past">(
-    "all"
-  );
+  const [filterType, setFilterType] = useState<
+    "all" | "ongoing" | "upcoming" | "past"
+  >("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     startDate: dayjs().format("YYYY-MM-DD"),
+    startTime: "09:00",
     endDate: dayjs().format("YYYY-MM-DD"),
+    endTime: "18:00",
     category: "" as ScheduleCategory,
     address: "",
     memo: "",
   });
   const [isMultiDay, setIsMultiDay] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("#6366f1");
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
 
+  // 컴포넌트 마운트 시 초기화
   useEffect(() => {
     loadSchedules();
+    setShowAddModal(false);
+    setShowCategoryModal(false);
+  }, []);
 
-    // URL 파라미터에서 검색어가 있으면 설정
+  // URL 파라미터에서 검색어가 있으면 설정
+  useEffect(() => {
     if (params.search && typeof params.search === "string") {
       setSearchQuery(params.search);
     }
@@ -83,9 +101,15 @@ export default function ScheduleListScreen() {
 
     // 날짜 필터링
     const today = dayjs();
-    if (filterType === "upcoming") {
+    if (filterType === "ongoing") {
+      filtered = filtered.filter(
+        (s) =>
+          dayjs(s.startDate).isSameOrBefore(today, "day") &&
+          dayjs(s.endDate).isSameOrAfter(today, "day")
+      );
+    } else if (filterType === "upcoming") {
       filtered = filtered.filter((s) =>
-        dayjs(s.endDate).isSameOrAfter(today, "day")
+        dayjs(s.startDate).isAfter(today, "day")
       );
     } else if (filterType === "past") {
       filtered = filtered.filter((s) =>
@@ -100,28 +124,104 @@ export default function ScheduleListScreen() {
   };
 
   const handleDeleteSchedule = async (scheduleId: string) => {
-    Alert.alert("일정 삭제", "이 일정을 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const db = getDatabase();
-            await db.deleteSchedule(scheduleId);
-            await loadSchedules();
-            Alert.alert("성공", "일정이 삭제되었습니다.");
-          } catch (error) {
-            console.error("Failed to delete schedule:", error);
-            Alert.alert("오류", "일정 삭제에 실패했습니다.");
-          }
+    console.log("Delete button clicked for schedule:", scheduleId);
+
+    // 웹에서는 confirm 사용
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm("이 일정을 삭제하시겠습니까?");
+      if (confirmed) {
+        try {
+          console.log("Deleting schedule:", scheduleId);
+          const db = getDatabase();
+          await db.deleteSchedule(scheduleId);
+          await loadSchedules();
+          alert("일정이 삭제되었습니다.");
+        } catch (error) {
+          console.error("Failed to delete schedule:", error);
+          alert("일정 삭제에 실패했습니다.");
+        }
+      }
+    } else {
+      // 모바일에서는 Alert 사용
+      Alert.alert("일정 삭제", "이 일정을 삭제하시겠습니까?", [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              console.log("Deleting schedule:", scheduleId);
+              const db = getDatabase();
+              await db.deleteSchedule(scheduleId);
+              await loadSchedules();
+              Alert.alert("성공", "일정이 삭제되었습니다.");
+            } catch (error) {
+              console.error("Failed to delete schedule:", error);
+              Alert.alert("오류", "일정 삭제에 실패했습니다.");
+            }
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const handleAddSchedule = () => {
     setShowAddModal(true);
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert("오류", "카테고리명을 입력해주세요.");
+      return;
+    }
+
+    try {
+      const db = getDatabase();
+      const categoryId = `category_${Date.now()}`;
+
+      await db.createCategory({
+        id: categoryId,
+        name: newCategoryName.trim(),
+        color: newCategoryColor,
+      });
+
+      // 카테고리 목록 새로고침
+      const updatedCategories = await db.getAllCategories();
+      setCategories(updatedCategories);
+
+      // 새로 추가된 카테고리 선택
+      setFormData({ ...formData, category: categoryId as ScheduleCategory });
+
+      // 모달 닫기 및 폼 초기화
+      setShowCategoryModal(false);
+      setNewCategoryName("");
+      setNewCategoryColor("#6366f1");
+
+      Alert.alert("성공", "카테고리가 추가되었습니다.");
+    } catch (error) {
+      console.error("Failed to add category:", error);
+      Alert.alert("오류", "카테고리 추가에 실패했습니다.");
+    }
+  };
+
+  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+    setShowStartDatePicker(false);
+    if (selectedDate) {
+      setFormData({
+        ...formData,
+        startDate: dayjs(selectedDate).format("YYYY-MM-DD"),
+      });
+    }
+  };
+
+  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+    setShowEndDatePicker(false);
+    if (selectedDate) {
+      setFormData({
+        ...formData,
+        endDate: dayjs(selectedDate).format("YYYY-MM-DD"),
+      });
+    }
   };
 
   const handleSaveSchedule = async () => {
@@ -160,21 +260,25 @@ export default function ScheduleListScreen() {
 
       await db.createSchedule(newSchedule);
       await loadSchedules(); // 일정 목록 새로고침
-      Alert.alert("성공", "일정이 추가되었습니다.", [
-        { text: "확인", onPress: () => setShowAddModal(false) },
-      ]);
+
+      // 모달 닫기
+      setShowAddModal(false);
 
       // 폼 초기화
       setFormData({
         title: "",
         description: "",
         startDate: dayjs().format("YYYY-MM-DD"),
+        startTime: "09:00",
         endDate: dayjs().format("YYYY-MM-DD"),
+        endTime: "18:00",
         category: "",
         address: "",
         memo: "",
       });
       setIsMultiDay(false);
+
+      Alert.alert("성공", "일정이 추가되었습니다.");
     } catch (error) {
       console.error("Failed to create schedule:", error);
       Alert.alert("오류", "일정 추가에 실패했습니다.");
@@ -199,30 +303,14 @@ export default function ScheduleListScreen() {
     }
   };
 
-  const getCategoryText = (category: string) => {
-    switch (category) {
-      case "education":
-        return "교육";
-      case "event":
-        return "이벤트";
-      case "meeting":
-        return "회의";
-      default:
-        return "기타";
-    }
+  const getCategoryText = (categoryId: string) => {
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category ? category.name : "기타";
   };
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "education":
-        return "#3b82f6";
-      case "event":
-        return "#f59e0b";
-      case "meeting":
-        return "#8b5cf6";
-      default:
-        return "#6b7280";
-    }
+  const getCategoryColor = (categoryId: string) => {
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category ? category.color : "#6b7280";
   };
 
   const formatDateRange = (startDate: string, endDate: string) => {
@@ -296,6 +384,22 @@ export default function ScheduleListScreen() {
               ]}
             >
               전체
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.filterButton,
+              filterType === "ongoing" && styles.filterButtonActive,
+            ]}
+            onPress={() => setFilterType("ongoing")}
+          >
+            <Text
+              style={[
+                styles.filterButtonText,
+                filterType === "ongoing" && styles.filterButtonTextActive,
+              ]}
+            >
+              진행 중
             </Text>
           </Pressable>
           <Pressable
@@ -390,15 +494,25 @@ export default function ScheduleListScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Pressable
+                  <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       handleDeleteSchedule(schedule.id);
                     }}
+                    onPressIn={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onPressOut={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    activeOpacity={0.7}
                   >
                     <Ionicons name="trash-outline" size={20} color="#ef4444" />
-                  </Pressable>
+                  </TouchableOpacity>
                 </View>
 
                 {/* 날짜 */}
@@ -550,12 +664,7 @@ export default function ScheduleListScreen() {
                     <Text style={styles.inputLabel}>카테고리</Text>
                     <Pressable
                       style={styles.addCategoryButton}
-                      onPress={() =>
-                        Alert.alert(
-                          "알림",
-                          "카테고리 추가 기능은 곧 추가됩니다."
-                        )
-                      }
+                      onPress={() => setShowCategoryModal(true)}
                     >
                       <Ionicons name="add" size={16} color="#6366f1" />
                       <Text style={styles.addCategoryButtonText}>추가</Text>
@@ -569,7 +678,7 @@ export default function ScheduleListScreen() {
                           styles.categoryButton,
                           {
                             backgroundColor:
-                              formData.category === category.name
+                              formData.category === category.id
                                 ? category.color
                                 : "#f5f5f5",
                           },
@@ -577,7 +686,7 @@ export default function ScheduleListScreen() {
                         onPress={() =>
                           setFormData({
                             ...formData,
-                            category: category.name,
+                            category: category.id as ScheduleCategory,
                           })
                         }
                       >
@@ -622,33 +731,125 @@ export default function ScheduleListScreen() {
                   </View>
                 </View>
 
-                <View style={styles.dateRow}>
-                  <View style={styles.dateInputGroup}>
+                <View style={styles.dateTimeRow}>
+                  <View style={styles.dateTimeGroup}>
                     <Text style={styles.inputLabel}>시작일 *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="YYYY-MM-DD"
-                      value={formData.startDate}
-                      onChangeText={(text) =>
-                        setFormData({ ...formData, startDate: text })
-                      }
-                    />
+                    {Platform.OS === "web" ? (
+                      <input
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            startDate: e.target.value,
+                          })
+                        }
+                        style={styles.webDateInput}
+                      />
+                    ) : (
+                      <Pressable
+                        style={styles.dateInput}
+                        onPress={() => setShowStartDatePicker(true)}
+                      >
+                        <Text style={styles.dateInputText}>
+                          {formData.startDate || "날짜 선택"}
+                        </Text>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={20}
+                          color="#666"
+                        />
+                      </Pressable>
+                    )}
                   </View>
 
-                  {isMultiDay && (
-                    <View style={styles.dateInputGroup}>
-                      <Text style={styles.inputLabel}>종료일 *</Text>
+                  <View style={styles.dateTimeGroup}>
+                    <Text style={styles.inputLabel}>시작시간 *</Text>
+                    {Platform.OS === "web" ? (
+                      <input
+                        type="time"
+                        value={formData.startTime}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            startTime: e.target.value,
+                          })
+                        }
+                        style={styles.webTimeInput}
+                      />
+                    ) : (
                       <TextInput
                         style={styles.textInput}
-                        placeholder="YYYY-MM-DD"
-                        value={formData.endDate}
+                        placeholder="HH:MM"
+                        value={formData.startTime}
                         onChangeText={(text) =>
-                          setFormData({ ...formData, endDate: text })
+                          setFormData({ ...formData, startTime: text })
                         }
                       />
-                    </View>
-                  )}
+                    )}
+                  </View>
                 </View>
+
+                {isMultiDay && (
+                  <View style={styles.dateTimeRow}>
+                    <View style={styles.dateTimeGroup}>
+                      <Text style={styles.inputLabel}>종료일 *</Text>
+                      {Platform.OS === "web" ? (
+                        <input
+                          type="date"
+                          value={formData.endDate}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              endDate: e.target.value,
+                            })
+                          }
+                          style={styles.webDateInput}
+                        />
+                      ) : (
+                        <Pressable
+                          style={styles.dateInput}
+                          onPress={() => setShowEndDatePicker(true)}
+                        >
+                          <Text style={styles.dateInputText}>
+                            {formData.endDate || "날짜 선택"}
+                          </Text>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={20}
+                            color="#666"
+                          />
+                        </Pressable>
+                      )}
+                    </View>
+
+                    <View style={styles.dateTimeGroup}>
+                      <Text style={styles.inputLabel}>종료시간 *</Text>
+                      {Platform.OS === "web" ? (
+                        <input
+                          type="time"
+                          value={formData.endTime}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              endTime: e.target.value,
+                            })
+                          }
+                          style={styles.webTimeInput}
+                        />
+                      ) : (
+                        <TextInput
+                          style={styles.textInput}
+                          placeholder="HH:MM"
+                          value={formData.endTime}
+                          onChangeText={(text) =>
+                            setFormData({ ...formData, endTime: text })
+                          }
+                        />
+                      )}
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* 장소 정보 */}
@@ -656,7 +857,6 @@ export default function ScheduleListScreen() {
                 <Text style={styles.sectionTitle}>장소</Text>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>주소</Text>
                   <View style={styles.addressRow}>
                     <TextInput
                       style={[styles.textInput, styles.addressInput]}
@@ -666,10 +866,7 @@ export default function ScheduleListScreen() {
                     />
                     <Pressable
                       style={styles.addressSearchButton}
-                      onPress={() => {
-                        // TODO: 주소 검색 모달 열기
-                        Alert.alert("알림", "주소 검색 기능은 곧 추가됩니다.");
-                      }}
+                      onPress={() => setShowAddressModal(true)}
                     >
                       <Ionicons name="search" size={20} color="white" />
                       <Text style={styles.addressSearchButtonText}>
@@ -711,6 +908,134 @@ export default function ScheduleListScreen() {
                 onPress={handleSaveSchedule}
               >
                 <Text style={styles.addSaveButtonText}>저장</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 카테고리 추가 모달 */}
+      <Modal
+        visible={showCategoryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCategoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.categoryModal}>
+            <View style={styles.categoryModalHeader}>
+              <Text style={styles.categoryModalTitle}>새 카테고리 추가</Text>
+              <Pressable onPress={() => setShowCategoryModal(false)}>
+                <Ionicons name="close" size={24} color="#666" />
+              </Pressable>
+            </View>
+
+            <View style={styles.categoryModalContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>카테고리명 *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="카테고리명을 입력하세요"
+                  value={newCategoryName}
+                  onChangeText={setNewCategoryName}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>색상</Text>
+                <View style={styles.colorPicker}>
+                  {[
+                    "#6366f1",
+                    "#ef4444",
+                    "#10b981",
+                    "#f59e0b",
+                    "#8b5cf6",
+                    "#06b6d4",
+                    "#84cc16",
+                    "#f97316",
+                  ].map((color) => (
+                    <Pressable
+                      key={color}
+                      style={[
+                        styles.colorOption,
+                        { backgroundColor: color },
+                        newCategoryColor === color &&
+                          styles.colorOptionSelected,
+                      ]}
+                      onPress={() => setNewCategoryColor(color)}
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.categoryModalButtons}>
+              <Pressable
+                style={styles.addCancelButton}
+                onPress={() => setShowCategoryModal(false)}
+              >
+                <Text style={styles.addCancelButtonText}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={styles.addSaveButton}
+                onPress={handleAddCategory}
+              >
+                <Text style={styles.addSaveButtonText}>추가</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 날짜 피커 */}
+      {Platform.OS !== "web" && showStartDatePicker && (
+        <DateTimePicker
+          value={new Date(formData.startDate || new Date())}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={handleStartDateChange}
+        />
+      )}
+
+      {Platform.OS !== "web" && showEndDatePicker && (
+        <DateTimePicker
+          value={new Date(formData.endDate || new Date())}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={handleEndDateChange}
+        />
+      )}
+
+      {/* 주소 검색 모달 */}
+      <Modal
+        visible={showAddressModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAddressModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.addressModal}>
+            <View style={styles.addressModalHeader}>
+              <Text style={styles.addressModalTitle}>주소 검색</Text>
+              <Pressable onPress={() => setShowAddressModal(false)}>
+                <Ionicons name="close" size={24} color="#666" />
+              </Pressable>
+            </View>
+
+            <View style={styles.addressModalContent}>
+              <TextInput
+                style={styles.addressSearchInput}
+                placeholder="주소를 입력하세요"
+                value={formData.address}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, address: text })
+                }
+              />
+              <Pressable
+                style={styles.addressConfirmButton}
+                onPress={() => setShowAddressModal(false)}
+              >
+                <Text style={styles.addressConfirmButtonText}>확인</Text>
               </Pressable>
             </View>
           </View>
@@ -864,6 +1189,10 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 10,
+    elevation: 5,
+    cursor: "pointer",
+    position: "relative",
   },
   dateRow: {
     flexDirection: "row",
@@ -972,13 +1301,13 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderRadius: 16,
     width: "95%",
-    maxWidth: 500,
+    maxWidth: 600,
     maxHeight: "90%",
   },
   addModalWeb: {
-    width: "70%",
-    maxWidth: 700,
-    maxHeight: "85%",
+    width: "90%",
+    maxWidth: 520,
+    maxHeight: "90%",
   },
   addModalHeader: {
     flexDirection: "row",
@@ -1136,5 +1465,172 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "white",
     fontWeight: "600",
+  },
+  // 카테고리 추가 모달 스타일
+  categoryModal: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    width: "90%",
+    maxWidth: 400,
+    maxHeight: "80%",
+  },
+  categoryModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  categoryModalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  categoryModalContent: {
+    padding: 20,
+  },
+  categoryModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  colorPicker: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 8,
+  },
+  colorOption: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  colorOptionSelected: {
+    borderColor: "#333",
+    borderWidth: 3,
+  },
+  // 날짜 입력 스타일
+  dateInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    backgroundColor: "white",
+  },
+  dateInputText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  // 주소 검색 모달 스타일
+  addressModal: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    width: "90%",
+    maxWidth: 500,
+    maxHeight: "80%",
+  },
+  addressModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  addressModalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  addressModalContent: {
+    padding: 20,
+  },
+  addressSearchInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  addressConfirmButton: {
+    backgroundColor: "#6366f1",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  addressConfirmButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  // 웹용 날짜 피커 모달 스타일
+  datePickerModal: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    width: "90%",
+    maxWidth: 400,
+    maxHeight: "80%",
+  },
+  datePickerModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  datePickerModalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+  },
+  datePickerModalContent: {
+    padding: 20,
+    alignItems: "center",
+  },
+  datePickerModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  webDateInput: {
+    width: "100%",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    fontSize: 16,
+    backgroundColor: "white",
+  },
+  webTimeInput: {
+    width: "100%",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    fontSize: 16,
+    backgroundColor: "white",
+  },
+  // 날짜/시간 행 스타일
+  dateTimeRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  dateTimeGroup: {
+    flex: 1,
   },
 });

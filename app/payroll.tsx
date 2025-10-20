@@ -1,7 +1,8 @@
+import { Text } from "@/components/Themed";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 export default function PayrollScreen() {
   return (

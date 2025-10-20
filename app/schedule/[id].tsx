@@ -7,16 +7,31 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
 export default function ScheduleDetailScreen() {
   const { id } = useLocalSearchParams();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editData, setEditData] = useState({
+    title: "",
+    description: "",
+    startDate: "",
+    endDate: "",
+    category: "",
+    address: "",
+    memo: "",
+  });
+  const [isMultiDay, setIsMultiDay] = useState(false);
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -26,6 +41,19 @@ export default function ScheduleDetailScreen() {
 
         const scheduleData = await db.getSchedule(id as string);
         setSchedule(scheduleData);
+
+        if (scheduleData) {
+          setEditData({
+            title: scheduleData.title,
+            description: scheduleData.description || "",
+            startDate: scheduleData.startDate,
+            endDate: scheduleData.endDate,
+            category: scheduleData.category || "",
+            address: scheduleData.address || "",
+            memo: scheduleData.memo || "",
+          });
+          setIsMultiDay(scheduleData.startDate !== scheduleData.endDate);
+        }
       } catch (error) {
         console.error("Failed to load schedule:", error);
       }
@@ -35,6 +63,34 @@ export default function ScheduleDetailScreen() {
       loadSchedule();
     }
   }, [id]);
+
+  const handleEditSchedule = async () => {
+    try {
+      const db = getDatabase();
+      await db.init();
+
+      const updatedSchedule: Schedule = {
+        ...schedule!,
+        title: editData.title,
+        description: editData.description,
+        startDate: editData.startDate,
+        endDate: isMultiDay ? editData.endDate : editData.startDate,
+        category: editData.category,
+        address: editData.address,
+        memo: editData.memo,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.updateSchedule(id as string, updatedSchedule);
+      setSchedule(updatedSchedule);
+      setShowEditModal(false);
+
+      Alert.alert("성공", "일정이 수정되었습니다.");
+    } catch (error) {
+      console.error("Failed to update schedule:", error);
+      Alert.alert("오류", "일정 수정에 실패했습니다.");
+    }
+  };
 
   if (!schedule) {
     return (
@@ -93,7 +149,12 @@ export default function ScheduleDetailScreen() {
           <Ionicons name="arrow-back" size={24} color="white" />
         </Pressable>
         <Text style={styles.headerTitle}>스케줄 상세</Text>
-        <View style={styles.placeholder} />
+        <Pressable
+          style={styles.editButton}
+          onPress={() => setShowEditModal(true)}
+        >
+          <Ionicons name="create-outline" size={24} color="white" />
+        </Pressable>
       </View>
 
       <ScrollView style={styles.content}>
@@ -201,6 +262,355 @@ export default function ScheduleDetailScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* 수정 모달 */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: Platform.OS === "web" ? "center" : "flex-end",
+            alignItems: "center",
+            padding: Platform.OS === "web" ? 20 : 0,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "white",
+              borderRadius: Platform.OS === "web" ? 12 : 0,
+              borderTopLeftRadius: Platform.OS === "web" ? 12 : 20,
+              borderTopRightRadius: Platform.OS === "web" ? 12 : 20,
+              width: "100%",
+              maxWidth: Platform.OS === "web" ? 500 : "100%",
+              maxHeight: Platform.OS === "web" ? "90%" : "85%",
+              minHeight: Platform.OS === "web" ? "auto" : "60%",
+              overflow: "hidden",
+            }}
+          >
+            {/* 헤더 */}
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: "#e5e7eb",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{ fontSize: 18, fontWeight: "600", color: "#111827" }}
+              >
+                일정 수정
+              </Text>
+              <Pressable
+                onPress={() => setShowEditModal(false)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: "#f3f4f6",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </Pressable>
+            </View>
+
+            {/* 스크롤 가능한 콘텐츠 */}
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{
+                paddingHorizontal: 20,
+                paddingVertical: 16,
+              }}
+              showsVerticalScrollIndicator={true}
+            >
+              {/* 제목 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}
+                >
+                  제목 *
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#d1d5db",
+                    borderRadius: 6,
+                    padding: 12,
+                    fontSize: 16,
+                  }}
+                  value={editData.title}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, title: text })
+                  }
+                  placeholder="일정 제목을 입력하세요"
+                />
+              </View>
+
+              {/* 설명 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}
+                >
+                  설명
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#d1d5db",
+                    borderRadius: 6,
+                    padding: 12,
+                    fontSize: 16,
+                    minHeight: 80,
+                    textAlignVertical: "top",
+                  }}
+                  value={editData.description}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, description: text })
+                  }
+                  placeholder="일정 설명을 입력하세요"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+
+              {/* 날짜 및 시간 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 8, color: "#374151" }}
+                >
+                  날짜 및 시간
+                </Text>
+
+                {/* 여러 날에 걸친 일정 체크박스 */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <Pressable
+                    onPress={() => setIsMultiDay(!isMultiDay)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginRight: 16,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 4,
+                        borderWidth: 2,
+                        borderColor: isMultiDay ? "#2563eb" : "#d1d5db",
+                        backgroundColor: isMultiDay ? "#2563eb" : "white",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 8,
+                      }}
+                    >
+                      {isMultiDay && (
+                        <Ionicons name="checkmark" size={12} color="white" />
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 14, color: "#374151" }}>
+                      여러 날에 걸친 일정
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* 시작일 */}
+                <View style={{ marginBottom: 12 }}>
+                  <Text
+                    style={{ fontSize: 12, marginBottom: 4, color: "#6b7280" }}
+                  >
+                    시작일 *
+                  </Text>
+                  <TextInput
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#d1d5db",
+                      borderRadius: 6,
+                      padding: 12,
+                      fontSize: 14,
+                    }}
+                    value={editData.startDate}
+                    onChangeText={(text) =>
+                      setEditData({ ...editData, startDate: text })
+                    }
+                    placeholder="YYYY-MM-DD"
+                  />
+                </View>
+
+                {/* 종료일 (여러 날에 걸친 일정일 때만) */}
+                {isMultiDay && (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        marginBottom: 4,
+                        color: "#6b7280",
+                      }}
+                    >
+                      종료일 *
+                    </Text>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: "#d1d5db",
+                        borderRadius: 6,
+                        padding: 12,
+                        fontSize: 14,
+                      }}
+                      value={editData.endDate}
+                      onChangeText={(text) =>
+                        setEditData({ ...editData, endDate: text })
+                      }
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </View>
+                )}
+              </View>
+
+              {/* 카테고리 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}
+                >
+                  카테고리
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#d1d5db",
+                    borderRadius: 6,
+                    padding: 12,
+                    fontSize: 16,
+                  }}
+                  value={editData.category}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, category: text })
+                  }
+                  placeholder="카테고리를 입력하세요"
+                />
+              </View>
+
+              {/* 주소 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}
+                >
+                  주소
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#d1d5db",
+                    borderRadius: 6,
+                    padding: 12,
+                    fontSize: 16,
+                  }}
+                  value={editData.address}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, address: text })
+                  }
+                  placeholder="주소를 입력하세요"
+                />
+              </View>
+
+              {/* 메모 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}
+                >
+                  메모
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#d1d5db",
+                    borderRadius: 6,
+                    padding: 12,
+                    fontSize: 16,
+                    minHeight: 80,
+                    textAlignVertical: "top",
+                  }}
+                  value={editData.memo}
+                  onChangeText={(text) =>
+                    setEditData({ ...editData, memo: text })
+                  }
+                  placeholder="메모를 입력하세요"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </ScrollView>
+
+            {/* 하단 버튼들 */}
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 16,
+                borderTopWidth: 1,
+                borderTopColor: "#e5e7eb",
+                flexDirection: "row",
+                gap: 12,
+                backgroundColor: "white",
+              }}
+            >
+              <Pressable
+                onPress={() => setShowEditModal(false)}
+                style={{
+                  backgroundColor: "#6b7280",
+                  paddingVertical: 12,
+                  borderRadius: 6,
+                  flex: 1,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "white",
+                    textAlign: "center",
+                    fontWeight: "600",
+                  }}
+                >
+                  취소
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleEditSchedule}
+                style={{
+                  backgroundColor: "#10b981",
+                  paddingVertical: 12,
+                  borderRadius: 6,
+                  flex: 1,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "white",
+                    textAlign: "center",
+                    fontWeight: "600",
+                  }}
+                >
+                  수정
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -234,6 +644,12 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  editButton: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     flex: 1,

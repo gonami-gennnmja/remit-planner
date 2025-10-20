@@ -3,6 +3,7 @@ export type Worker = {
   name: string;
   phone: string; // in E.164 or local format
   kakaoRoomUrl?: string; // deep link or web link
+  bankCode?: string; // 은행 코드
   bankAccount: string; // masked or raw account identifier
   hourlyWage: number; // KRW per hour
   taxWithheld: boolean;

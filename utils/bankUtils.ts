@@ -212,9 +212,17 @@ export function getBankOptions(): Array<{ label: string; value: string; bank: Ba
 }
 
 // 계좌번호 포맷팅 (은행별 형식 적용)
-export function formatAccountNumber(accountNumber: string): string {
+export function formatAccountNumber(accountNumber: string, bankCode?: string): string {
   // 숫자만 추출
   const numbers = accountNumber.replace(/[^0-9]/g, '');
+
+  // 은행 코드가 있으면 해당 은행의 포맷 사용
+  if (bankCode) {
+    const bank = KOREAN_BANKS.find(b => b.code === bankCode);
+    if (bank && bank.format) {
+      return formatByPattern(numbers, bank.format);
+    }
+  }
 
   // 은행 감지
   const bank = detectBankFromAccount(numbers);

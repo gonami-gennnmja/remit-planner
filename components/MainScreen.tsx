@@ -739,16 +739,19 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Theme.typography.sizes.xxl,
     fontWeight: Theme.typography.weights.bold,
+    fontFamily: "Inter_700Bold",
     color: Theme.colors.text.inverse,
     marginBottom: Theme.spacing.xs,
   },
   headerSubtitle: {
     fontSize: Theme.typography.sizes.md,
+    fontFamily: "Inter_400Regular",
     color: "rgba(255, 255, 255, 0.8)",
   },
   sectionTitle: {
     fontSize: Theme.typography.sizes.xl,
     fontWeight: Theme.typography.weights.semibold,
+    fontFamily: "Inter_600SemiBold",
     color: Theme.colors.text.primary,
     marginBottom: Theme.spacing.lg,
   },
@@ -784,11 +787,13 @@ const styles = StyleSheet.create({
   scheduleTitle: {
     fontSize: Theme.typography.sizes.md,
     fontWeight: Theme.typography.weights.semibold,
+    fontFamily: "Inter_600SemiBold",
     color: Theme.colors.text.primary,
     marginBottom: Theme.spacing.xs,
   },
   scheduleTime: {
     fontSize: Theme.typography.sizes.sm,
+    fontFamily: "Inter_400Regular",
     color: Theme.colors.text.secondary,
   },
   menuContainer: {
@@ -818,12 +823,14 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: Theme.typography.sizes.md,
     fontWeight: Theme.typography.weights.semibold,
+    fontFamily: "Inter_600SemiBold",
     color: Theme.colors.text.primary,
     marginBottom: Theme.spacing.xs,
     textAlign: "center",
   },
   menuDescription: {
     fontSize: Theme.typography.sizes.xs,
+    fontFamily: "Inter_400Regular",
     color: Theme.colors.text.secondary,
     textAlign: "center",
     lineHeight: 16,
@@ -859,16 +866,19 @@ const styles = StyleSheet.create({
   activityTitle: {
     fontSize: Theme.typography.sizes.sm,
     fontWeight: Theme.typography.weights.medium,
+    fontFamily: "Inter_500Medium",
     color: Theme.colors.text.primary,
     marginBottom: 2,
   },
   activityDescription: {
     fontSize: Theme.typography.sizes.xs,
+    fontFamily: "Inter_400Regular",
     color: Theme.colors.text.tertiary,
     marginBottom: 2,
   },
   activityTime: {
     fontSize: Theme.typography.sizes.xs,
+    fontFamily: "Inter_400Regular",
     color: Theme.colors.text.secondary,
   },
   noActivityContainer: {
@@ -877,6 +887,7 @@ const styles = StyleSheet.create({
   },
   noActivityText: {
     fontSize: Theme.typography.sizes.sm,
+    fontFamily: "Inter_400Regular",
     color: Theme.colors.text.tertiary,
     marginTop: Theme.spacing.md,
   },
@@ -897,6 +908,7 @@ const styles = StyleSheet.create({
   },
   headerTitleWeb: {
     fontSize: 42,
+    fontFamily: "Inter_700Bold",
   },
   mainContentWeb: {
     maxWidth: 1400,
@@ -916,9 +928,11 @@ const styles = StyleSheet.create({
   },
   menuTitleWeb: {
     fontSize: 20,
+    fontFamily: "Inter_600SemiBold",
   },
   menuDescriptionWeb: {
     fontSize: 14,
+    fontFamily: "Inter_400Regular",
     lineHeight: 20,
   },
   twoColumnWeb: {
