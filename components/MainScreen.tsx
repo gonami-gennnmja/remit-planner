@@ -3,16 +3,16 @@ import StaffWorkStatusModal from "@/components/StaffWorkStatusModal";
 import TodayScheduleModal from "@/components/TodayScheduleModal";
 import UnpaidScheduleModal from "@/components/UnpaidScheduleModal";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
+import { useResponsive } from "@/hooks/useResponsive";
 import { Schedule } from "@/models/types";
-import { getCurrentUser, logout, User } from "@/utils/authUtils";
+import { getCurrentUser, User } from "@/utils/authUtils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Dimensions,
   Platform,
   Pressable,
   ScrollView,
@@ -21,7 +21,6 @@ import {
   View,
 } from "react-native";
 
-const { width } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
 
 interface Activity {
@@ -41,6 +40,9 @@ export default function MainScreen() {
     dayjs().format("YYYY-MM-DD")
   );
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+  const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
+    useResponsive();
+  const { colors } = useTheme();
 
   // 모달 상태
   const [showTodaySchedule, setShowTodaySchedule] = useState(false);
@@ -458,20 +460,6 @@ export default function MainScreen() {
     return count;
   };
 
-  const handleLogout = () => {
-    Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "로그아웃",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-          router.replace("/");
-        },
-      },
-    ]);
-  };
-
   const menuItems = [
     {
       id: "dashboard",
@@ -538,20 +526,39 @@ export default function MainScreen() {
   return (
     <ScrollView style={styles.container}>
       {/* 헤더 */}
-      <View style={[styles.header, isWeb && styles.headerWeb]}>
+      <View
+        style={[
+          styles.header,
+          isWeb && styles.headerWeb,
+          { backgroundColor: colors.primary },
+        ]}
+      >
         <View style={isWeb && styles.headerContentWeb}>
           <View>
-            <Text style={[styles.headerTitle, isWeb && styles.headerTitleWeb]}>
+            <Text
+              style={[
+                styles.headerTitle,
+                isWeb && styles.headerTitleWeb,
+                { color: colors.surface },
+              ]}
+            >
               리밋 플래너
             </Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={[styles.headerSubtitle, { color: colors.surface }]}>
               {currentUser
                 ? `${currentUser.name}님 환영합니다`
                 : "효율적인 스케줄 & 급여 관리"}
             </Text>
           </View>
-          <Pressable style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color="white" />
+          <Pressable
+            style={[styles.settingsButton, { backgroundColor: colors.surface }]}
+            onPress={() => router.push("/settings")}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={24}
+              color={colors.primary}
+            />
           </Pressable>
         </View>
       </View>
@@ -560,12 +567,25 @@ export default function MainScreen() {
       <View style={isWeb && styles.mainContentWeb}>
         {/* 메인 메뉴 */}
         <View style={styles.menuContainer}>
-          <Text style={styles.sectionTitle}>주요 기능</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            주요 기능
+          </Text>
           <View style={[styles.menuGrid, isWeb && styles.menuGridWeb]}>
             {menuItems.map((item) => (
               <Pressable
                 key={item.id}
-                style={[styles.menuItem, isWeb && styles.menuItemWeb]}
+                style={[
+                  styles.menuItem,
+                  isWeb && styles.menuItemWeb,
+                  { backgroundColor: colors.surface },
+                  {
+                    width: getResponsiveValue(
+                      (screenData.width - 56) / 2,
+                      (screenData.width - 80) / 3,
+                      (screenData.width - 120) / 4
+                    ),
+                  },
+                ]}
                 onPress={() => handleMenuPress(item.route)}
               >
                 <View
@@ -577,13 +597,20 @@ export default function MainScreen() {
                     color="white"
                   />
                 </View>
-                <Text style={[styles.menuTitle, isWeb && styles.menuTitleWeb]}>
+                <Text
+                  style={[
+                    styles.menuTitle,
+                    isWeb && styles.menuTitleWeb,
+                    { color: colors.text },
+                  ]}
+                >
                   {item.title}
                 </Text>
                 <Text
                   style={[
                     styles.menuDescription,
                     isWeb && styles.menuDescriptionWeb,
+                    { color: colors.textSecondary },
                   ]}
                 >
                   {item.description}
@@ -728,7 +755,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  logoutButton: {
+  settingsButton: {
     width: 44,
     height: 44,
     borderRadius: Theme.borderRadius.full,
@@ -808,7 +835,6 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.card,
     borderRadius: Theme.borderRadius.lg,
     padding: Theme.spacing.xl,
-    width: (width - 56) / 2,
     alignItems: "center",
     ...Theme.shadows.sm,
   },

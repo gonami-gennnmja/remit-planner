@@ -2,20 +2,17 @@ import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule, ScheduleCategory } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -33,24 +30,6 @@ export default function ScheduleListScreen() {
     "all" | "ongoing" | "upcoming" | "past"
   >("all");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    startDate: dayjs().format("YYYY-MM-DD"),
-    startTime: "09:00",
-    endDate: dayjs().format("YYYY-MM-DD"),
-    endTime: "18:00",
-    category: "" as ScheduleCategory,
-    address: "",
-    memo: "",
-  });
-  const [isMultiDay, setIsMultiDay] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryColor, setNewCategoryColor] = useState("#6366f1");
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showAddressModal, setShowAddressModal] = useState(false);
 
   // 컴포넌트 마운트 시 초기화
   useEffect(() => {
@@ -735,17 +714,39 @@ export default function ScheduleListScreen() {
                   <View style={styles.dateTimeGroup}>
                     <Text style={styles.inputLabel}>시작일 *</Text>
                     {Platform.OS === "web" ? (
-                      <input
-                        type="date"
-                        value={formData.startDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            startDate: e.target.value,
-                          })
-                        }
+                      <Pressable
                         style={styles.webDateInput}
-                      />
+                        onPress={() => {
+                          const input = document.createElement("input");
+                          input.type = "date";
+                          input.value = formData.startDate;
+                          input.style.position = "absolute";
+                          input.style.left = "-9999px";
+                          document.body.appendChild(input);
+                          input.click();
+                          input.onchange = (e: any) => {
+                            setFormData({
+                              ...formData,
+                              startDate: e.target.value,
+                            });
+                            document.body.removeChild(input);
+                          };
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.webDateInputText,
+                            !formData.startDate && styles.placeholderText,
+                          ]}
+                        >
+                          {formData.startDate || "날짜 선택"}
+                        </Text>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={20}
+                          color="#666"
+                        />
+                      </Pressable>
                     ) : (
                       <Pressable
                         style={styles.dateInput}
@@ -766,17 +767,35 @@ export default function ScheduleListScreen() {
                   <View style={styles.dateTimeGroup}>
                     <Text style={styles.inputLabel}>시작시간 *</Text>
                     {Platform.OS === "web" ? (
-                      <input
-                        type="time"
-                        value={formData.startTime}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            startTime: e.target.value,
-                          })
-                        }
+                      <Pressable
                         style={styles.webTimeInput}
-                      />
+                        onPress={() => {
+                          const input = document.createElement("input");
+                          input.type = "time";
+                          input.value = formData.startTime;
+                          input.style.position = "absolute";
+                          input.style.left = "-9999px";
+                          document.body.appendChild(input);
+                          input.click();
+                          input.onchange = (e: any) => {
+                            setFormData({
+                              ...formData,
+                              startTime: e.target.value,
+                            });
+                            document.body.removeChild(input);
+                          };
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.webTimeInputText,
+                            !formData.startTime && styles.placeholderText,
+                          ]}
+                        >
+                          {formData.startTime || "시간 선택"}
+                        </Text>
+                        <Ionicons name="time-outline" size={20} color="#666" />
+                      </Pressable>
                     ) : (
                       <TextInput
                         style={styles.textInput}
@@ -795,17 +814,39 @@ export default function ScheduleListScreen() {
                     <View style={styles.dateTimeGroup}>
                       <Text style={styles.inputLabel}>종료일 *</Text>
                       {Platform.OS === "web" ? (
-                        <input
-                          type="date"
-                          value={formData.endDate}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              endDate: e.target.value,
-                            })
-                          }
+                        <Pressable
                           style={styles.webDateInput}
-                        />
+                          onPress={() => {
+                            const input = document.createElement("input");
+                            input.type = "date";
+                            input.value = formData.endDate;
+                            input.style.position = "absolute";
+                            input.style.left = "-9999px";
+                            document.body.appendChild(input);
+                            input.click();
+                            input.onchange = (e: any) => {
+                              setFormData({
+                                ...formData,
+                                endDate: e.target.value,
+                              });
+                              document.body.removeChild(input);
+                            };
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.webDateInputText,
+                              !formData.endDate && styles.placeholderText,
+                            ]}
+                          >
+                            {formData.endDate || "날짜 선택"}
+                          </Text>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={20}
+                            color="#666"
+                          />
+                        </Pressable>
                       ) : (
                         <Pressable
                           style={styles.dateInput}
@@ -826,17 +867,39 @@ export default function ScheduleListScreen() {
                     <View style={styles.dateTimeGroup}>
                       <Text style={styles.inputLabel}>종료시간 *</Text>
                       {Platform.OS === "web" ? (
-                        <input
-                          type="time"
-                          value={formData.endTime}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              endTime: e.target.value,
-                            })
-                          }
+                        <Pressable
                           style={styles.webTimeInput}
-                        />
+                          onPress={() => {
+                            const input = document.createElement("input");
+                            input.type = "time";
+                            input.value = formData.endTime;
+                            input.style.position = "absolute";
+                            input.style.left = "-9999px";
+                            document.body.appendChild(input);
+                            input.click();
+                            input.onchange = (e: any) => {
+                              setFormData({
+                                ...formData,
+                                endTime: e.target.value,
+                              });
+                              document.body.removeChild(input);
+                            };
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.webTimeInputText,
+                              !formData.endTime && styles.placeholderText,
+                            ]}
+                          >
+                            {formData.endTime || "시간 선택"}
+                          </Text>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color="#666"
+                          />
+                        </Pressable>
                       ) : (
                         <TextInput
                           style={styles.textInput}
@@ -1607,22 +1670,41 @@ const styles = StyleSheet.create({
     borderTopColor: "#e5e7eb",
   },
   webDateInput: {
-    width: "100%",
-    padding: 12,
     borderWidth: 1,
     borderColor: "#d1d5db",
     borderRadius: 8,
-    fontSize: 16,
-    backgroundColor: "white",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f9fafb",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    height: 40,
   },
   webTimeInput: {
-    width: "100%",
-    padding: 12,
     borderWidth: 1,
     borderColor: "#d1d5db",
     borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f9fafb",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    height: 40,
+  },
+  webDateInputText: {
     fontSize: 16,
-    backgroundColor: "white",
+    color: "#333",
+  },
+  webTimeInputText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  placeholderText: {
+    color: "#9ca3af",
   },
   // 날짜/시간 행 스타일
   dateTimeRow: {

@@ -2,6 +2,7 @@ import AddressSearchModal from "@/components/AddressSearchModal";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
+import { useResponsive } from "@/hooks/useResponsive";
 import { Schedule, ScheduleCategory, Worker } from "@/models/types";
 import {
   detectBankFromAccount,
@@ -235,6 +236,8 @@ export default function PlannerCalendar({
   const [selectedDate, setSelectedDate] = useState<string>(
     dayjs().format("YYYY-MM-DD")
   );
+  const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
+    useResponsive();
   const [currentMonth, setCurrentMonth] = useState<string>(
     dayjs().format("YYYY-MM")
   );
@@ -1014,7 +1017,7 @@ export default function PlannerCalendar({
                 <Text
                   style={{
                     color: "#ffffff",
-                    fontSize: 13,
+                    fontSize: getResponsiveValue(13, 14, 15),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
                   }}
@@ -1052,7 +1055,7 @@ export default function PlannerCalendar({
                 <Text
                   style={{
                     color: "#ffffff",
-                    fontSize: 13,
+                    fontSize: getResponsiveValue(13, 14, 15),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
                   }}
@@ -1088,7 +1091,7 @@ export default function PlannerCalendar({
                 <Text
                   style={{
                     color: "#ffffff",
-                    fontSize: 13,
+                    fontSize: getResponsiveValue(13, 14, 15),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
                   }}
@@ -1224,7 +1227,7 @@ export default function PlannerCalendar({
                         <Pressable
                           key={`${year}-${month}`}
                           style={{
-                            width: "30%",
+                            width: isMobile ? "30%" : isTablet ? "25%" : "20%",
                             aspectRatio: 1,
                             backgroundColor: "white",
                             borderRadius: 8,
@@ -1256,7 +1259,7 @@ export default function PlannerCalendar({
                           {/* 월 헤더 */}
                           <Text
                             style={{
-                              fontSize: 10,
+                              fontSize: getResponsiveValue(10, 12, 14),
                               fontWeight: "600",
                               color: hasSchedules ? "#00adf5" : "#374151",
                               textAlign: "center",
@@ -1279,10 +1282,10 @@ export default function PlannerCalendar({
                                 <Text
                                   key={index}
                                   style={{
-                                    fontSize: 6,
+                                    fontSize: getResponsiveValue(6, 7, 8),
                                     color: "#9ca3af",
                                     fontWeight: "500",
-                                    width: 8,
+                                    width: getResponsiveValue(8, 10, 12),
                                     textAlign: "center",
                                   }}
                                 >
@@ -1324,8 +1327,8 @@ export default function PlannerCalendar({
                                 <View
                                   key={dayIndex}
                                   style={{
-                                    width: 8,
-                                    height: 8,
+                                    width: getResponsiveValue(8, 10, 12),
+                                    height: getResponsiveValue(8, 10, 12),
                                     alignItems: "center",
                                     justifyContent: "center",
                                     marginBottom: 1,
@@ -1333,7 +1336,7 @@ export default function PlannerCalendar({
                                 >
                                   <Text
                                     style={{
-                                      fontSize: 6,
+                                      fontSize: getResponsiveValue(6, 7, 8),
                                       color: isCurrentMonth
                                         ? isToday
                                           ? "#00adf5"
@@ -1358,9 +1361,9 @@ export default function PlannerCalendar({
                                 position: "absolute",
                                 top: 4,
                                 right: 4,
-                                width: 4,
-                                height: 4,
-                                borderRadius: 2,
+                                width: getResponsiveValue(4, 5, 6),
+                                height: getResponsiveValue(4, 5, 6),
+                                borderRadius: getResponsiveValue(2, 2.5, 3),
                                 backgroundColor: "#00adf5",
                               }}
                             />
@@ -1376,7 +1379,7 @@ export default function PlannerCalendar({
         ) : (
           <View
             style={{
-              height: 350,
+              height: getResponsiveValue(350, 400, 450),
             }}
           >
             <CalendarList
@@ -1395,7 +1398,7 @@ export default function PlannerCalendar({
                   >
                     <Text
                       style={{
-                        fontSize: 24,
+                        fontSize: getResponsiveValue(24, 28, 32),
                         fontWeight: "700",
                         fontFamily: "Inter_700Bold",
                         color: "#111827",
@@ -1520,7 +1523,7 @@ export default function PlannerCalendar({
                 paddingRight: 15,
               }}
               style={{
-                height: 350,
+                height: getResponsiveValue(350, 400, 450),
               }}
             />
           </View>
@@ -1550,7 +1553,7 @@ export default function PlannerCalendar({
               >
                 <Text
                   style={{
-                    fontSize: 18,
+                    fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
                     color: "#374151",
@@ -1678,7 +1681,7 @@ export default function PlannerCalendar({
                     >
                       <Text
                         style={{
-                          fontSize: 16,
+                          fontSize: getResponsiveValue(16, 17, 18),
                           color: "#6b7280",
                           textAlign: "center",
                         }}
@@ -1748,7 +1751,7 @@ export default function PlannerCalendar({
                             <View style={{ flex: 1 }}>
                               <Text
                                 style={{
-                                  fontSize: 16,
+                                  fontSize: getResponsiveValue(16, 17, 18),
                                   fontWeight: "600",
                                   color: "#111827",
                                   marginBottom: 4,
@@ -1758,7 +1761,7 @@ export default function PlannerCalendar({
                               </Text>
                               <Text
                                 style={{
-                                  fontSize: 14,
+                                  fontSize: getResponsiveValue(14, 15, 16),
                                   color: "#6b7280",
                                   marginBottom: 8,
                                 }}
@@ -1770,7 +1773,7 @@ export default function PlannerCalendar({
                               {scheduleStart && scheduleEnd && (
                                 <Text
                                   style={{
-                                    fontSize: 13,
+                                    fontSize: getResponsiveValue(13, 14, 15),
                                     color: "#374151",
                                     backgroundColor: "#f3f4f6",
                                     paddingHorizontal: 8,
@@ -1848,7 +1851,7 @@ export default function PlannerCalendar({
               >
                 <Text
                   style={{
-                    fontSize: 18,
+                    fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
                     color: "#374151",
@@ -1976,7 +1979,7 @@ export default function PlannerCalendar({
                     >
                       <Text
                         style={{
-                          fontSize: 16,
+                          fontSize: getResponsiveValue(16, 17, 18),
                           color: "#6b7280",
                           textAlign: "center",
                         }}
@@ -2046,7 +2049,7 @@ export default function PlannerCalendar({
                             <View style={{ flex: 1 }}>
                               <Text
                                 style={{
-                                  fontSize: 16,
+                                  fontSize: getResponsiveValue(16, 17, 18),
                                   fontWeight: "600",
                                   color: "#111827",
                                   marginBottom: 4,
@@ -2056,7 +2059,7 @@ export default function PlannerCalendar({
                               </Text>
                               <Text
                                 style={{
-                                  fontSize: 14,
+                                  fontSize: getResponsiveValue(14, 15, 16),
                                   color: "#6b7280",
                                   marginBottom: 8,
                                 }}
@@ -2068,7 +2071,7 @@ export default function PlannerCalendar({
                               {scheduleStart && scheduleEnd && (
                                 <Text
                                   style={{
-                                    fontSize: 13,
+                                    fontSize: getResponsiveValue(13, 14, 15),
                                     color: "#374151",
                                     backgroundColor: "#f3f4f6",
                                     paddingHorizontal: 8,
@@ -2342,7 +2345,7 @@ export default function PlannerCalendar({
                         >
                           <Text
                             style={{
-                              fontSize: 18,
+                              fontSize: getResponsiveValue(18, 20, 22),
                               fontWeight: "600",
                               fontFamily: "Inter_600SemiBold",
                               textAlign: "center",
@@ -2574,7 +2577,7 @@ export default function PlannerCalendar({
                                 <View>
                                   <Text
                                     style={{
-                                      fontSize: 16,
+                                      fontSize: getResponsiveValue(16, 17, 18),
                                       color: "#ef4444",
                                       marginBottom: 16,
                                     }}
@@ -2612,7 +2615,7 @@ export default function PlannerCalendar({
                                 </Text>
                                 <Text
                                   style={{
-                                    fontSize: 16,
+                                    fontSize: getResponsiveValue(16, 17, 18),
                                     marginBottom: 16,
                                     color: "#374151",
                                   }}
@@ -2629,7 +2632,7 @@ export default function PlannerCalendar({
                                 </Text>
                                 <Text
                                   style={{
-                                    fontSize: 16,
+                                    fontSize: getResponsiveValue(16, 17, 18),
                                     marginBottom: 16,
                                     color: "#374151",
                                   }}
@@ -2641,7 +2644,7 @@ export default function PlannerCalendar({
                                 <View style={{ marginBottom: 16 }}>
                                   <Text
                                     style={{
-                                      fontSize: 14,
+                                      fontSize: getResponsiveValue(14, 15, 16),
                                       fontWeight: "600",
                                       color: "#374151",
                                       marginBottom: 8,
@@ -2659,7 +2662,11 @@ export default function PlannerCalendar({
                                         borderColor: "#d1d5db",
                                         borderRadius: 6,
                                         padding: 12,
-                                        fontSize: 14,
+                                        fontSize: getResponsiveValue(
+                                          14,
+                                          15,
+                                          16
+                                        ),
                                         backgroundColor: "white",
                                       }}
                                       value={schedule.address || ""}
@@ -2742,7 +2749,11 @@ export default function PlannerCalendar({
                                       <Text
                                         style={{
                                           color: "white",
-                                          fontSize: 12,
+                                          fontSize: getResponsiveValue(
+                                            12,
+                                            13,
+                                            14
+                                          ),
                                           fontWeight: "600",
                                         }}
                                       >
@@ -2756,7 +2767,11 @@ export default function PlannerCalendar({
                                     <View style={{ marginTop: 8 }}>
                                       <Text
                                         style={{
-                                          fontSize: 12,
+                                          fontSize: getResponsiveValue(
+                                            12,
+                                            13,
+                                            14
+                                          ),
                                           color: "#6b7280",
                                           marginBottom: 8,
                                         }}
@@ -2796,7 +2811,11 @@ export default function PlannerCalendar({
                                           >
                                             <Text
                                               style={{
-                                                fontSize: 12,
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
                                                 fontWeight: "600",
                                                 color: "#000",
                                               }}
@@ -2841,7 +2860,11 @@ export default function PlannerCalendar({
                                           >
                                             <Text
                                               style={{
-                                                fontSize: 12,
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
                                                 fontWeight: "600",
                                                 color: "#fff",
                                               }}
@@ -2883,7 +2906,11 @@ export default function PlannerCalendar({
                                             >
                                               <Text
                                                 style={{
-                                                  fontSize: 12,
+                                                  fontSize: getResponsiveValue(
+                                                    12,
+                                                    13,
+                                                    14
+                                                  ),
                                                   fontWeight: "600",
                                                   color: "#fff",
                                                 }}
@@ -2915,7 +2942,11 @@ export default function PlannerCalendar({
                                   >
                                     <Text
                                       style={{
-                                        fontSize: 18,
+                                        fontSize: getResponsiveValue(
+                                          18,
+                                          20,
+                                          22
+                                        ),
                                         fontWeight: "600",
                                       }}
                                     >
@@ -2989,7 +3020,11 @@ export default function PlannerCalendar({
                                         <Text
                                           style={{
                                             color: "white",
-                                            fontSize: 12,
+                                            fontSize: getResponsiveValue(
+                                              12,
+                                              13,
+                                              14
+                                            ),
                                           }}
                                         >
                                           + 추가
@@ -3010,7 +3045,11 @@ export default function PlannerCalendar({
                                         <Text
                                           style={{
                                             color: "white",
-                                            fontSize: 12,
+                                            fontSize: getResponsiveValue(
+                                              12,
+                                              13,
+                                              14
+                                            ),
                                           }}
                                         >
                                           상세보기
@@ -3187,7 +3226,11 @@ export default function PlannerCalendar({
                                     <Text
                                       style={{
                                         color: "white",
-                                        fontSize: 14,
+                                        fontSize: getResponsiveValue(
+                                          14,
+                                          15,
+                                          16
+                                        ),
                                         fontWeight: "600",
                                       }}
                                     >
@@ -3221,7 +3264,11 @@ export default function PlannerCalendar({
                                       {/* 근로자 이름 */}
                                       <Text
                                         style={{
-                                          fontSize: 18,
+                                          fontSize: getResponsiveValue(
+                                            18,
+                                            20,
+                                            22
+                                          ),
                                           fontWeight: "600",
                                           marginBottom: 12,
                                           textAlign: "center",
@@ -3234,7 +3281,11 @@ export default function PlannerCalendar({
                                       <View style={{ marginBottom: 12 }}>
                                         <Text
                                           style={{
-                                            fontSize: 12,
+                                            fontSize: getResponsiveValue(
+                                              12,
+                                              13,
+                                              14
+                                            ),
                                             color: "#6b7280",
                                             marginBottom: 4,
                                           }}
@@ -3250,7 +3301,11 @@ export default function PlannerCalendar({
                                         >
                                           <Text
                                             style={{
-                                              fontSize: 14,
+                                              fontSize: getResponsiveValue(
+                                                14,
+                                                15,
+                                                16
+                                              ),
                                               color: "#2563eb",
                                               textDecorationLine: "underline",
                                             }}
@@ -3267,7 +3322,11 @@ export default function PlannerCalendar({
                                       <View style={{ marginBottom: 12 }}>
                                         <Text
                                           style={{
-                                            fontSize: 12,
+                                            fontSize: getResponsiveValue(
+                                              12,
+                                              13,
+                                              14
+                                            ),
                                             color: "#6b7280",
                                             marginBottom: 4,
                                           }}
@@ -3289,7 +3348,11 @@ export default function PlannerCalendar({
                                               borderRadius: 4,
                                               padding: 6,
                                               backgroundColor: "white",
-                                              fontSize: 12,
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
                                               width: 80,
                                             }}
                                             value={(
@@ -3315,7 +3378,11 @@ export default function PlannerCalendar({
                                           />
                                           <Text
                                             style={{
-                                              fontSize: 12,
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
                                               color: "#6b7280",
                                             }}
                                           >
@@ -3325,7 +3392,11 @@ export default function PlannerCalendar({
 
                                         <Text
                                           style={{
-                                            fontSize: 12,
+                                            fontSize: getResponsiveValue(
+                                              12,
+                                              13,
+                                              14
+                                            ),
                                             color: "#6b7280",
                                             marginBottom: 4,
                                           }}
@@ -3346,7 +3417,11 @@ export default function PlannerCalendar({
                                               borderRadius: 4,
                                               padding: 6,
                                               backgroundColor: "white",
-                                              fontSize: 12,
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
                                               width: 100,
                                             }}
                                             value={formatWorkHours(
@@ -3393,7 +3468,11 @@ export default function PlannerCalendar({
                                       <View style={{ marginBottom: 12 }}>
                                         <Text
                                           style={{
-                                            fontSize: 12,
+                                            fontSize: getResponsiveValue(
+                                              12,
+                                              13,
+                                              14
+                                            ),
                                             color: "#6b7280",
                                             marginBottom: 4,
                                           }}
@@ -3412,7 +3491,11 @@ export default function PlannerCalendar({
                                             >
                                               <Text
                                                 style={{
-                                                  fontSize: 12,
+                                                  fontSize: getResponsiveValue(
+                                                    12,
+                                                    13,
+                                                    14
+                                                  ),
                                                   color: "#1f2937",
                                                   marginBottom: 2,
                                                 }}
@@ -3423,7 +3506,12 @@ export default function PlannerCalendar({
                                               {pay.taxWithheld && (
                                                 <Text
                                                   style={{
-                                                    fontSize: 12,
+                                                    fontSize:
+                                                      getResponsiveValue(
+                                                        12,
+                                                        13,
+                                                        14
+                                                      ),
                                                     color: "#dc2626",
                                                     marginBottom: 2,
                                                   }}
@@ -3434,7 +3522,11 @@ export default function PlannerCalendar({
                                               )}
                                               <Text
                                                 style={{
-                                                  fontSize: 14,
+                                                  fontSize: getResponsiveValue(
+                                                    14,
+                                                    15,
+                                                    16
+                                                  ),
                                                   color: "#059669",
                                                   fontWeight: "600",
                                                 }}
@@ -3451,7 +3543,11 @@ export default function PlannerCalendar({
                                       <View style={{ marginBottom: 12 }}>
                                         <Text
                                           style={{
-                                            fontSize: 12,
+                                            fontSize: getResponsiveValue(
+                                              12,
+                                              13,
+                                              14
+                                            ),
                                             color: "#6b7280",
                                             marginBottom: 4,
                                           }}
@@ -3475,7 +3571,11 @@ export default function PlannerCalendar({
                                           >
                                             <Text
                                               style={{
-                                                fontSize: 12,
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
                                                 color: "#6b7280",
                                                 minWidth: 40,
                                               }}
@@ -3493,7 +3593,11 @@ export default function PlannerCalendar({
                                             </Text>
                                             <Text
                                               style={{
-                                                fontSize: 12,
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
                                                 color: "#1f2937",
                                                 flex: 1,
                                               }}
@@ -3566,7 +3670,11 @@ export default function PlannerCalendar({
                                         <View style={{ marginBottom: 12 }}>
                                           <Text
                                             style={{
-                                              fontSize: 12,
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
                                               color: "#6b7280",
                                               marginBottom: 4,
                                             }}
@@ -3575,7 +3683,11 @@ export default function PlannerCalendar({
                                           </Text>
                                           <Text
                                             style={{
-                                              fontSize: 12,
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
                                               color: "#1f2937",
                                               fontStyle: "italic",
                                             }}
@@ -3603,7 +3715,11 @@ export default function PlannerCalendar({
                                         >
                                           <Text
                                             style={{
-                                              fontSize: 12,
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
                                               color: "#6b7280",
                                             }}
                                           >
@@ -3719,7 +3835,11 @@ export default function PlannerCalendar({
                                         >
                                           <Text
                                             style={{
-                                              fontSize: 12,
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
                                               color: "#6b7280",
                                             }}
                                           >
@@ -3813,7 +3933,7 @@ export default function PlannerCalendar({
               >
                 <Text
                   style={{
-                    fontSize: 18,
+                    fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "bold",
                     color: "#1f2937",
                   }}
@@ -3890,7 +4010,7 @@ export default function PlannerCalendar({
                           : "#d1d5db",
                       borderRadius: 6,
                       padding: 12,
-                      fontSize: 16,
+                      fontSize: getResponsiveValue(16, 17, 18),
                     }}
                     value={newWorker.name}
                     onChangeText={(text) => {
@@ -3923,7 +4043,7 @@ export default function PlannerCalendar({
                       borderColor: "#d1d5db",
                       borderRadius: 6,
                       padding: 12,
-                      fontSize: 16,
+                      fontSize: getResponsiveValue(16, 17, 18),
                     }}
                     value={formatPhoneNumber(newWorker.phone)}
                     onChangeText={(text) => {
@@ -3995,7 +4115,7 @@ export default function PlannerCalendar({
                         borderColor: "#d1d5db",
                         borderRadius: 6,
                         padding: 12,
-                        fontSize: 16,
+                        fontSize: getResponsiveValue(16, 17, 18),
                         flex: 1,
                       }}
                       value={newWorker.bankAccount}
@@ -4027,7 +4147,7 @@ export default function PlannerCalendar({
                       borderColor: "#d1d5db",
                       borderRadius: 6,
                       padding: 12,
-                      fontSize: 16,
+                      fontSize: getResponsiveValue(16, 17, 18),
                     }}
                     value={formatNumber(newWorker.hourlyWage)}
                     onChangeText={(text) => {
@@ -4591,7 +4711,7 @@ export default function PlannerCalendar({
                                       borderColor: "#d1d5db",
                                       borderRadius: 4,
                                       padding: 8,
-                                      fontSize: 12,
+                                      fontSize: getResponsiveValue(12, 13, 14),
                                       width: 70,
                                       textAlign: "center",
                                     }}
@@ -4619,7 +4739,7 @@ export default function PlannerCalendar({
                                       borderColor: "#d1d5db",
                                       borderRadius: 4,
                                       padding: 8,
-                                      fontSize: 12,
+                                      fontSize: getResponsiveValue(12, 13, 14),
                                       width: 70,
                                       textAlign: "center",
                                     }}
@@ -4760,7 +4880,7 @@ export default function PlannerCalendar({
                       borderColor: "#d1d5db",
                       borderRadius: 6,
                       padding: 12,
-                      fontSize: 16,
+                      fontSize: getResponsiveValue(16, 17, 18),
                       minHeight: 80,
                       textAlignVertical: "top",
                     }}
@@ -4853,7 +4973,7 @@ export default function PlannerCalendar({
               >
                 <Text
                   style={{
-                    fontSize: 18,
+                    fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "bold",
                     color: "#1f2937",
                   }}
@@ -4897,7 +5017,7 @@ export default function PlannerCalendar({
                     <View>
                       <Text
                         style={{
-                          fontSize: 16,
+                          fontSize: getResponsiveValue(16, 17, 18),
                           fontWeight: "500",
                           color: "#1f2937",
                         }}
@@ -4956,7 +5076,7 @@ export default function PlannerCalendar({
               >
                 <Text
                   style={{
-                    fontSize: 18,
+                    fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "bold",
                     color: "#1f2937",
                   }}
@@ -5035,7 +5155,7 @@ export default function PlannerCalendar({
               >
                 <Text
                   style={{
-                    fontSize: 18,
+                    fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
                     color: "#111827",
@@ -5066,7 +5186,7 @@ export default function PlannerCalendar({
                     borderColor: "#d1d5db",
                     borderRadius: 6,
                     padding: 12,
-                    fontSize: 16,
+                    fontSize: getResponsiveValue(16, 17, 18),
                   }}
                   value={workerSearchQuery}
                   onChangeText={setWorkerSearchQuery}
@@ -5116,7 +5236,7 @@ export default function PlannerCalendar({
                       <View style={{ flex: 1 }}>
                         <Text
                           style={{
-                            fontSize: 16,
+                            fontSize: getResponsiveValue(16, 17, 18),
                             fontWeight: "500",
                             color: "#111827",
                           }}

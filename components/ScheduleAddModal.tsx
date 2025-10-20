@@ -1,6 +1,7 @@
 import AddressSearchModal from "@/components/AddressSearchModal";
 import { Text } from "@/components/Themed";
 import { getDatabase } from "@/database/platformDatabase";
+import { useResponsive } from "@/hooks/useResponsive";
 import { ScheduleCategory } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
@@ -15,6 +16,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+// @ts-ignore
+import RNDatePicker from "react-native-datepicker";
 
 interface ScheduleAddModalProps {
   visible: boolean;
@@ -33,6 +36,8 @@ export default function ScheduleAddModal({
   initialEndDate,
   initialIsMultiDay = false,
 }: ScheduleAddModalProps) {
+  const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
+    useResponsive();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -147,6 +152,86 @@ export default function ScheduleAddModal({
   const handleAddressSelect = (address: string) => {
     setFormData({ ...formData, address });
     setIsAddressSearchVisible(false);
+  };
+
+  const handleDirectAddressSearch = () => {
+    if (Platform.OS === "web") {
+      // 웹에서 직접 다음 우편번호 서비스 열기
+      const script = document.createElement("script");
+      script.src =
+        "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+      script.onload = () => {
+        // 팝업 창으로 열기
+        const popup = window.open(
+          "",
+          "postcodePopup",
+          "width=500,height=600,scrollbars=yes,resizable=yes"
+        );
+
+        if (popup) {
+          // 팝업 창에 HTML 작성
+          popup.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>주소 검색</title>
+              <style>
+                body { margin: 0; padding: 0; }
+                #postcode { width: 100%; height: 100vh; }
+              </style>
+            </head>
+            <body>
+              <div id="postcode"></div>
+            </body>
+            </html>
+          `);
+          popup.document.close();
+
+          // 팝업이 완전히 로드된 후 다음 우편번호 서비스 초기화
+          popup.onload = () => {
+            // @ts-ignore
+            new window.daum.Postcode({
+              oncomplete: function (data: any) {
+                console.log("팝업에서 선택된 주소:", data);
+
+                let selectedAddress = "";
+                if (data.roadAddress) {
+                  selectedAddress = data.roadAddress;
+                } else if (data.jibunAddress) {
+                  selectedAddress = data.jibunAddress;
+                } else if (data.address) {
+                  selectedAddress = data.address;
+                }
+
+                if (data.buildingName) {
+                  selectedAddress += ` (${data.buildingName})`;
+                }
+
+                // 선택된 주소를 폼 데이터에 설정
+                setFormData({ ...formData, address: selectedAddress });
+                popup.close();
+              },
+              onclose: function (state: string) {
+                console.log("팝업 닫힘:", state);
+                if (state === "FORCE_CLOSE") {
+                  popup.close();
+                }
+              },
+            }).embed(popup.document.getElementById("postcode"));
+          };
+        }
+      };
+
+      script.onerror = () => {
+        Alert.alert("오류", "주소 검색 서비스를 불러올 수 없습니다.");
+      };
+
+      document.head.appendChild(script);
+    } else {
+      // 모바일에서는 기존 방식 사용
+      setIsAddressSearchVisible(true);
+    }
   };
 
   return (
@@ -283,52 +368,141 @@ export default function ScheduleAddModal({
                 </View>
 
                 <View style={styles.dateTimeRow}>
-                  <View style={styles.dateTimeGroup}>
+                  <View
+                    style={[
+                      styles.dateTimeGroup,
+                      Platform.OS === "web" && styles.webDateGroup,
+                    ]}
+                  >
                     <Text style={styles.inputLabel}>시작일 *</Text>
                     {Platform.OS === "web" ? (
-                      <input
-                        type="date"
-                        value={formData.startDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            startDate: e.target.value,
-                          })
-                        }
+                      <Pressable
                         style={styles.webDateInput}
-                      />
+                        onPress={() => {
+                          const input = document.createElement("input");
+                          input.type = "date";
+                          input.value = formData.startDate || "";
+                          input.style.position = "absolute";
+                          input.style.left = "-9999px";
+                          input.style.opacity = "0";
+                          input.style.pointerEvents = "none";
+                          document.body.appendChild(input);
+
+                          const handleChange = (e: any) => {
+                            setFormData({
+                              ...formData,
+                              startDate: e.target.value,
+                            });
+                            document.body.removeChild(input);
+                          };
+
+                          input.addEventListener("change", handleChange);
+                          input.addEventListener("blur", () => {
+                            document.body.removeChild(input);
+                          });
+
+                          input.focus();
+                          input.click();
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.webDateInputText,
+                            !formData.startDate && styles.placeholderText,
+                          ]}
+                        >
+                          {formData.startDate || "날짜 선택"}
+                        </Text>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={20}
+                          color="#666"
+                        />
+                      </Pressable>
                     ) : (
-                      <TextInput
-                        style={styles.textInput}
-                        value={formData.startDate}
-                        onChangeText={(text) =>
-                          setFormData({ ...formData, startDate: text })
+                      <RNDatePicker
+                        style={styles.datePickerStyle}
+                        date={formData.startDate}
+                        mode="date"
+                        placeholder="날짜 선택"
+                        format="YYYY-MM-DD"
+                        confirmBtnText="확인"
+                        cancelBtnText="취소"
+                        customStyles={{
+                          dateInput: styles.datePickerInput,
+                          dateText: styles.datePickerText,
+                          placeholderText: styles.datePickerPlaceholder,
+                        }}
+                        onDateChange={(date: string) =>
+                          setFormData({ ...formData, startDate: date })
                         }
                       />
                     )}
                   </View>
 
-                  <View style={styles.dateTimeGroup}>
+                  <View
+                    style={[
+                      styles.dateTimeGroup,
+                      Platform.OS === "web" && styles.webTimeGroup,
+                    ]}
+                  >
                     <Text style={styles.inputLabel}>시작시간 *</Text>
                     {Platform.OS === "web" ? (
-                      <input
-                        type="time"
-                        value={formData.startTime}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            startTime: e.target.value,
-                          })
-                        }
+                      <Pressable
                         style={styles.webTimeInput}
-                      />
+                        onPress={() => {
+                          const input = document.createElement("input");
+                          input.type = "time";
+                          input.value = formData.startTime || "";
+                          input.style.position = "absolute";
+                          input.style.left = "-9999px";
+                          input.style.opacity = "0";
+                          input.style.pointerEvents = "none";
+                          document.body.appendChild(input);
+
+                          const handleChange = (e: any) => {
+                            setFormData({
+                              ...formData,
+                              startTime: e.target.value,
+                            });
+                            document.body.removeChild(input);
+                          };
+
+                          input.addEventListener("change", handleChange);
+                          input.addEventListener("blur", () => {
+                            document.body.removeChild(input);
+                          });
+
+                          input.focus();
+                          input.click();
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.webTimeInputText,
+                            !formData.startTime && styles.placeholderText,
+                          ]}
+                        >
+                          {formData.startTime || "시간 선택"}
+                        </Text>
+                        <Ionicons name="time-outline" size={20} color="#666" />
+                      </Pressable>
                     ) : (
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder="HH:MM"
-                        value={formData.startTime}
-                        onChangeText={(text) =>
-                          setFormData({ ...formData, startTime: text })
+                      <RNDatePicker
+                        style={styles.datePickerStyle}
+                        date={formData.startTime}
+                        mode="time"
+                        placeholder="시간 선택"
+                        format="HH:mm"
+                        confirmBtnText="확인"
+                        cancelBtnText="취소"
+                        customStyles={{
+                          dateInput: styles.datePickerInput,
+                          dateText: styles.datePickerText,
+                          placeholderText: styles.datePickerPlaceholder,
+                        }}
+                        onDateChange={(time: string) =>
+                          setFormData({ ...formData, startTime: time })
                         }
                       />
                     )}
@@ -337,52 +511,149 @@ export default function ScheduleAddModal({
 
                 {isMultiDay && (
                   <View style={styles.dateTimeRow}>
-                    <View style={styles.dateTimeGroup}>
+                    <View
+                      style={[
+                        styles.dateTimeGroup,
+                        Platform.OS === "web" && styles.webDateGroup,
+                      ]}
+                    >
                       <Text style={styles.inputLabel}>종료일 *</Text>
                       {Platform.OS === "web" ? (
-                        <input
-                          type="date"
-                          value={formData.endDate}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              endDate: e.target.value,
-                            })
-                          }
+                        <Pressable
                           style={styles.webDateInput}
-                        />
+                          onPress={() => {
+                            const input = document.createElement("input");
+                            input.type = "date";
+                            input.value = formData.endDate || "";
+                            if (formData.startDate) {
+                              input.min = formData.startDate;
+                            }
+                            input.style.position = "absolute";
+                            input.style.left = "-9999px";
+                            input.style.opacity = "0";
+                            input.style.pointerEvents = "none";
+                            document.body.appendChild(input);
+
+                            const handleChange = (e: any) => {
+                              setFormData({
+                                ...formData,
+                                endDate: e.target.value,
+                              });
+                              document.body.removeChild(input);
+                            };
+
+                            input.addEventListener("change", handleChange);
+                            input.addEventListener("blur", () => {
+                              document.body.removeChild(input);
+                            });
+
+                            input.focus();
+                            input.click();
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.webDateInputText,
+                              !formData.endDate && styles.placeholderText,
+                            ]}
+                          >
+                            {formData.endDate || "날짜 선택"}
+                          </Text>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={20}
+                            color="#666"
+                          />
+                        </Pressable>
                       ) : (
-                        <TextInput
-                          style={styles.textInput}
-                          value={formData.endDate}
-                          onChangeText={(text) =>
-                            setFormData({ ...formData, endDate: text })
+                        <RNDatePicker
+                          style={styles.datePickerStyle}
+                          date={formData.endDate}
+                          mode="date"
+                          placeholder="날짜 선택"
+                          format="YYYY-MM-DD"
+                          minDate={formData.startDate}
+                          confirmBtnText="확인"
+                          cancelBtnText="취소"
+                          customStyles={{
+                            dateInput: styles.datePickerInput,
+                            dateText: styles.datePickerText,
+                            placeholderText: styles.datePickerPlaceholder,
+                          }}
+                          onDateChange={(date: string) =>
+                            setFormData({ ...formData, endDate: date })
                           }
                         />
                       )}
                     </View>
 
-                    <View style={styles.dateTimeGroup}>
+                    <View
+                      style={[
+                        styles.dateTimeGroup,
+                        Platform.OS === "web" && styles.webTimeGroup,
+                      ]}
+                    >
                       <Text style={styles.inputLabel}>종료시간 *</Text>
                       {Platform.OS === "web" ? (
-                        <input
-                          type="time"
-                          value={formData.endTime}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              endTime: e.target.value,
-                            })
-                          }
+                        <Pressable
                           style={styles.webTimeInput}
-                        />
+                          onPress={() => {
+                            const input = document.createElement("input");
+                            input.type = "time";
+                            input.value = formData.endTime || "";
+                            input.style.position = "absolute";
+                            input.style.left = "-9999px";
+                            input.style.opacity = "0";
+                            input.style.pointerEvents = "none";
+                            document.body.appendChild(input);
+
+                            const handleChange = (e: any) => {
+                              setFormData({
+                                ...formData,
+                                endTime: e.target.value,
+                              });
+                              document.body.removeChild(input);
+                            };
+
+                            input.addEventListener("change", handleChange);
+                            input.addEventListener("blur", () => {
+                              document.body.removeChild(input);
+                            });
+
+                            input.focus();
+                            input.click();
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.webTimeInputText,
+                              !formData.endTime && styles.placeholderText,
+                            ]}
+                          >
+                            {formData.endTime || "시간 선택"}
+                          </Text>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color="#666"
+                          />
+                        </Pressable>
                       ) : (
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="HH:MM"
-                          value={formData.endTime}
-                          onChangeText={(text) =>
-                            setFormData({ ...formData, endTime: text })
+                        <RNDatePicker
+                          style={styles.datePickerStyle}
+                          date={formData.endTime}
+                          mode="time"
+                          placeholder="시간 선택"
+                          format="HH:mm"
+                          confirmBtnText="확인"
+                          cancelBtnText="취소"
+                          customStyles={{
+                            dateInput: styles.datePickerInput,
+                            dateText: styles.datePickerText,
+                            placeholderText: styles.datePickerPlaceholder,
+                          }}
+                          onDateChange={(time: string) =>
+                            setFormData({ ...formData, endTime: time })
                           }
                         />
                       )}
@@ -405,7 +676,7 @@ export default function ScheduleAddModal({
                     />
                     <Pressable
                       style={styles.addressSearchButton}
-                      onPress={() => setIsAddressSearchVisible(true)}
+                      onPress={handleDirectAddressSearch}
                     >
                       <Ionicons name="search" size={20} color="white" />
                       <Text style={styles.addressSearchButtonText}>
@@ -447,11 +718,13 @@ export default function ScheduleAddModal({
         </View>
       </Modal>
 
-      <AddressSearchModal
-        visible={isAddressSearchVisible}
-        onClose={() => setIsAddressSearchVisible(false)}
-        onSelectAddress={handleAddressSelect}
-      />
+      {Platform.OS !== "web" && (
+        <AddressSearchModal
+          visible={isAddressSearchVisible}
+          onClose={() => setIsAddressSearchVisible(false)}
+          onSelectAddress={handleAddressSelect}
+        />
+      )}
     </>
   );
 }
@@ -575,6 +848,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     marginBottom: 16,
+    alignItems: "flex-start",
   },
   dateTimeGroup: {
     flex: 1,
@@ -634,21 +908,88 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   webDateInput: {
-    width: "100%",
-    padding: 12,
     borderWidth: 1,
     borderColor: "#d1d5db",
     borderRadius: 8,
-    fontSize: 16,
-    backgroundColor: "white",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f9fafb",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    height: 40,
   },
   webTimeInput: {
-    width: "100%",
-    padding: 12,
     borderWidth: 1,
     borderColor: "#d1d5db",
     borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f9fafb",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    height: 40,
+  },
+  webDateInputText: {
     fontSize: 16,
-    backgroundColor: "white",
+    color: "#333",
+  },
+  webTimeInputText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  placeholderText: {
+    color: "#9ca3af",
+  },
+  datePickerStyle: {
+    width: "100%",
+  },
+  datePickerInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f9fafb",
+    alignItems: "flex-start",
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  datePickerPlaceholder: {
+    fontSize: 16,
+    color: "#9ca3af",
+  },
+  dateInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f9fafb",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dateInputText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  // 웹용 날짜/시간 그룹 스타일
+  webDateGroup: {
+    flex: 1,
+    minWidth: 150,
+    maxWidth: 200,
+    marginRight: 8,
+  },
+  webTimeGroup: {
+    flex: 1,
+    minWidth: 100,
+    maxWidth: 150,
+    marginLeft: 8,
   },
 });

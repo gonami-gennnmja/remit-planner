@@ -1,6 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { WebView } from "react-native-webview";
 
 interface AddressSearchModalProps {
@@ -17,6 +26,97 @@ const AddressSearchModal: React.FC<AddressSearchModalProps> = ({
   currentAddress = "",
 }) => {
   const [webViewKey, setWebViewKey] = useState(0);
+  const [addressInput, setAddressInput] = useState(currentAddress);
+
+  const handleWebAddressSubmit = () => {
+    if (!addressInput.trim()) {
+      Alert.alert("알림", "주소를 입력해주세요.");
+      return;
+    }
+    onSelectAddress(addressInput.trim());
+    onClose();
+  };
+
+  const handleDaumPostcodeSearch = () => {
+    if (Platform.OS === "web") {
+      // 웹에서 다음 우편번호 서비스 열기
+      const script = document.createElement("script");
+      script.src =
+        "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+      script.onload = () => {
+        // 팝업 창으로 열기
+        const popup = window.open(
+          "",
+          "postcodePopup",
+          "width=500,height=600,scrollbars=yes,resizable=yes"
+        );
+
+        if (popup) {
+          // 팝업 창에 HTML 작성
+          popup.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>주소 검색</title>
+              <style>
+                body { margin: 0; padding: 0; }
+                #postcode { width: 100%; height: 100vh; }
+              </style>
+            </head>
+            <body>
+              <div id="postcode"></div>
+            </body>
+            </html>
+          `);
+          popup.document.close();
+
+          // 팝업이 완전히 로드된 후 다음 우편번호 서비스 초기화
+          popup.onload = () => {
+            // @ts-ignore
+            new window.daum.Postcode({
+              oncomplete: function (data: any) {
+                console.log("팝업에서 선택된 주소:", data);
+
+                let selectedAddress = "";
+                if (data.roadAddress) {
+                  selectedAddress = data.roadAddress;
+                } else if (data.jibunAddress) {
+                  selectedAddress = data.jibunAddress;
+                } else if (data.address) {
+                  selectedAddress = data.address;
+                }
+
+                if (data.buildingName) {
+                  selectedAddress += ` (${data.buildingName})`;
+                }
+
+                // 선택된 주소를 텍스트 입력창에 설정
+                setAddressInput(selectedAddress);
+                onSelectAddress(selectedAddress);
+                onClose();
+                popup.close();
+              },
+              onclose: function (state: string) {
+                console.log("팝업 닫힘:", state);
+                if (state === "FORCE_CLOSE") {
+                  popup.close();
+                }
+              },
+              // 입력된 주소를 검색어로 사용
+              q: addressInput.trim() || undefined,
+            }).embed(popup.document.getElementById("postcode"));
+          };
+        }
+      };
+
+      script.onerror = () => {
+        Alert.alert("오류", "주소 검색 서비스를 불러올 수 없습니다.");
+      };
+
+      document.head.appendChild(script);
+    }
+  };
 
   // 다음 우편번호 서비스 + 직접 입력 HTML
   const postcodeHTML = `
@@ -580,39 +680,81 @@ const AddressSearchModal: React.FC<AddressSearchModalProps> = ({
           <Pressable style={styles.backButton} onPress={handleClose}>
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </Pressable>
+          <Text style={styles.headerTitle}>주소 검색</Text>
         </View>
 
-        {/* WebView */}
-        <WebView
-          key={webViewKey}
-          source={{ html: postcodeHTML }}
-          style={styles.webView}
-          onMessage={handleMessage}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={false}
-          scalesPageToFit={false}
-          allowsInlineMediaPlayback={false}
-          mediaPlaybackRequiresUserAction={false}
-          allowsBackForwardNavigationGestures={false}
-          originWhitelist={["*"]}
-          injectedJavaScript={`
-            // ReactNativeWebView가 있는지 확인
-            console.log('WebView 초기화 완료');
-            console.log('ReactNativeWebView 존재:', typeof window.ReactNativeWebView !== 'undefined');
-            true; // 반드시 true를 반환해야 함
-          `}
-          onError={(error) => {
-            console.error("WebView 오류:", error);
-            Alert.alert("오류", "주소 입력 화면을 불러올 수 없습니다.");
-          }}
-          onLoadEnd={() => {
-            console.log("주소 입력 화면 로드 완료");
-          }}
-          onLoadStart={() => {
-            console.log("주소 입력 화면 로드 시작");
-          }}
-        />
+        {Platform.OS === "web" ? (
+          // 웹용 간단한 주소 입력 폼
+          <View style={styles.webContainer}>
+            <View style={styles.webContent}>
+              <Text style={styles.webTitle}>📍 주소를 입력하세요</Text>
+              <Text style={styles.webSubtitle}>
+                도로명주소, 건물명, 지번주소로 검색할 수 있습니다
+              </Text>
+
+              <View style={styles.webInputContainer}>
+                <TextInput
+                  style={styles.webInput}
+                  placeholder="주소를 입력하세요 (예: 강남구 테헤란로)"
+                  value={addressInput}
+                  onChangeText={setAddressInput}
+                  multiline={false}
+                />
+                <Pressable
+                  style={styles.webSearchButton}
+                  onPress={handleDaumPostcodeSearch}
+                >
+                  <Ionicons name="search" size={20} color="white" />
+                  <Text style={styles.webSearchButtonText}>주소 검색</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.webButtonContainer}>
+                <Pressable style={styles.webCancelButton} onPress={onClose}>
+                  <Text style={styles.webCancelButtonText}>취소</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.webConfirmButton}
+                  onPress={handleWebAddressSubmit}
+                >
+                  <Text style={styles.webConfirmButtonText}>확인</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : (
+          // 모바일용 WebView
+          <WebView
+            key={webViewKey}
+            source={{ html: postcodeHTML }}
+            style={styles.webView}
+            onMessage={handleMessage}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={false}
+            scalesPageToFit={false}
+            allowsInlineMediaPlayback={false}
+            mediaPlaybackRequiresUserAction={false}
+            allowsBackForwardNavigationGestures={false}
+            originWhitelist={["*"]}
+            injectedJavaScript={`
+              // ReactNativeWebView가 있는지 확인
+              console.log('WebView 초기화 완료');
+              console.log('ReactNativeWebView 존재:', typeof window.ReactNativeWebView !== 'undefined');
+              true; // 반드시 true를 반환해야 함
+            `}
+            onError={(error) => {
+              console.error("WebView 오류:", error);
+              Alert.alert("오류", "주소 입력 화면을 불러올 수 없습니다.");
+            }}
+            onLoadEnd={() => {
+              console.log("주소 입력 화면 로드 완료");
+            }}
+            onLoadStart={() => {
+              console.log("주소 입력 화면 로드 시작");
+            }}
+          />
+        )}
       </View>
     </Modal>
   );
@@ -637,8 +779,104 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#f3f4f6",
   },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#374151",
+    marginLeft: 16,
+  },
   webView: {
     flex: 1,
+  },
+  // 웹용 스타일
+  webContainer: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+    padding: 20,
+  },
+  webContent: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  webTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1f2937",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  webSubtitle: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 32,
+  },
+  webInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+    gap: 12,
+  },
+  webInput: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#f9fafb",
+  },
+  webSearchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#6366f1",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  webSearchButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  webButtonContainer: {
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "center",
+  },
+  webCancelButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#f3f4f6",
+    minWidth: 80,
+    alignItems: "center",
+  },
+  webCancelButtonText: {
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  webConfirmButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#6366f1",
+    minWidth: 80,
+    alignItems: "center",
+  },
+  webConfirmButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

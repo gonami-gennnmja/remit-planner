@@ -8,7 +8,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   DarkTheme,
   DefaultTheme,
-  ThemeProvider,
+  ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -17,7 +17,8 @@ import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
-import { useColorScheme } from "@/components/useColorScheme";
+import { LocalizationProvider } from "@/contexts/LocalizationContext";
+import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -61,26 +62,34 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="main" options={{ headerShown: false }} />
-          <Stack.Screen name="schedule" options={{ headerShown: false }} />
-          <Stack.Screen name="workers" options={{ headerShown: false }} />
-          <Stack.Screen name="payroll" options={{ headerShown: false }} />
-          <Stack.Screen name="reports" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-          <Stack.Screen
-            name="schedule/[id]"
-            options={{ title: "스케쥴 상세" }}
-          />
-        </Stack>
-      </ThemeProvider>
+      <LocalizationProvider>
+        <ThemeProvider>
+          <NavigationWrapper />
+        </ThemeProvider>
+      </LocalizationProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function NavigationWrapper() {
+  const { isDark } = useTheme();
+
+  return (
+    <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="main" options={{ headerShown: false }} />
+        <Stack.Screen name="schedule" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="workers" options={{ headerShown: false }} />
+        <Stack.Screen name="payroll" options={{ headerShown: false }} />
+        <Stack.Screen name="reports" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+        <Stack.Screen name="schedule/[id]" options={{ title: "스케쥴 상세" }} />
+      </Stack>
+    </NavigationThemeProvider>
   );
 }

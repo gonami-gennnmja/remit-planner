@@ -6,6 +6,19 @@ export interface User {
   password: string;
   name: string;
   email?: string;
+  nickname?: string;
+  businessInfo?: {
+    businessName: string;
+    businessNumber: string;
+    businessAddress: string;
+    businessPhone: string;
+    businessEmail: string;
+  };
+  settings?: {
+    notifications: boolean;
+    theme: 'light' | 'dark' | 'auto';
+    language: 'ko' | 'en';
+  };
 }
 
 // 기본 관리자 계정
@@ -14,6 +27,19 @@ const DEFAULT_ADMIN: User = {
   password: '1234',
   name: '관리자',
   email: 'admin@remit-planner.com',
+  nickname: '관리자',
+  businessInfo: {
+    businessName: '리밋 플래너',
+    businessNumber: '123-45-67890',
+    businessAddress: '서울시 강남구 테헤란로 123',
+    businessPhone: '02-1234-5678',
+    businessEmail: 'business@remit-planner.com',
+  },
+  settings: {
+    notifications: true,
+    theme: 'light',
+    language: 'ko',
+  },
 };
 
 const USERS_STORAGE_KEY = '@remit-planner:users';
@@ -132,6 +158,35 @@ export async function registerUser(
   } catch (error) {
     console.error('❌ 회원가입 실패:', error);
     return { success: false, message: '회원가입 중 오류가 발생했습니다.' };
+  }
+}
+
+// 사용자 정보 업데이트
+export async function updateUser(updatedUser: User): Promise<{ success: boolean; message?: string }> {
+  try {
+    const usersData = await AsyncStorage.getItem(USERS_STORAGE_KEY);
+    if (!usersData) {
+      return { success: false, message: '사용자 데이터를 찾을 수 없습니다.' };
+    }
+
+    const users: User[] = JSON.parse(usersData);
+    const userIndex = users.findIndex((u) => u.id === updatedUser.id);
+
+    if (userIndex === -1) {
+      return { success: false, message: '사용자를 찾을 수 없습니다.' };
+    }
+
+    // 사용자 정보 업데이트
+    users[userIndex] = updatedUser;
+    await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+
+    // 현재 사용자 정보도 업데이트
+    await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
+
+    return { success: true, message: '사용자 정보가 업데이트되었습니다.' };
+  } catch (error) {
+    console.error('❌ 사용자 정보 업데이트 실패:', error);
+    return { success: false, message: '사용자 정보 업데이트 중 오류가 발생했습니다.' };
   }
 }
 

@@ -1,11 +1,14 @@
 import PlannerCalendar from "@/components/PlannerCalendar";
 import ScheduleAddModal from "@/components/ScheduleAddModal";
+import { useResponsive } from "@/hooks/useResponsive";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 export default function ScheduleScreen() {
+  const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
+    useResponsive();
   const [showAddModal, setShowAddModal] = useState(false);
   const [initialStartDate, setInitialStartDate] = useState<string>();
   const [initialEndDate, setInitialEndDate] = useState<string>();

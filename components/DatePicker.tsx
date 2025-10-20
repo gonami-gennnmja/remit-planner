@@ -1,16 +1,19 @@
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
-import dayjs from "dayjs";
-import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { Calendar } from "react-native-calendars";
+import React from "react";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
+import RNDatePicker from "react-native-datepicker";
 
 interface DatePickerProps {
   label: string;
   value: string;
   onDateChange: (date: string) => void;
   placeholder?: string;
+  mode?: "date" | "datetime" | "time";
+  format?: string;
+  minDate?: string;
+  maxDate?: string;
 }
 
 export default function DatePicker({
@@ -18,88 +21,62 @@ export default function DatePicker({
   value,
   onDateChange,
   placeholder = "날짜를 선택하세요",
+  mode = "date",
+  format = "YYYY-MM-DD",
+  minDate,
+  maxDate,
 }: DatePickerProps) {
-  const [showCalendar, setShowCalendar] = useState(false);
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return placeholder;
-    return dayjs(dateString).format("YYYY년 M월 D일");
-  };
-
-  const handleDateSelect = (day: any) => {
-    onDateChange(day.dateString);
-    setShowCalendar(false);
-  };
-
   return (
-    <>
-      <View style={styles.container}>
-        <Text style={styles.label}>{label}</Text>
+    <View style={styles.container}>
+      <Text style={styles.label}>{label}</Text>
+      {Platform.OS === "web" ? (
         <Pressable
-          style={styles.dateButton}
-          onPress={() => setShowCalendar(!showCalendar)}
+          style={styles.webInput}
+          onPress={() => {
+            const input = document.createElement("input");
+            input.type = mode === "time" ? "time" : "date";
+            input.value = value;
+            if (minDate && mode !== "time") input.min = minDate;
+            if (maxDate && mode !== "time") input.max = maxDate;
+            input.style.position = "absolute";
+            input.style.left = "-9999px";
+            document.body.appendChild(input);
+            input.click();
+            input.onchange = (e: any) => {
+              onDateChange(e.target.value);
+              document.body.removeChild(input);
+            };
+          }}
         >
-          <Text style={[styles.dateText, !value && styles.placeholderText]}>
-            {formatDate(value)}
+          <Text style={[styles.webInputText, !value && styles.placeholderText]}>
+            {value || placeholder}
           </Text>
           <Ionicons
-            name="calendar-outline"
+            name={mode === "time" ? "time-outline" : "calendar-outline"}
             size={20}
-            color={Theme.colors.text.secondary}
+            color="#666"
           />
         </Pressable>
-      </View>
-
-      {showCalendar && (
-        <Modal
-          visible={showCalendar}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowCalendar(false)}
-        >
-          <Pressable
-            style={styles.overlay}
-            onPress={() => setShowCalendar(false)}
-          >
-            <View style={styles.calendarModal}>
-              <Pressable onPress={(e) => e.stopPropagation()}>
-                <Calendar
-                  onDayPress={handleDateSelect}
-                  markedDates={{
-                    [value]: {
-                      selected: true,
-                      selectedColor: Theme.colors.primary,
-                    },
-                  }}
-                  theme={{
-                    selectedDayBackgroundColor: Theme.colors.primary,
-                    todayTextColor: Theme.colors.primary,
-                    arrowColor: Theme.colors.primary,
-                    calendarBackground: Theme.colors.background,
-                    textSectionTitleColor: Theme.colors.text.primary,
-                    dayTextColor: Theme.colors.text.primary,
-                    monthTextColor: Theme.colors.text.primary,
-                    textDisabledColor: Theme.colors.text.tertiary,
-                    textDayFontSize: 14,
-                    textMonthFontSize: 16,
-                    textDayHeaderFontSize: 12,
-                    agendaDayTextColor: Theme.colors.text.primary,
-                    agendaDayNumColor: Theme.colors.text.primary,
-                    agendaTodayColor: Theme.colors.primary,
-                  }}
-                  style={styles.calendar}
-                  hideExtraDays={true}
-                  firstDay={1}
-                  showWeekNumbers={false}
-                  disableMonthChange={false}
-                  enableSwipeMonths={true}
-                />
-              </Pressable>
-            </View>
-          </Pressable>
-        </Modal>
+      ) : (
+        <RNDatePicker
+          style={styles.datePickerStyle}
+          date={value}
+          mode={mode}
+          placeholder={placeholder}
+          format={format}
+          minDate={minDate}
+          maxDate={maxDate}
+          confirmBtnText="확인"
+          cancelBtnText="취소"
+          customStyles={{
+            dateInput: styles.dateButton,
+            dateText: styles.dateText,
+            placeholderText: styles.placeholderText,
+          }}
+          onDateChange={onDateChange}
+        />
       )}
-    </>
+    </View>
   );
 }
 
@@ -130,22 +107,27 @@ const styles = StyleSheet.create({
   placeholderText: {
     color: Theme.colors.text.tertiary,
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
+  webInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f9fafb",
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    width: "100%",
+    height: 40,
   },
-  calendarModal: {
-    backgroundColor: Theme.colors.background,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.md,
-    marginHorizontal: Theme.spacing.xl,
-    ...Theme.shadows.lg,
-    maxWidth: 400,
-    width: "90%",
+  webInputText: {
+    fontSize: 16,
+    color: "#333",
   },
-  calendar: {
-    borderRadius: Theme.borderRadius.md,
+  placeholderText: {
+    color: "#9ca3af",
+  },
+  datePickerStyle: {
+    width: "100%",
   },
 });
