@@ -1,18 +1,22 @@
+import CommonHeader from "@/components/CommonHeader";
 import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule, ScheduleCategory } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -30,6 +34,35 @@ export default function ScheduleListScreen() {
     "all" | "ongoing" | "upcoming" | "past"
   >("all");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+
+  // 폼 데이터 state
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    startDate: dayjs().format("YYYY-MM-DD"),
+    endDate: dayjs().format("YYYY-MM-DD"),
+    startTime: "",
+    endTime: "",
+    category: "general" as ScheduleCategory,
+    address: "",
+    memo: "",
+  });
+
+  // 추가 state들
+  const [isMultiDay, setIsMultiDay] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  // 카테고리 관련 state들
+  const [categories, setCategories] = useState<
+    Array<{ id: string; name: string; color: string }>
+  >([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("#6366f1");
+
+  // 주소 검색 모달 state
+  const [showAddressModal, setShowAddressModal] = useState(false);
 
   // 컴포넌트 마운트 시 초기화
   useEffect(() => {
@@ -264,10 +297,6 @@ export default function ScheduleListScreen() {
     }
   };
 
-  const [categories, setCategories] = useState<
-    Array<{ id: string; name: string; color: string }>
-  >([]);
-
   useEffect(() => {
     loadCategories();
   }, []);
@@ -320,6 +349,15 @@ export default function ScheduleListScreen() {
 
   return (
     <View style={styles.container}>
+      {/* 헤더 */}
+      <CommonHeader
+        title="일정 관리"
+        rightButton={{
+          icon: "add",
+          onPress: handleAddSchedule,
+        }}
+      />
+
       {/* 검색 및 필터 */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
@@ -349,70 +387,73 @@ export default function ScheduleListScreen() {
 
         {/* 필터 버튼과 추가 버튼 */}
         <View style={styles.filterAndAddContainer}>
-          <Pressable
-            style={[
-              styles.filterButton,
-              filterType === "all" && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilterType("all")}
-          >
-            <Text
+          {/* 필터 버튼 그룹 */}
+          <View style={styles.filterContainer}>
+            <Pressable
               style={[
-                styles.filterButtonText,
-                filterType === "all" && styles.filterButtonTextActive,
+                styles.filterButton,
+                filterType === "all" && styles.filterButtonActive,
               ]}
+              onPress={() => setFilterType("all")}
             >
-              전체
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterButton,
-              filterType === "ongoing" && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilterType("ongoing")}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filterType === "all" && styles.filterButtonTextActive,
+                ]}
+              >
+                전체
+              </Text>
+            </Pressable>
+            <Pressable
               style={[
-                styles.filterButtonText,
-                filterType === "ongoing" && styles.filterButtonTextActive,
+                styles.filterButton,
+                filterType === "ongoing" && styles.filterButtonActive,
               ]}
+              onPress={() => setFilterType("ongoing")}
             >
-              진행 중
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterButton,
-              filterType === "upcoming" && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilterType("upcoming")}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filterType === "ongoing" && styles.filterButtonTextActive,
+                ]}
+              >
+                진행 중
+              </Text>
+            </Pressable>
+            <Pressable
               style={[
-                styles.filterButtonText,
-                filterType === "upcoming" && styles.filterButtonTextActive,
+                styles.filterButton,
+                filterType === "upcoming" && styles.filterButtonActive,
               ]}
+              onPress={() => setFilterType("upcoming")}
             >
-              예정
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.filterButton,
-              filterType === "past" && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilterType("past")}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filterType === "upcoming" && styles.filterButtonTextActive,
+                ]}
+              >
+                예정
+              </Text>
+            </Pressable>
+            <Pressable
               style={[
-                styles.filterButtonText,
-                filterType === "past" && styles.filterButtonTextActive,
+                styles.filterButton,
+                filterType === "past" && styles.filterButtonActive,
               ]}
+              onPress={() => setFilterType("past")}
             >
-              지난 일정
-            </Text>
-          </Pressable>
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filterType === "past" && styles.filterButtonTextActive,
+                ]}
+              >
+                지난 일정
+              </Text>
+            </Pressable>
+          </View>
 
           {/* 추가 버튼 */}
           <Pressable style={styles.addButton} onPress={handleAddSchedule}>
@@ -1151,15 +1192,19 @@ const styles = StyleSheet.create({
   },
   filterContainer: {
     flexDirection: "row",
-    gap: Theme.spacing.sm,
+    gap: Theme.spacing.xs,
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: Theme.colors.border.medium,
   },
   filterButton: {
     paddingHorizontal: Theme.spacing.md,
     paddingVertical: Theme.spacing.sm,
     borderRadius: Theme.borderRadius.md,
-    backgroundColor: Theme.colors.surface,
-    borderWidth: 1,
-    borderColor: Theme.colors.border.medium,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   filterButtonActive: {
     backgroundColor: Theme.colors.primary,
@@ -1342,7 +1387,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: Theme.spacing.sm,
+    gap: Theme.spacing.lg,
   },
   addButton: {
     backgroundColor: "#6366f1",

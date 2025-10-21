@@ -7,12 +7,14 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { useResponsive } from "@/hooks/useResponsive";
 import { Schedule } from "@/models/types";
+import { checkAndCreateOverduePaymentActivities } from "@/utils/activityUtils";
 import { getCurrentUser, User } from "@/utils/authUtils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -40,6 +42,7 @@ export default function MainScreen() {
     dayjs().format("YYYY-MM-DD")
   );
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+  const [showActivityModal, setShowActivityModal] = useState(false);
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
   const { colors } = useTheme();
@@ -68,46 +71,19 @@ export default function MainScreen() {
     initializeApp();
   }, []);
 
-  // 초기 활동 생성 (DB가 비어있을 때만)
+  // 화면이 포커스될 때마다 스케줄과 활동 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      loadSchedules();
+      loadRecentActivitiesFromDB();
+    }, [])
+  );
+
+  // 활동 초기화 및 미지급 급여 체크
   const initializeActivities = async () => {
     try {
-      const db = getDatabase();
-      const existingActivities = await db.getRecentActivities(1);
-
-      // DB에 활동이 없으면 샘플 활동 생성
-      if (existingActivities.length === 0) {
-        console.log("Creating sample activities...");
-
-        // 샘플 활동 생성
-        await db.createActivity({
-          id: `activity_${Date.now()}_1`,
-          type: "schedule",
-          title: "수학 과외 일정 추가",
-          description: "강남구 학원",
-          icon: "calendar",
-          color: "#6366f1", // 인디고 바이올렛
-        });
-
-        // await db.createActivity({
-        //   id: `activity_${Date.now()}_2`,
-        //   type: "worker",
-        //   title: "김선생님 추가",
-        //   description: "010-1234-5678 | 50,000원/시간",
-        //   icon: "person-add",
-        //   color: "#10b981",
-        // });
-
-        await db.createActivity({
-          id: `activity_${Date.now()}_3`,
-          type: "payment",
-          title: "Sarah Johnson님 급여 지급",
-          description: "영어 회화 - 160,000원",
-          icon: "card",
-          color: "#f97316", // 오렌지
-        });
-
-        console.log("Sample activities created");
-      }
+      // 미지급 급여 체크 및 활동 생성
+      await checkAndCreateOverduePaymentActivities();
 
       // 활동 로드
       await loadRecentActivitiesFromDB();
@@ -122,105 +98,15 @@ export default function MainScreen() {
     setCurrentUser(user);
   };
 
-  const loadSchedules = () => {
-    // 임시 데이터 - 실제로는 데이터베이스에서 가져와야 함
-    const today = dayjs().format("YYYY-MM-DD");
-    const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
-
-    const tempSchedules: Schedule[] = [
-      {
-        id: "1",
-        title: "수학 과외",
-        startDate: today,
-        endDate: today,
-        description: "고등학교 2학년 수학 과외",
-        location: "강남구 학원",
-        memo: "교재 준비 필요",
-        category: "education",
-        workers: [
-          {
-            worker: {
-              id: "w1",
-              name: "김선생",
-              phone: "010-1234-5678",
-              bankAccount: "110-1234-5678",
-              hourlyWage: 50000,
-              taxWithheld: true,
-            },
-            periods: [
-              {
-                id: "p1",
-                start: `${today}T14:00:00+09:00`,
-                end: `${today}T16:00:00+09:00`,
-              },
-            ],
-            paid: false,
-          },
-        ],
-      },
-      {
-        id: "2",
-        title: "영어 회화",
-        startDate: today,
-        endDate: today,
-        description: "성인 영어 회화 수업",
-        location: "서초구 문화센터",
-        memo: "원어민 강사",
-        category: "education",
-        workers: [
-          {
-            worker: {
-              id: "w2",
-              name: "Sarah Johnson",
-              phone: "010-9876-5432",
-              bankAccount: "3333-12-3456789",
-              hourlyWage: 80000,
-              taxWithheld: false,
-            },
-            periods: [
-              {
-                id: "p2",
-                start: `${today}T19:00:00+09:00`,
-                end: `${today}T21:00:00+09:00`,
-              },
-            ],
-            paid: true,
-          },
-        ],
-      },
-      {
-        id: "3",
-        title: "프로그래밍 수업",
-        startDate: tomorrow,
-        endDate: tomorrow,
-        description: "웹 개발 기초 수업",
-        location: "온라인",
-        memo: "Zoom 링크 공유",
-        category: "education",
-        workers: [
-          {
-            worker: {
-              id: "w3",
-              name: "이개발",
-              phone: "010-5555-1234",
-              bankAccount: "1002-123-456789",
-              hourlyWage: 100000,
-              taxWithheld: true,
-            },
-            periods: [
-              {
-                id: "p3",
-                start: `${tomorrow}T10:00:00+09:00`,
-                end: `${tomorrow}T12:00:00+09:00`,
-              },
-            ],
-            paid: false,
-          },
-        ],
-      },
-    ];
-
-    setSchedules(tempSchedules);
+  const loadSchedules = async () => {
+    try {
+      const db = getDatabase();
+      const allSchedules = await db.getAllSchedules();
+      setSchedules(allSchedules);
+    } catch (error) {
+      console.error("Failed to load schedules:", error);
+      setSchedules([]);
+    }
   };
 
   // 실제 DB에서 활동 로드
@@ -466,7 +352,7 @@ export default function MainScreen() {
       title: "대시보드",
       description: "한눈에 보는 업무 현황",
       icon: "analytics-outline",
-      color: "#8b5cf6", // 바이올렛
+      color: colors.primary,
       route: "/dashboard",
     },
     {
@@ -474,7 +360,7 @@ export default function MainScreen() {
       title: "일정 관리",
       description: "모든 일정을 한눈에 관리하세요",
       icon: "list-outline",
-      color: "#06b6d4", // 시안
+      color: colors.primary,
       route: "/schedule-list",
     },
     {
@@ -482,7 +368,7 @@ export default function MainScreen() {
       title: "스케줄 관리",
       description: "캘린더로 일정을 확인하세요",
       icon: "calendar-outline",
-      color: "#6366f1", // 인디고 바이올렛
+      color: colors.primary,
       route: "/schedule",
     },
     {
@@ -490,7 +376,7 @@ export default function MainScreen() {
       title: "근로자 관리",
       description: "근로자 정보를 관리하세요",
       icon: "people-outline",
-      color: "#8b5cf6", // 바이올렛
+      color: colors.primary,
       route: "/workers",
     },
     {
@@ -498,7 +384,7 @@ export default function MainScreen() {
       title: "거래처 관리",
       description: "거래처 정보를 관리하세요",
       icon: "business-outline",
-      color: "#06b6d4", // 시안
+      color: colors.primary,
       route: "/clients",
     },
     {
@@ -506,7 +392,7 @@ export default function MainScreen() {
       title: "급여 관리",
       description: "급여 계산 및 지급을 관리하세요",
       icon: "card-outline",
-      color: "#f97316", // 오렌지
+      color: colors.warning,
       route: "/payroll",
     },
     {
@@ -514,7 +400,7 @@ export default function MainScreen() {
       title: "미수급 건수",
       description: "업체에서 받는 수입을 관리하세요",
       icon: "cash-outline",
-      color: "#22c55e", // 에메랄드 그린
+      color: colors.success,
       route: "/uncollected",
     },
   ];
@@ -524,191 +410,218 @@ export default function MainScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* 헤더 */}
-      <View
-        style={[
-          styles.header,
-          isWeb && styles.headerWeb,
-          { backgroundColor: colors.primary },
-        ]}
-      >
-        <View style={isWeb && styles.headerContentWeb}>
-          <View>
-            <Text
-              style={[
-                styles.headerTitle,
-                isWeb && styles.headerTitleWeb,
-                { color: colors.surface },
-              ]}
-            >
-              리밋 플래너
-            </Text>
-            <Text style={[styles.headerSubtitle, { color: colors.surface }]}>
-              {currentUser
-                ? `${currentUser.name}님 환영합니다`
-                : "효율적인 스케줄 & 급여 관리"}
-            </Text>
-          </View>
-          <Pressable
-            style={[styles.settingsButton, { backgroundColor: colors.surface }]}
-            onPress={() => router.push("/settings")}
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollContainer}>
+        {/* 헤더 */}
+        <View
+          style={[
+            styles.header,
+            isWeb && styles.headerWeb,
+            { backgroundColor: colors.primary },
+          ]}
+        >
+          <View
+            style={[styles.headerContent, isWeb && styles.headerContentWeb]}
           >
-            <Ionicons
-              name="settings-outline"
-              size={24}
-              color={colors.primary}
-            />
-          </Pressable>
-        </View>
-      </View>
-
-      {/* 메인 컨텐츠 컨테이너 (웹 전용) */}
-      <View style={isWeb && styles.mainContentWeb}>
-        {/* 메인 메뉴 */}
-        <View style={styles.menuContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            주요 기능
-          </Text>
-          <View style={[styles.menuGrid, isWeb && styles.menuGridWeb]}>
-            {menuItems.map((item) => (
-              <Pressable
-                key={item.id}
+            {/* 왼쪽: 제목과 부제목 */}
+            <View style={styles.headerLeft}>
+              <Text
                 style={[
-                  styles.menuItem,
-                  isWeb && styles.menuItemWeb,
-                  { backgroundColor: colors.surface },
-                  {
-                    width: getResponsiveValue(
-                      (screenData.width - 56) / 2,
-                      (screenData.width - 80) / 3,
-                      (screenData.width - 120) / 4
-                    ),
-                  },
+                  styles.headerTitle,
+                  isWeb && styles.headerTitleWeb,
+                  { color: colors.surface },
                 ]}
-                onPress={() => handleMenuPress(item.route)}
               >
-                <View
-                  style={[styles.menuIcon, { backgroundColor: item.color }]}
-                >
-                  <Ionicons
-                    name={item.icon as any}
-                    size={isWeb ? 40 : 32}
-                    color="white"
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.menuTitle,
-                    isWeb && styles.menuTitleWeb,
-                    { color: colors.text },
-                  ]}
-                >
-                  {item.title}
-                </Text>
-                <Text
-                  style={[
-                    styles.menuDescription,
-                    isWeb && styles.menuDescriptionWeb,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  {item.description}
-                </Text>
-              </Pressable>
-            ))}
+                리밋 플래너
+              </Text>
+              <Text style={[styles.headerSubtitle, { color: colors.surface }]}>
+                {currentUser
+                  ? `${currentUser.name}님 환영합니다`
+                  : "효율적인 스케줄 & 급여 관리"}
+              </Text>
+            </View>
+
+            {/* 오른쪽: 설정 버튼 */}
+            <Pressable
+              style={[
+                styles.settingsButton,
+                { backgroundColor: colors.surface },
+              ]}
+              onPress={() => router.push("/settings")}
+            >
+              <Ionicons
+                name="settings-outline"
+                size={24}
+                color={colors.primary}
+              />
+            </Pressable>
           </View>
         </View>
 
-        {/* 웹에서는 2열 레이아웃, 앱에서는 1열 */}
-        <View style={isWeb ? styles.twoColumnWeb : null}>
-          {/* 오늘 일정 */}
-          {getTodaySchedules().length > 0 && (
+        {/* 메인 컨텐츠 컨테이너 (웹 전용) */}
+        <View style={isWeb && styles.mainContentWeb}>
+          {/* 메인 메뉴 */}
+          <View style={styles.menuContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              주요 기능
+            </Text>
+            <View style={[styles.menuGrid, isWeb && styles.menuGridWeb]}>
+              {menuItems.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.menuItem,
+                    isWeb && styles.menuItemWeb,
+                    { backgroundColor: colors.surface },
+                    {
+                      width: getResponsiveValue(
+                        (screenData.width - 56) / 2,
+                        (screenData.width - 80) / 3,
+                        (screenData.width - 120) / 4
+                      ),
+                    },
+                  ]}
+                  onPress={() => handleMenuPress(item.route)}
+                >
+                  <View
+                    style={[styles.menuIcon, { backgroundColor: item.color }]}
+                  >
+                    <Ionicons
+                      name={item.icon as any}
+                      size={isWeb ? 40 : 32}
+                      color="white"
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.menuTitle,
+                      isWeb && styles.menuTitleWeb,
+                      { color: colors.text },
+                    ]}
+                  >
+                    {item.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.menuDescription,
+                      isWeb && styles.menuDescriptionWeb,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {item.description}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {/* 웹에서는 2열 레이아웃, 앱에서는 1열 */}
+          <View style={isWeb ? styles.twoColumnWeb : null}>
+            {/* 오늘 일정 */}
             <View
               style={[
                 styles.todayScheduleContainer,
                 isWeb && styles.columnItemWeb,
               ]}
             >
-              <Text style={styles.sectionTitle}>오늘 일정</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                오늘 일정
+              </Text>
               <View style={styles.scheduleList}>
-                {getTodaySchedules().map((schedule) => (
-                  <Pressable
-                    key={schedule.id}
-                    style={[
-                      styles.scheduleCard,
-                      isWeb && styles.scheduleCardWeb,
-                    ]}
-                    onPress={() => setShowTodaySchedule(true)}
-                  >
-                    <View style={styles.scheduleIcon}>
-                      <Ionicons name="calendar" size={20} color="#6366f1" />
-                    </View>
-                    <View style={styles.scheduleContent}>
-                      <Text style={styles.scheduleTitle}>{schedule.title}</Text>
-                      <Text style={styles.scheduleTime}>
-                        {formatTime(schedule.workers.flatMap((w) => w.periods))}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color={Theme.colors.text.tertiary}
-                    />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* 최근 활동 */}
-          <View
-            style={[styles.activityContainer, isWeb && styles.columnItemWeb]}
-          >
-            <Text style={styles.sectionTitle}>최근 활동</Text>
-            <View style={styles.activityList}>
-              {recentActivities.length > 0 ? (
-                recentActivities.map((activity) => (
-                  <View key={activity.id} style={styles.activityItem}>
-                    <View
+                {getTodaySchedules().length > 0 ? (
+                  getTodaySchedules().map((schedule) => (
+                    <Pressable
+                      key={schedule.id}
                       style={[
-                        styles.activityIcon,
-                        { backgroundColor: `${activity.color}20` },
+                        styles.scheduleCard,
+                        isWeb && styles.scheduleCardWeb,
+                        { backgroundColor: colors.surface },
+                      ]}
+                      onPress={() => setShowTodaySchedule(true)}
+                    >
+                      <View style={styles.scheduleIcon}>
+                        <Ionicons
+                          name="calendar"
+                          size={20}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <View style={styles.scheduleContent}>
+                        <Text
+                          style={[styles.scheduleTitle, { color: colors.text }]}
+                        >
+                          {schedule.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.scheduleTime,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {formatTime(
+                            schedule.workers.flatMap((w) => w.periods)
+                          )}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                    </Pressable>
+                  ))
+                ) : (
+                  <View
+                    style={[
+                      styles.emptyScheduleContainer,
+                      { backgroundColor: colors.surface },
+                    ]}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={48}
+                      color={colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.emptyScheduleText,
+                        { color: colors.textSecondary },
                       ]}
                     >
-                      <Ionicons
-                        name={activity.icon as any}
-                        size={20}
-                        color={activity.color}
-                      />
-                    </View>
-                    <View style={styles.activityContent}>
-                      <Text style={styles.activityTitle}>{activity.title}</Text>
-                      <Text style={styles.activityDescription}>
-                        {activity.description}
-                      </Text>
-                      <Text style={styles.activityTime}>
-                        {formatActivityTime(activity.timestamp)}
-                      </Text>
-                    </View>
+                      오늘 일정이 없습니다
+                    </Text>
                   </View>
-                ))
-              ) : (
-                <View style={styles.noActivityContainer}>
-                  <Ionicons
-                    name="time-outline"
-                    size={40}
-                    color={Theme.colors.text.tertiary}
-                  />
-                  <Text style={styles.noActivityText}>
-                    최근 활동이 없습니다
-                  </Text>
-                </View>
-              )}
+                )}
+              </View>
             </View>
           </View>
         </View>
-      </View>
+      </ScrollView>
+
+      {/* FAB 스타일 활동 알림 버튼 - 스크롤과 무관하게 고정 */}
+      {recentActivities.length > 0 && (
+        <Pressable
+          style={[
+            styles.activityFab,
+            {
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
+            },
+          ]}
+          onPress={() => setShowActivityModal(true)}
+        >
+          <Ionicons name="notifications" size={24} color="white" />
+          {recentActivities.filter((a) => a.type === "payment").length > 0 && (
+            <View
+              style={[styles.activityBadge, { backgroundColor: colors.error }]}
+            >
+              <Text style={styles.activityBadgeText}>
+                {recentActivities.filter((a) => a.type === "payment").length}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      )}
 
       {/* 모달들 */}
       <TodayScheduleModal
@@ -735,7 +648,87 @@ export default function MainScreen() {
         onClose={() => setShowUnpaidSchedule(false)}
         schedules={schedules}
       />
-    </ScrollView>
+
+      {/* 활동 알림 모달 */}
+      <Modal
+        visible={showActivityModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowActivityModal(false)}
+      >
+        <View
+          style={[styles.activityModal, { backgroundColor: colors.background }]}
+        >
+          <View
+            style={[
+              styles.activityModalHeader,
+              { borderBottomColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.activityModalTitle, { color: colors.text }]}>
+              최근 활동
+            </Text>
+            <Pressable
+              style={[
+                styles.activityModalClose,
+                { backgroundColor: colors.surface },
+              ]}
+              onPress={() => setShowActivityModal(false)}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.activityModalContent}>
+            {recentActivities.map((activity) => (
+              <View
+                key={activity.id}
+                style={[
+                  styles.activityModalItem,
+                  { borderBottomColor: colors.border },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.activityModalIcon,
+                    { backgroundColor: `${activity.color}20` },
+                  ]}
+                >
+                  <Ionicons
+                    name={activity.icon as any}
+                    size={20}
+                    color={activity.color}
+                  />
+                </View>
+                <View style={styles.activityModalContent}>
+                  <Text
+                    style={[styles.activityModalTitle, { color: colors.text }]}
+                  >
+                    {activity.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.activityModalDescription,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {activity.description}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.activityModalTime,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {formatActivityTime(activity.timestamp)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -744,6 +737,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Theme.colors.background,
   },
+  scrollContainer: {
+    flex: 1,
+  },
   header: {
     backgroundColor: Theme.colors.primary,
     paddingTop: 60,
@@ -751,9 +747,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.xl,
     borderBottomLeftRadius: Theme.borderRadius.xl,
     borderBottomRightRadius: Theme.borderRadius.xl,
+  },
+  headerContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  headerLeft: {
+    flex: 1,
   },
   settingsButton: {
     width: 44,
@@ -928,9 +929,6 @@ const styles = StyleSheet.create({
     width: "100%",
     marginHorizontal: "auto",
     paddingHorizontal: 40,
-    flexDirection: "row" as const,
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   headerTitleWeb: {
     fontSize: 42,
@@ -972,5 +970,101 @@ const styles = StyleSheet.create({
   },
   scheduleCardWeb: {
     // 웹 전용 스타일
+  },
+  emptyScheduleContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Theme.spacing.xxl,
+    paddingHorizontal: Theme.spacing.xl,
+    borderRadius: Theme.borderRadius.lg,
+    minHeight: 150,
+  },
+  emptyScheduleText: {
+    fontSize: Theme.typography.sizes.md,
+    fontFamily: "Inter_400Regular",
+    marginTop: Theme.spacing.md,
+    textAlign: "center",
+  },
+  // FAB 스타일
+  activityFab: {
+    position: "absolute",
+    bottom: 30,
+    right: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  activityBadge: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  activityBadgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  // 모달 스타일
+  activityModal: {
+    flex: 1,
+    paddingTop: 50,
+  },
+  activityModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  activityModalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activityModalContent: {
+    flex: 1,
+  },
+  activityModalItem: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    alignItems: "flex-start",
+  },
+  activityModalIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  activityModalTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  activityModalDescription: {
+    fontSize: 14,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  activityModalTime: {
+    fontSize: 12,
   },
 });

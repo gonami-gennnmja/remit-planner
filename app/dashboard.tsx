@@ -1,3 +1,4 @@
+import CommonHeader from "@/components/CommonHeader";
 import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
@@ -166,6 +167,9 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
+      {/* 헤더 */}
+      <CommonHeader title="대시보드" />
+
       <ScrollView
         style={styles.content}
         contentContainerStyle={isWeb ? styles.contentContainerWeb : undefined}

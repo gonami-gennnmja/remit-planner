@@ -31,14 +31,6 @@ export const Theme = {
 			other: "#6b7280",     // 그레이
 		},
 
-		// 그라데이션 컬러
-		gradient: {
-			primary: "#6366f1",   // 인디고
-			secondary: "#8b5cf6", // 바이올렛
-			accent: "#06b6d4",    // 시안
-			warm: "#f59e0b",      // 앰버
-		},
-
 		// 테두리 및 구분선
 		border: {
 			light: "#e5e7eb",

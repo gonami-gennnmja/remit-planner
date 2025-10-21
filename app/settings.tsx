@@ -1,6 +1,11 @@
+import CommonHeader from "@/components/CommonHeader";
 import { Text } from "@/components/Themed";
 import { useI18n } from "@/contexts/LocalizationContext";
-import { useTheme } from "@/contexts/ThemeContext";
+import {
+  AccentColor,
+  accentColorPresets,
+  useTheme,
+} from "@/contexts/ThemeContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { getCurrentUser, logout, updateUser, User } from "@/utils/authUtils";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,6 +13,7 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,7 +25,8 @@ import {
 export default function SettingsScreen() {
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
-  const { themeMode, setThemeMode, colors } = useTheme();
+  const { themeMode, setThemeMode, accentColor, setAccentColor, colors } =
+    useTheme();
   const { t, setLanguage } = useI18n();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,13 +140,8 @@ export default function SettingsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#374151" />
-          </Pressable>
-          <Text style={styles.headerTitle}>설정</Text>
-        </View>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <CommonHeader title={t("settings")} />
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>로딩 중...</Text>
         </View>
@@ -149,37 +151,22 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.surface, borderBottomColor: colors.border },
-        ]}
-      >
-        <Pressable
-          style={[styles.backButton, { backgroundColor: colors.border }]}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          {t("settings")}
-        </Text>
-        {editing ? (
-          <Pressable
-            style={[styles.saveButton, { backgroundColor: colors.success }]}
-            onPress={handleSave}
-          >
-            <Text style={styles.saveButtonText}>저장</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            style={[styles.editButton, { backgroundColor: colors.primary }]}
-            onPress={() => setEditing(true)}
-          >
-            <Text style={styles.editButtonText}>편집</Text>
-          </Pressable>
-        )}
-      </View>
+      <CommonHeader
+        title={t("settings")}
+        rightButton={
+          editing
+            ? {
+                icon: "checkmark",
+                onPress: handleSave,
+                label: "저장",
+              }
+            : {
+                icon: "create",
+                onPress: () => setEditing(true),
+                label: "편집",
+              }
+        }
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* 프로필 섹션 */}
@@ -460,6 +447,73 @@ export default function SettingsScreen() {
             </View>
 
             <View
+              style={[
+                styles.settingRowVertical,
+                { borderBottomColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.settingTitle, { color: colors.text }]}>
+                {t("themeColor")}
+              </Text>
+              <Text
+                style={[
+                  styles.settingDescription,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                {t("selectAppColor")}
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={
+                  Platform.OS === "web" ? false : true
+                }
+                style={styles.colorPicker}
+                contentContainerStyle={[
+                  styles.colorPickerContent,
+                  isMobile && styles.colorPickerContentMobile,
+                ]}
+                decelerationRate="fast"
+                snapToInterval={Platform.OS === "web" ? undefined : 44}
+                snapToAlignment="start"
+              >
+                {(Object.keys(accentColorPresets) as AccentColor[]).map(
+                  (color) => {
+                    const preset = accentColorPresets[color];
+                    const isSelected = accentColor === color;
+                    return (
+                      <Pressable
+                        key={color}
+                        style={[
+                          styles.colorOption,
+                          {
+                            backgroundColor: preset.light,
+                            borderColor: isSelected
+                              ? colors.primary
+                              : "transparent",
+                            borderWidth: isSelected ? 3 : 2,
+                            transform: isSelected
+                              ? [{ scale: 1.1 }]
+                              : [{ scale: 1 }],
+                          },
+                        ]}
+                        onPress={() => setAccentColor(color)}
+                      >
+                        {isSelected && (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={18}
+                            color="#ffffff"
+                          />
+                        )}
+                      </Pressable>
+                    );
+                  }
+                )}
+              </ScrollView>
+            </View>
+
+            <View
               style={[styles.settingRow, { borderBottomColor: colors.border }]}
             >
               <View style={styles.settingInfo}>
@@ -534,51 +588,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: "#f3f4f6",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#111827",
-    fontFamily: "Inter_600SemiBold",
-  },
-  editButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#6366f1",
-  },
-  editButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-    fontFamily: "Inter_600SemiBold",
-  },
-  saveButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#10b981",
-  },
-  saveButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-    fontFamily: "Inter_600SemiBold",
   },
   content: {
     flex: 1,
@@ -680,6 +689,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
+  settingRowVertical: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+    gap: 8,
+  },
   settingInfo: {
     flex: 1,
   },
@@ -741,6 +758,35 @@ const styles = StyleSheet.create({
   },
   languageOptionTextSelected: {
     color: "white",
+  },
+  colorPicker: {
+    marginTop: 4,
+    maxHeight: 50,
+  },
+  colorPickerContent: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  colorPickerContentMobile: {
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  colorOption: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   logoutButton: {
     backgroundColor: "white",

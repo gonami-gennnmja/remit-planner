@@ -113,6 +113,20 @@ export interface IDatabase {
   updateCategory(id: string, category: Partial<Category>): Promise<void>;
   deleteCategory(id: string): Promise<void>;
 
+  // User settings operations
+  getUserSettings(): Promise<{
+    themeMode: 'light' | 'dark' | 'auto';
+    accentColor: 'blue' | 'purple' | 'green' | 'orange' | 'pink' | 'red' | 'teal' | 'indigo' | 'black';
+    language: 'ko' | 'en';
+    notificationsEnabled: boolean;
+  } | null>;
+  updateUserSettings(settings: {
+    themeMode?: 'light' | 'dark' | 'auto';
+    accentColor?: 'blue' | 'purple' | 'green' | 'orange' | 'pink' | 'red' | 'teal' | 'indigo' | 'black';
+    language?: 'ko' | 'en';
+    notificationsEnabled?: boolean;
+  }): Promise<void>;
+
   // Utility
   clearAllData(): Promise<void>;
 }

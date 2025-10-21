@@ -1,13 +1,31 @@
 // Platform-specific database factory
+import { Category } from '@/models/types';
 import { IDatabase } from './interface';
 import { SupabaseRepository } from './supabaseRepository';
 
 // Web fallback database
 class WebDatabase implements IDatabase {
+	createCategory(category: { id: string; name: string; color: string; }): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getCategory(id: string): Promise<Category | null> {
+		throw new Error('Method not implemented.');
+	}
+	getAllCategories(): Promise<Category[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateCategory(id: string, category: Partial<Category>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteCategory(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	private workers: Map<string, any> = new Map();
 	private schedules: Map<string, any> = new Map();
 	private scheduleWorkers: Map<string, any> = new Map();
 	private workPeriods: Map<string, any> = new Map();
+	private clients: Map<string, any> = new Map();
+	private categories: Map<string, any> = new Map();
 
 	async init(): Promise<void> {
 		console.log('🌐 Using web database (in-memory + localStorage)');
@@ -39,6 +57,12 @@ class WebDatabase implements IDatabase {
 				const workPeriods = JSON.parse(workPeriodsData);
 				workPeriods.forEach((wp: any) => this.workPeriods.set(wp.id, wp));
 			}
+
+			const clientsData = localStorage.getItem('remit_planner_clients');
+			if (clientsData) {
+				const clients = JSON.parse(clientsData);
+				clients.forEach((client: any) => this.clients.set(client.id, client));
+			}
 		} catch (error) {
 			console.warn('Failed to load from localStorage:', error);
 		}
@@ -50,6 +74,7 @@ class WebDatabase implements IDatabase {
 			localStorage.setItem('remit_planner_schedules', JSON.stringify(Array.from(this.schedules.values())));
 			localStorage.setItem('remit_planner_schedule_workers', JSON.stringify(Array.from(this.scheduleWorkers.values())));
 			localStorage.setItem('remit_planner_work_periods', JSON.stringify(Array.from(this.workPeriods.values())));
+			localStorage.setItem('remit_planner_clients', JSON.stringify(Array.from(this.clients.values())));
 		} catch (error) {
 			console.warn('Failed to save to localStorage:', error);
 		}
@@ -100,6 +125,21 @@ class WebDatabase implements IDatabase {
 			...schedule,
 			workers
 		};
+	}
+
+	async getAllSchedules(): Promise<any[]> {
+		const schedules = Array.from(this.schedules.values());
+		const result: any[] = [];
+
+		for (const schedule of schedules) {
+			const workers = await this.getScheduleWorkers(schedule.id);
+			result.push({
+				...schedule,
+				workers
+			});
+		}
+
+		return result;
 	}
 
 	async getSchedulesByDate(date: string): Promise<any[]> {
@@ -317,6 +357,77 @@ class WebDatabase implements IDatabase {
 			localStorage.setItem('remit_planner_activities', JSON.stringify(filteredActivities));
 		} catch (error) {
 			console.warn('Failed to clear old activities:', error);
+		}
+	}
+
+	// ==================== Client Operations ====================
+
+	async createClient(client: any): Promise<string> {
+		this.clients.set(client.id, client);
+		this.saveToLocalStorage();
+		return client.id;
+	}
+
+	async getClient(id: string): Promise<any> {
+		return this.clients.get(id) || null;
+	}
+
+	async getAllClients(): Promise<any[]> {
+		return Array.from(this.clients.values());
+	}
+
+	async updateClient(id: string, client: any): Promise<void> {
+		const existing = this.clients.get(id);
+		if (existing) {
+			const updated = { ...existing, ...client };
+			this.clients.set(id, updated);
+			this.saveToLocalStorage();
+		}
+	}
+
+	async deleteClient(id: string): Promise<void> {
+		this.clients.delete(id);
+		this.saveToLocalStorage();
+	}
+
+	// User settings operations
+	async getUserSettings(): Promise<{
+		themeMode: 'light' | 'dark' | 'auto';
+		accentColor: 'blue' | 'purple' | 'green' | 'orange' | 'pink' | 'red' | 'teal' | 'indigo' | 'black';
+		language: 'ko' | 'en';
+		notificationsEnabled: boolean;
+	} | null> {
+		try {
+			const settingsData = localStorage.getItem('remit_planner_user_settings')
+			if (settingsData) {
+				return JSON.parse(settingsData)
+			}
+			return null
+		} catch (error) {
+			console.error('Error loading user settings:', error)
+			return null
+		}
+	}
+
+	async updateUserSettings(settings: {
+		themeMode?: 'light' | 'dark' | 'auto';
+		accentColor?: 'blue' | 'purple' | 'green' | 'orange' | 'pink' | 'red' | 'teal' | 'indigo' | 'black';
+		language?: 'ko' | 'en';
+		notificationsEnabled?: boolean;
+	}): Promise<void> {
+		try {
+			const currentSettings = await this.getUserSettings() || {
+				themeMode: 'light' as const,
+				accentColor: 'indigo' as const,
+				language: 'ko' as const,
+				notificationsEnabled: true,
+			}
+
+			const updatedSettings = { ...currentSettings, ...settings }
+			localStorage.setItem('remit_planner_user_settings', JSON.stringify(updatedSettings))
+		} catch (error) {
+			console.error('Error saving user settings:', error)
+			throw error
 		}
 	}
 }

@@ -1,3 +1,4 @@
+import { getDatabase } from "@/database/platformDatabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
@@ -29,11 +30,13 @@ const ko: Dictionary = {
   businessEmail: "사업장 이메일",
   notifications: "알림",
   theme: "테마",
+  themeColor: "테마 컬러",
   language: "언어",
   logout: "로그아웃",
   save: "저장",
   edit: "편집",
   selectAppTheme: "앱의 테마를 선택하세요",
+  selectAppColor: "앱의 강조 색상을 선택하세요",
   selectAppLanguage: "앱의 언어를 선택하세요",
   mainFeatures: "주요 기능",
 };
@@ -56,11 +59,13 @@ const en: Dictionary = {
   businessEmail: "Business Email",
   notifications: "Notifications",
   theme: "Theme",
+  themeColor: "Theme Color",
   language: "Language",
   logout: "Logout",
   save: "Save",
   edit: "Edit",
   selectAppTheme: "Choose the app theme",
+  selectAppColor: "Choose the app accent color",
   selectAppLanguage: "Choose the app language",
   mainFeatures: "Main Features",
 };
@@ -85,19 +90,43 @@ export function LocalizationProvider({
   const [language, setLanguageState] = useState<Language>("ko");
 
   useEffect(() => {
-    (async () => {
+    loadUserSettings();
+  }, []);
+
+  const loadUserSettings = async () => {
+    try {
+      const db = getDatabase();
+      const settings = await db.getUserSettings();
+
+      if (settings) {
+        setLanguageState(settings.language);
+      } else {
+        // Fallback to AsyncStorage for backward compatibility
+        const saved = await AsyncStorage.getItem(LANG_KEY);
+        if (saved === "ko" || saved === "en") setLanguageState(saved);
+      }
+    } catch (error) {
+      console.error("Failed to load user settings:", error);
+      // Fallback to AsyncStorage
       try {
         const saved = await AsyncStorage.getItem(LANG_KEY);
         if (saved === "ko" || saved === "en") setLanguageState(saved);
-      } catch {}
-    })();
-  }, []);
+      } catch (fallbackError) {
+        console.error("Failed to load from AsyncStorage:", fallbackError);
+      }
+    }
+  };
 
   const setLanguage = async (lang: Language) => {
     setLanguageState(lang);
     try {
+      const db = getDatabase();
+      await db.updateUserSettings({ language: lang });
+      // Also save to AsyncStorage for backward compatibility
       await AsyncStorage.setItem(LANG_KEY, lang);
-    } catch {}
+    } catch (error) {
+      console.error("Failed to save language:", error);
+    }
   };
 
   const dict = language === "ko" ? ko : en;

@@ -1,6 +1,6 @@
-import CommonHeader from "@/components/CommonHeader";
 import { getDatabase } from "@/database/platformDatabase";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -110,15 +110,28 @@ export default function ClientsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* 헤더 */}
-      <CommonHeader
-        title="거래처 관리"
-        rightButton={{
-          icon: "add",
-          onPress: () => {
-            // TODO: 거래처 추가 기능 구현
-          },
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          padding: 16,
+          borderBottomWidth: 1,
+          borderBottomColor: "#e0e0e0",
         }}
-      />
+      >
+        <Pressable style={{ padding: 8 }} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={20} color="#000" />
+        </Pressable>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: "600" }}>거래처 관리</Text>
+          <Text style={{ fontSize: 14, color: "#666" }}>
+            총 {clients?.length || 0}개
+          </Text>
+        </View>
+        <Pressable style={{ padding: 8 }}>
+          <Ionicons name="add" size={24} color="#000" />
+        </Pressable>
+      </View>
 
       {/* 검색 */}
       <View

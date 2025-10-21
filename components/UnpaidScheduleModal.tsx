@@ -1,9 +1,12 @@
 import { Theme } from "@/constants/Theme";
+import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
+import { createPaymentActivity } from "@/utils/activityUtils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -20,6 +23,7 @@ interface UnpaidScheduleModalProps {
 
 interface UnpaidScheduleInfo {
   scheduleId: string;
+  workerId: string;
   title: string;
   workDate: string;
   workerName: string;
@@ -66,6 +70,7 @@ export default function UnpaidScheduleModal({
 
             unpaid.push({
               scheduleId: schedule.id,
+              workerId: workerInfo.worker.id,
               title: schedule.title,
               workDate,
               workerName: workerInfo.worker.name,
@@ -94,6 +99,52 @@ export default function UnpaidScheduleModal({
 
   const getTotalUnpaidAmount = () => {
     return unpaidList.reduce((total, item) => total + item.totalAmount, 0);
+  };
+
+  const handlePayment = async (item: UnpaidScheduleInfo) => {
+    Alert.alert(
+      "급여 지급 확인",
+      `${item.workerName}님에게 ${formatCurrency(
+        item.totalAmount
+      )}원을 지급하시겠습니까?`,
+      [
+        {
+          text: "취소",
+          style: "cancel",
+        },
+        {
+          text: "지급",
+          onPress: async () => {
+            try {
+              const db = getDatabase();
+
+              // 지급 상태 업데이트
+              await db.updateScheduleWorkerPaidStatus(
+                item.scheduleId,
+                item.workerId,
+                true
+              );
+
+              // 활동 생성
+              await createPaymentActivity(
+                item.scheduleId,
+                item.workerId,
+                item.totalAmount
+              );
+
+              // 리스트 새로고침
+              const unpaid = calculateUnpaidSchedules();
+              setUnpaidList(unpaid);
+
+              Alert.alert("완료", "급여가 지급되었습니다.");
+            } catch (error) {
+              console.error("Failed to update payment status:", error);
+              Alert.alert("오류", "급여 지급 처리 중 오류가 발생했습니다.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -186,6 +237,20 @@ export default function UnpaidScheduleModal({
                       </Text>
                     </View>
                   </View>
+
+                  {/* 지급 버튼 */}
+                  <Pressable
+                    style={styles.payButton}
+                    onPress={() => handlePayment(item)}
+                  >
+                    <Ionicons
+                      name="card-outline"
+                      size={20}
+                      color="white"
+                      style={styles.payButtonIcon}
+                    />
+                    <Text style={styles.payButtonText}>지급하기</Text>
+                  </Pressable>
                 </View>
               ))
             )}
@@ -356,5 +421,23 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.sizes.md,
     color: Theme.colors.text.primary,
     fontWeight: Theme.typography.weights.bold,
+  },
+  payButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.colors.success,
+    paddingVertical: Theme.spacing.sm,
+    paddingHorizontal: Theme.spacing.md,
+    borderRadius: Theme.borderRadius.md,
+    marginTop: Theme.spacing.md,
+  },
+  payButtonIcon: {
+    marginRight: Theme.spacing.xs,
+  },
+  payButtonText: {
+    color: "white",
+    fontSize: Theme.typography.sizes.sm,
+    fontWeight: Theme.typography.weights.semibold,
   },
 });

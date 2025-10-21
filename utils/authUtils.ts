@@ -1,32 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  createAdminAccount,
+  getCurrentSupabaseUser,
+  isSupabaseLoggedIn,
+  loginWithSupabase,
+  logoutFromSupabase,
+  onAuthStateChange as onSupabaseAuthStateChange,
+  registerWithSupabase,
+  SupabaseUser,
+  updateSupabaseUser
+} from './supabaseAuth';
 
-// 사용자 인터페이스
-export interface User {
-  id: string;
-  password: string;
-  name: string;
-  email?: string;
-  nickname?: string;
-  businessInfo?: {
-    businessName: string;
-    businessNumber: string;
-    businessAddress: string;
-    businessPhone: string;
-    businessEmail: string;
-  };
-  settings?: {
-    notifications: boolean;
-    theme: 'light' | 'dark' | 'auto';
-    language: 'ko' | 'en';
-  };
-}
+// 기존 User 인터페이스는 SupabaseUser로 대체
+export type User = SupabaseUser;
 
-// 기본 관리자 계정
+// 기본 관리자 계정 (호환성을 위해 유지)
 const DEFAULT_ADMIN: User = {
   id: 'admin',
-  password: '1234',
-  name: '관리자',
   email: 'admin@remit-planner.com',
+  name: '관리자',
   nickname: '관리자',
   businessInfo: {
     businessName: '리밋 플래너',
@@ -45,57 +37,64 @@ const DEFAULT_ADMIN: User = {
 const USERS_STORAGE_KEY = '@remit-planner:users';
 const CURRENT_USER_KEY = '@remit-planner:current_user';
 
-// 사용자 데이터베이스 초기화
+// 사용자 데이터베이스 초기화 (Supabase Auth로 마이그레이션)
 export async function initializeAuthDB(): Promise<void> {
   try {
+    console.log('🔧 Auth DB 초기화 (Supabase Auth)');
+
+    // 기존 AsyncStorage 데이터가 있으면 백업
     const usersData = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    if (!usersData) {
-      // 관리자 계정 생성
+    if (usersData) {
+      console.log('📦 기존 사용자 데이터 발견, 백업 중...');
       await AsyncStorage.setItem(
-        USERS_STORAGE_KEY,
-        JSON.stringify([DEFAULT_ADMIN])
+        '@remit-planner:users_backup',
+        usersData
       );
-      console.log('✅ 관리자 계정 생성 완료');
     }
+
+    // Supabase에서 admin 계정이 있는지 확인하고, 없으면 생성
+    try {
+      const result = await createAdminAccount();
+      if (result.success) {
+        console.log('✅ Admin 계정 초기화 완료');
+      } else {
+        console.log('ℹ️ Admin 계정이 이미 존재하거나 생성 실패:', result.message);
+      }
+    } catch (error) {
+      console.log('ℹ️ Admin 계정 생성 건너뛰기:', error);
+    }
+
+    console.log('✅ Supabase Auth 초기화 완료');
   } catch (error) {
     console.error('❌ Auth DB 초기화 실패:', error);
   }
 }
 
-// 로그인 함수
+// 로그인 함수 (Supabase Auth로 마이그레이션)
 export async function login(
   id: string,
   password: string
 ): Promise<{ success: boolean; user?: User; message?: string }> {
   try {
-    console.log('🔐 로그인 시도:', { id, passwordLength: password.length });
+    console.log('🔐 로그인 시도 (Supabase Auth):', { id });
 
     // 입력값 검증
     if (!id || !password) {
       return { success: false, message: '아이디와 비밀번호를 입력해주세요.' };
     }
 
-    const usersData = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    console.log('📦 사용자 데이터 조회:', usersData ? '존재' : '없음');
+    // id가 이메일 형태인지 확인하고, 아니면 이메일로 변환
+    const email = id.includes('@') ? id : `${id}@remit-planner.com`;
 
-    if (!usersData) {
-      return { success: false, message: '사용자 데이터를 찾을 수 없습니다.' };
-    }
+    // Supabase Auth로 로그인 시도
+    const result = await loginWithSupabase(email, password);
 
-    const users: User[] = JSON.parse(usersData);
-    console.log('👥 등록된 사용자 수:', users.length);
-
-    const user = users.find((u) => u.id === id && u.password === password);
-    console.log('🔍 사용자 검색 결과:', user ? '찾음' : '없음');
-
-    if (user) {
-      // 현재 사용자 저장
-      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-      console.log('✅ 로그인 성공:', user.name);
-      return { success: true, user };
+    if (result.success && result.user) {
+      console.log('✅ 로그인 성공:', result.user.name);
+      return { success: true, user: result.user };
     } else {
-      console.log('❌ 로그인 실패: 잘못된 인증 정보');
-      return { success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+      console.log('❌ 로그인 실패:', result.message);
+      return { success: false, message: result.message || '아이디 또는 비밀번호가 올바르지 않습니다.' };
     }
   } catch (error) {
     console.error('❌ 로그인 실패:', error);
@@ -103,37 +102,37 @@ export async function login(
   }
 }
 
-// 로그아웃 함수
+// 로그아웃 함수 (Supabase Auth로 마이그레이션)
 export async function logout(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(CURRENT_USER_KEY);
+    await logoutFromSupabase();
     console.log('✅ 로그아웃 완료');
   } catch (error) {
     console.error('❌ 로그아웃 실패:', error);
   }
 }
 
-// 현재 로그인된 사용자 가져오기
+// 현재 로그인된 사용자 가져오기 (Supabase Auth로 마이그레이션)
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const userData = await AsyncStorage.getItem(CURRENT_USER_KEY);
-    if (userData) {
-      return JSON.parse(userData);
-    }
-    return null;
+    return await getCurrentSupabaseUser();
   } catch (error) {
     console.error('❌ 현재 사용자 조회 실패:', error);
     return null;
   }
 }
 
-// 로그인 상태 확인
+// 로그인 상태 확인 (Supabase Auth로 마이그레이션)
 export async function isLoggedIn(): Promise<boolean> {
-  const user = await getCurrentUser();
-  return user !== null;
+  try {
+    return await isSupabaseLoggedIn();
+  } catch (error) {
+    console.error('❌ 로그인 상태 확인 실패:', error);
+    return false;
+  }
 }
 
-// 사용자 등록
+// 사용자 등록 (Supabase Auth로 마이그레이션)
 export async function registerUser(
   id: string,
   password: string,
@@ -141,52 +140,50 @@ export async function registerUser(
   email?: string
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const usersData = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    const users: User[] = usersData ? JSON.parse(usersData) : [];
+    console.log('📝 회원가입 시도 (Supabase Auth):', { id, name });
 
-    // 중복 아이디 체크
-    if (users.some((u) => u.id === id)) {
-      return { success: false, message: '이미 존재하는 아이디입니다.' };
+    // id가 이메일 형태인지 확인하고, 아니면 이메일로 변환
+    const userEmail = email || (id.includes('@') ? id : `${id}@remit-planner.com`);
+
+    // Supabase Auth로 회원가입 시도
+    const result = await registerWithSupabase(userEmail, password, name, name);
+
+    if (result.success) {
+      console.log('✅ 회원가입 성공');
+      return { success: true, message: result.message || '회원가입이 완료되었습니다.' };
+    } else {
+      console.log('❌ 회원가입 실패:', result.message);
+      return { success: false, message: result.message || '회원가입 중 오류가 발생했습니다.' };
     }
-
-    // 새 사용자 추가
-    const newUser: User = { id, password, name, email };
-    users.push(newUser);
-    await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-
-    return { success: true, message: '회원가입이 완료되었습니다.' };
   } catch (error) {
     console.error('❌ 회원가입 실패:', error);
     return { success: false, message: '회원가입 중 오류가 발생했습니다.' };
   }
 }
 
-// 사용자 정보 업데이트
+// 사용자 정보 업데이트 (Supabase Auth로 마이그레이션)
 export async function updateUser(updatedUser: User): Promise<{ success: boolean; message?: string }> {
   try {
-    const usersData = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-    if (!usersData) {
-      return { success: false, message: '사용자 데이터를 찾을 수 없습니다.' };
+    console.log('👤 사용자 정보 업데이트 (Supabase Auth):', { id: updatedUser.id });
+
+    // Supabase Auth로 사용자 정보 업데이트
+    const result = await updateSupabaseUser(updatedUser);
+
+    if (result.success) {
+      console.log('✅ 사용자 정보 업데이트 성공');
+      return { success: true, message: result.message || '사용자 정보가 업데이트되었습니다.' };
+    } else {
+      console.log('❌ 사용자 정보 업데이트 실패:', result.message);
+      return { success: false, message: result.message || '사용자 정보 업데이트 중 오류가 발생했습니다.' };
     }
-
-    const users: User[] = JSON.parse(usersData);
-    const userIndex = users.findIndex((u) => u.id === updatedUser.id);
-
-    if (userIndex === -1) {
-      return { success: false, message: '사용자를 찾을 수 없습니다.' };
-    }
-
-    // 사용자 정보 업데이트
-    users[userIndex] = updatedUser;
-    await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-
-    // 현재 사용자 정보도 업데이트
-    await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
-
-    return { success: true, message: '사용자 정보가 업데이트되었습니다.' };
   } catch (error) {
     console.error('❌ 사용자 정보 업데이트 실패:', error);
     return { success: false, message: '사용자 정보 업데이트 중 오류가 발생했습니다.' };
   }
+}
+
+// Auth 상태 변경 리스너 (Supabase Auth)
+export function onAuthStateChange(callback: (user: User | null) => void) {
+  return onSupabaseAuthStateChange(callback);
 }
 

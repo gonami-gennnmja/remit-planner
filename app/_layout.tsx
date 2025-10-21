@@ -80,12 +80,24 @@ function NavigationWrapper() {
     <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="signup" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="terms-of-service"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
         <Stack.Screen name="main" options={{ headerShown: false }} />
+        <Stack.Screen name="dashboard" options={{ headerShown: false }} />
         <Stack.Screen name="schedule" options={{ headerShown: false }} />
+        <Stack.Screen name="schedule-list" options={{ headerShown: false }} />
+        <Stack.Screen name="clients" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="workers" options={{ headerShown: false }} />
         <Stack.Screen name="payroll" options={{ headerShown: false }} />
         <Stack.Screen name="reports" options={{ headerShown: false }} />
+        <Stack.Screen name="uncollected" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
         <Stack.Screen name="schedule/[id]" options={{ title: "스케쥴 상세" }} />

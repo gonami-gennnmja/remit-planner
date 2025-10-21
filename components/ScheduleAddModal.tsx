@@ -1,8 +1,10 @@
 import AddressSearchModal from "@/components/AddressSearchModal";
 import { Text } from "@/components/Themed";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { useResponsive } from "@/hooks/useResponsive";
 import { ScheduleCategory } from "@/models/types";
+import { createScheduleActivity } from "@/utils/activityUtils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
@@ -38,6 +40,7 @@ export default function ScheduleAddModal({
 }: ScheduleAddModalProps) {
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
+  const { colors } = useTheme();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -120,6 +123,14 @@ export default function ScheduleAddModal({
       };
 
       await db.createSchedule(newSchedule);
+
+      // 활동 생성
+      await createScheduleActivity(
+        newSchedule.id,
+        newSchedule.title,
+        newSchedule.description
+      );
+
       Alert.alert("성공", "일정이 추가되었습니다.", [
         {
           text: "확인",
@@ -302,8 +313,15 @@ export default function ScheduleAddModal({
                         )
                       }
                     >
-                      <Ionicons name="add" size={16} color="#6366f1" />
-                      <Text style={styles.addCategoryButtonText}>추가</Text>
+                      <Ionicons name="add" size={16} color={colors.primary} />
+                      <Text
+                        style={[
+                          styles.addCategoryButtonText,
+                          { color: colors.primary },
+                        ]}
+                      >
+                        추가
+                      </Text>
                     </Pressable>
                   </View>
                   <View style={styles.categoryContainer}>
@@ -358,7 +376,7 @@ export default function ScheduleAddModal({
                       <Ionicons
                         name={isMultiDay ? "checkbox" : "square-outline"}
                         size={20}
-                        color={isMultiDay ? "#6366f1" : "#666"}
+                        color={isMultiDay ? colors.primary : "#666"}
                       />
                       <Text style={styles.checkboxText}>
                         여러 날에 걸친 일정
@@ -675,7 +693,10 @@ export default function ScheduleAddModal({
                       editable={false}
                     />
                     <Pressable
-                      style={styles.addressSearchButton}
+                      style={[
+                        styles.addressSearchButton,
+                        { backgroundColor: colors.primary },
+                      ]}
                       onPress={handleDirectAddressSearch}
                     >
                       <Ionicons name="search" size={20} color="white" />
@@ -710,7 +731,13 @@ export default function ScheduleAddModal({
               <Pressable style={styles.addCancelButton} onPress={onClose}>
                 <Text style={styles.addCancelButtonText}>취소</Text>
               </Pressable>
-              <Pressable style={styles.addSaveButton} onPress={handleSave}>
+              <Pressable
+                style={[
+                  styles.addSaveButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={handleSave}
+              >
                 <Text style={styles.addSaveButtonText}>저장</Text>
               </Pressable>
             </View>
@@ -815,7 +842,6 @@ const styles = StyleSheet.create({
   },
   addCategoryButtonText: {
     fontSize: 12,
-    color: "#6366f1",
     fontWeight: "500",
   },
   categoryContainer: {
@@ -866,7 +892,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#6366f1",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -899,7 +924,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: "#6366f1",
     alignItems: "center",
   },
   addSaveButtonText: {

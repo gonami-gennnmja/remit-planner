@@ -1,11 +1,13 @@
 import { Theme } from "@/constants/Theme";
 import { initializeAuthDB, login } from "@/utils/authUtils";
+import { signInWithSocial, SocialProvider } from "@/utils/socialAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -65,10 +67,36 @@ export default function LoginScreen() {
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    Alert.alert("소셜 로그인", `${provider} 로그인은 추후 구현 예정입니다.`, [
-      { text: "확인" },
-    ]);
+  const handleSocialLogin = async (provider: SocialProvider) => {
+    setIsLoading(true);
+
+    try {
+      const result = await signInWithSocial(provider);
+
+      setIsLoading(false);
+
+      if (result.success) {
+        // 웹에서는 OAuth 플로우가 redirect로 처리됨
+        // 앱에서는 성공 시 자동으로 세션이 설정됨
+        console.log(`${provider} 로그인 성공`);
+
+        // 앱에서는 메인 화면으로 이동
+        if (Platform.OS !== "web") {
+          setTimeout(() => {
+            navigation.push("/main");
+          }, 100);
+        }
+      } else {
+        Alert.alert(
+          "소셜 로그인 실패",
+          result.message || "로그인에 실패했습니다."
+        );
+      }
+    } catch (error) {
+      console.error("소셜 로그인 오류:", error);
+      setIsLoading(false);
+      Alert.alert("오류", "소셜 로그인 중 오류가 발생했습니다.");
+    }
   };
 
   return (
@@ -95,12 +123,13 @@ export default function LoginScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="아이디"
+            placeholder="이메일 또는 아이디"
             value={userId}
             onChangeText={setUserId}
             autoCapitalize="none"
             autoCorrect={false}
-            autoComplete="username"
+            autoComplete="email"
+            keyboardType="email-address"
             returnKeyType="next"
             blurOnSubmit={false}
           />
@@ -148,43 +177,40 @@ export default function LoginScreen() {
           <View style={styles.socialButtonRow}>
             <Pressable
               style={[styles.socialIconButton, styles.kakaoButton]}
-              onPress={() => handleSocialLogin("카카오톡")}
+              onPress={() => handleSocialLogin("kakao")}
+              disabled={isLoading}
             >
               <Ionicons name="chatbubble" size={28} color="#000000" />
             </Pressable>
 
             <Pressable
-              style={[styles.socialIconButton, styles.naverButton]}
-              onPress={() => handleSocialLogin("네이버")}
-            >
-              <Text style={styles.naverIcon}>N</Text>
-            </Pressable>
-
-            <Pressable
               style={[styles.socialIconButton, styles.googleButton]}
-              onPress={() => handleSocialLogin("구글")}
+              onPress={() => handleSocialLogin("google")}
+              disabled={isLoading}
             >
               <Ionicons name="logo-google" size={28} color="#4285F4" />
             </Pressable>
 
-            <Pressable
+            {/* Apple Login - 추후 구현 ($99/년 필요) */}
+            {/* <Pressable
               style={[styles.socialIconButton, styles.appleButton]}
-              onPress={() => handleSocialLogin("애플")}
+              onPress={() => handleSocialLogin("apple")}
+              disabled={isLoading}
             >
               <Ionicons name="logo-apple" size={28} color="white" />
-            </Pressable>
+            </Pressable> */}
           </View>
         </View>
       </View>
 
       {/* 하단 링크 */}
       <View style={styles.footer}>
-        <Pressable>
+        <Pressable onPress={() => navigation.push("/forgot-password")}>
           <Text style={styles.footerLink}>비밀번호를 잊으셨나요?</Text>
         </Pressable>
         <View style={styles.signupContainer}>
           <Text style={styles.footerText}>계정이 없으신가요? </Text>
-          <Pressable>
+          <Pressable onPress={() => navigation.push("/signup")}>
             <Text style={styles.footerLink}>회원가입</Text>
           </Pressable>
         </View>
@@ -308,22 +334,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEE500",
     borderColor: "#FEE500",
   },
-  naverButton: {
-    backgroundColor: "#03C75A",
-    borderColor: "#03C75A",
-  },
-  naverIcon: {
-    fontSize: 24,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.inverse,
-  },
   googleButton: {
     backgroundColor: Theme.colors.card,
     borderColor: Theme.colors.border.light,
   },
   appleButton: {
-    backgroundColor: Theme.colors.primary,
-    borderColor: Theme.colors.primary,
+    backgroundColor: "#000000",
+    borderColor: "#000000",
   },
   footer: {
     alignItems: "center",

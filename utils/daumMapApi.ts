@@ -128,7 +128,6 @@ export const openAddressSearch = (callback: (result: AddressResult) => void) => 
 				contentBgColor: "#FFFFFF",
 				pageBgColor: "#F8F9FA",
 				textColor: "#1F2937",
-				queryTextColor: "#FFFFFF",
 				postcodeTextColor: "#6B7280",
 				emphTextColor: "#2563eb",
 				outlineColor: "#E5E7EB"

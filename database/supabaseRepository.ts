@@ -580,7 +580,12 @@ export class SupabaseRepository implements IDatabase {
 
 		if (clientsError) {
 			console.error('Error getting clients:', clientsError)
-			return []
+			// 테이블이 존재하지 않는 경우 빈 배열 반환
+			if (clientsError.code === 'PGRST205') {
+				console.warn('Clients table does not exist in Supabase. Using empty array.');
+				return []
+			}
+			throw clientsError
 		}
 
 		const result = []
@@ -756,6 +761,98 @@ export class SupabaseRepository implements IDatabase {
 			category: dbSchedule.category,
 			address: dbSchedule.address,
 			memo: dbSchedule.memo,
+		}
+	}
+
+	// User settings operations
+	async getUserSettings(): Promise<{
+		themeMode: 'light' | 'dark' | 'auto';
+		accentColor: 'blue' | 'purple' | 'green' | 'orange' | 'pink' | 'red' | 'teal' | 'indigo' | 'black';
+		language: 'ko' | 'en';
+		notificationsEnabled: boolean;
+	} | null> {
+		// 인증된 사용자 확인
+		const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+		if (authError || !user) {
+			console.warn('No authenticated user found, returning null settings')
+			return null
+		}
+
+		const { data, error } = await supabase
+			.from('user_settings')
+			.select('*')
+			.eq('user_id', user.id)
+			.single()
+
+		if (error) {
+			if (error.code === 'PGRST116') {
+				// No settings found, return default values
+				return null
+			}
+			console.error('Error getting user settings:', error)
+			throw error
+		}
+
+		return {
+			themeMode: data.theme_mode,
+			accentColor: data.accent_color,
+			language: data.language,
+			notificationsEnabled: data.notifications_enabled,
+		}
+	}
+
+	async updateUserSettings(settings: {
+		themeMode?: 'light' | 'dark' | 'auto';
+		accentColor?: 'blue' | 'purple' | 'green' | 'orange' | 'pink' | 'red' | 'teal' | 'indigo' | 'black';
+		language?: 'ko' | 'en';
+		notificationsEnabled?: boolean;
+	}): Promise<void> {
+		// 인증된 사용자 확인
+		const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+		if (authError || !user) {
+			console.warn('No authenticated user found, skipping database save')
+			return
+		}
+
+		const updateData: any = {
+			user_id: user.id
+		}
+
+		if (settings.themeMode !== undefined) updateData.theme_mode = settings.themeMode
+		if (settings.accentColor !== undefined) updateData.accent_color = settings.accentColor
+		if (settings.language !== undefined) updateData.language = settings.language
+		if (settings.notificationsEnabled !== undefined) updateData.notifications_enabled = settings.notificationsEnabled
+
+		// 먼저 기존 설정이 있는지 확인
+		const { data: existingSettings } = await supabase
+			.from('user_settings')
+			.select('id')
+			.eq('user_id', user.id)
+			.single()
+
+		if (existingSettings) {
+			// 기존 설정 업데이트
+			const { error } = await supabase
+				.from('user_settings')
+				.update(updateData)
+				.eq('user_id', user.id)
+
+			if (error) {
+				console.error('Error updating user settings:', error)
+				throw error
+			}
+		} else {
+			// 새 설정 생성
+			const { error } = await supabase
+				.from('user_settings')
+				.insert([updateData])
+
+			if (error) {
+				console.error('Error creating user settings:', error)
+				throw error
+			}
 		}
 	}
 }

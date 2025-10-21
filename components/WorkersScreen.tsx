@@ -1,3 +1,4 @@
+import CommonHeader from "@/components/CommonHeader";
 import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import {
@@ -632,15 +633,13 @@ export default function WorkersScreen({
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={onBackPress}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </Pressable>
-        <Text style={styles.headerTitle}>근로자 관리</Text>
-        <Pressable style={styles.addButton} onPress={openAddWorker}>
-          <Ionicons name="add" size={24} color="white" />
-        </Pressable>
-      </View>
+      <CommonHeader
+        title="근로자 관리"
+        rightButton={{
+          icon: "add",
+          onPress: openAddWorker,
+        }}
+      />
 
       {/* 검색 바 */}
       <View style={styles.searchContainer}>
@@ -2320,37 +2319,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
-  },
-  header: {
-    backgroundColor: "#8b5cf6", // 바이올렛
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: Theme.borderRadius.full,
-    backgroundColor: Theme.colors.success,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Theme.shadows.sm,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "white",
   },
   searchContainer: {
     padding: Theme.spacing.xl,

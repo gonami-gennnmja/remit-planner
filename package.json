@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "create-admin-account": "ts-node scripts/create-admin-account.ts"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
@@ -49,8 +50,10 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "autoprefixer": "^10.4.21",
+    "dotenv": "^16.6.1",
     "postcss": "^8.5.6",
     "react-test-renderer": "19.1.0",
+    "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
   },
   "private": true
