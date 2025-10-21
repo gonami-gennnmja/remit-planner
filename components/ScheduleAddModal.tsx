@@ -6,6 +6,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { ScheduleCategory } from "@/models/types";
 import { createScheduleActivity } from "@/utils/activityUtils";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
 import {
@@ -18,8 +19,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-// @ts-ignore
-import RNDatePicker from "react-native-datepicker";
 
 interface ScheduleAddModalProps {
   visible: boolean;
@@ -57,6 +56,12 @@ export default function ScheduleAddModal({
     Array<{ id: string; name: string; color: string }>
   >([]);
   const [isAddressSearchVisible, setIsAddressSearchVisible] = useState(false);
+
+  // DatePicker 상태들
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -438,23 +443,44 @@ export default function ScheduleAddModal({
                         />
                       </Pressable>
                     ) : (
-                      <RNDatePicker
-                        style={styles.datePickerStyle}
-                        date={formData.startDate}
-                        mode="date"
-                        placeholder="날짜 선택"
-                        format="YYYY-MM-DD"
-                        confirmBtnText="확인"
-                        cancelBtnText="취소"
-                        customStyles={{
-                          dateInput: styles.datePickerInput,
-                          dateText: styles.datePickerText,
-                          placeholderText: styles.datePickerPlaceholder,
-                        }}
-                        onDateChange={(date: string) =>
-                          setFormData({ ...formData, startDate: date })
-                        }
-                      />
+                      <>
+                        <Pressable
+                          style={styles.datePickerInput}
+                          onPress={() => setShowStartDatePicker(true)}
+                        >
+                          <Text style={styles.datePickerText}>
+                            {formData.startDate || "날짜 선택"}
+                          </Text>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={20}
+                            color="#666"
+                          />
+                        </Pressable>
+                        {showStartDatePicker && (
+                          <DateTimePicker
+                            value={
+                              formData.startDate
+                                ? new Date(formData.startDate)
+                                : new Date()
+                            }
+                            mode="date"
+                            display="default"
+                            onChange={(event, selectedDate) => {
+                              setShowStartDatePicker(false);
+                              if (selectedDate) {
+                                const formattedDate = selectedDate
+                                  .toISOString()
+                                  .split("T")[0];
+                                setFormData({
+                                  ...formData,
+                                  startDate: formattedDate,
+                                });
+                              }
+                            }}
+                          />
+                        )}
+                      </>
                     )}
                   </View>
 
@@ -506,23 +532,50 @@ export default function ScheduleAddModal({
                         <Ionicons name="time-outline" size={20} color="#666" />
                       </Pressable>
                     ) : (
-                      <RNDatePicker
-                        style={styles.datePickerStyle}
-                        date={formData.startTime}
-                        mode="time"
-                        placeholder="시간 선택"
-                        format="HH:mm"
-                        confirmBtnText="확인"
-                        cancelBtnText="취소"
-                        customStyles={{
-                          dateInput: styles.datePickerInput,
-                          dateText: styles.datePickerText,
-                          placeholderText: styles.datePickerPlaceholder,
-                        }}
-                        onDateChange={(time: string) =>
-                          setFormData({ ...formData, startTime: time })
-                        }
-                      />
+                      <>
+                        <Pressable
+                          style={styles.datePickerInput}
+                          onPress={() => setShowStartTimePicker(true)}
+                        >
+                          <Text style={styles.datePickerText}>
+                            {formData.startTime || "시간 선택"}
+                          </Text>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color="#666"
+                          />
+                        </Pressable>
+                        {showStartTimePicker && (
+                          <DateTimePicker
+                            value={
+                              formData.startTime
+                                ? new Date(`2000-01-01T${formData.startTime}`)
+                                : new Date()
+                            }
+                            mode="time"
+                            display="default"
+                            onChange={(event, selectedTime) => {
+                              setShowStartTimePicker(false);
+                              if (selectedTime) {
+                                const hours = selectedTime
+                                  .getHours()
+                                  .toString()
+                                  .padStart(2, "0");
+                                const minutes = selectedTime
+                                  .getMinutes()
+                                  .toString()
+                                  .padStart(2, "0");
+                                const formattedTime = `${hours}:${minutes}`;
+                                setFormData({
+                                  ...formData,
+                                  startTime: formattedTime,
+                                });
+                              }
+                            }}
+                          />
+                        )}
+                      </>
                     )}
                   </View>
                 </View>
@@ -584,24 +637,49 @@ export default function ScheduleAddModal({
                           />
                         </Pressable>
                       ) : (
-                        <RNDatePicker
-                          style={styles.datePickerStyle}
-                          date={formData.endDate}
-                          mode="date"
-                          placeholder="날짜 선택"
-                          format="YYYY-MM-DD"
-                          minDate={formData.startDate}
-                          confirmBtnText="확인"
-                          cancelBtnText="취소"
-                          customStyles={{
-                            dateInput: styles.datePickerInput,
-                            dateText: styles.datePickerText,
-                            placeholderText: styles.datePickerPlaceholder,
-                          }}
-                          onDateChange={(date: string) =>
-                            setFormData({ ...formData, endDate: date })
-                          }
-                        />
+                        <>
+                          <Pressable
+                            style={styles.datePickerInput}
+                            onPress={() => setShowEndDatePicker(true)}
+                          >
+                            <Text style={styles.datePickerText}>
+                              {formData.endDate || "날짜 선택"}
+                            </Text>
+                            <Ionicons
+                              name="calendar-outline"
+                              size={20}
+                              color="#666"
+                            />
+                          </Pressable>
+                          {showEndDatePicker && (
+                            <DateTimePicker
+                              value={
+                                formData.endDate
+                                  ? new Date(formData.endDate)
+                                  : new Date()
+                              }
+                              mode="date"
+                              display="default"
+                              minimumDate={
+                                formData.startDate
+                                  ? new Date(formData.startDate)
+                                  : undefined
+                              }
+                              onChange={(event, selectedDate) => {
+                                setShowEndDatePicker(false);
+                                if (selectedDate) {
+                                  const formattedDate = selectedDate
+                                    .toISOString()
+                                    .split("T")[0];
+                                  setFormData({
+                                    ...formData,
+                                    endDate: formattedDate,
+                                  });
+                                }
+                              }}
+                            />
+                          )}
+                        </>
                       )}
                     </View>
 
@@ -657,23 +735,50 @@ export default function ScheduleAddModal({
                           />
                         </Pressable>
                       ) : (
-                        <RNDatePicker
-                          style={styles.datePickerStyle}
-                          date={formData.endTime}
-                          mode="time"
-                          placeholder="시간 선택"
-                          format="HH:mm"
-                          confirmBtnText="확인"
-                          cancelBtnText="취소"
-                          customStyles={{
-                            dateInput: styles.datePickerInput,
-                            dateText: styles.datePickerText,
-                            placeholderText: styles.datePickerPlaceholder,
-                          }}
-                          onDateChange={(time: string) =>
-                            setFormData({ ...formData, endTime: time })
-                          }
-                        />
+                        <>
+                          <Pressable
+                            style={styles.datePickerInput}
+                            onPress={() => setShowEndTimePicker(true)}
+                          >
+                            <Text style={styles.datePickerText}>
+                              {formData.endTime || "시간 선택"}
+                            </Text>
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color="#666"
+                            />
+                          </Pressable>
+                          {showEndTimePicker && (
+                            <DateTimePicker
+                              value={
+                                formData.endTime
+                                  ? new Date(`2000-01-01T${formData.endTime}`)
+                                  : new Date()
+                              }
+                              mode="time"
+                              display="default"
+                              onChange={(event, selectedTime) => {
+                                setShowEndTimePicker(false);
+                                if (selectedTime) {
+                                  const hours = selectedTime
+                                    .getHours()
+                                    .toString()
+                                    .padStart(2, "0");
+                                  const minutes = selectedTime
+                                    .getMinutes()
+                                    .toString()
+                                    .padStart(2, "0");
+                                  const formattedTime = `${hours}:${minutes}`;
+                                  setFormData({
+                                    ...formData,
+                                    endTime: formattedTime,
+                                  });
+                                }
+                              }}
+                            />
+                          )}
+                        </>
                       )}
                     </View>
                   </View>

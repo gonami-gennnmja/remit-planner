@@ -17,7 +17,7 @@ export type User = SupabaseUser;
 // 기본 관리자 계정 (호환성을 위해 유지)
 const DEFAULT_ADMIN: User = {
   id: 'admin',
-  email: 'admin@remit-planner.com',
+  email: 'admin@banban-halfhalf.com',
   name: '관리자',
   nickname: '관리자',
   businessInfo: {

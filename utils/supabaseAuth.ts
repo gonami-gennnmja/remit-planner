@@ -279,7 +279,7 @@ export async function createAdminAccount(): Promise<{ success: boolean; message?
 		console.log('👑 Admin 계정 생성 시도...')
 
 		const result = await registerWithSupabase(
-			'admin@remit-planner.com',
+			'admin@banban-halfhalf.com',
 			'123456',
 			'관리자',
 			'관리자'

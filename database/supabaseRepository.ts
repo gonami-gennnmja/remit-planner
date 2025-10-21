@@ -13,12 +13,24 @@ export class SupabaseRepository implements IDatabase {
 		console.log('✅ Supabase connected successfully')
 	}
 
+	// 사용자 인증 헬퍼 함수
+	private async getCurrentUser() {
+		const { data: { user } } = await supabase.auth.getUser()
+		if (!user) {
+			throw new Error('User not authenticated')
+		}
+		return user
+	}
+
 	// Worker operations
 	async createWorker(worker: any): Promise<string> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('workers')
 			.insert([{
 				id: worker.id,
+				user_id: user.id,
 				name: worker.name,
 				phone: worker.phone,
 				bank_account: worker.bankAccount,
@@ -46,10 +58,13 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getWorker(id: string): Promise<any> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('workers')
 			.select('*')
 			.eq('id', id)
+			.eq('user_id', user.id)
 			.single()
 
 		if (error) {
@@ -61,9 +76,12 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getAllWorkers(): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('workers')
 			.select('*')
+			.eq('user_id', user.id)
 			.order('created_at', { ascending: false })
 
 		if (error) {
@@ -75,6 +93,8 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async updateWorker(id: string, worker: any): Promise<void> {
+		const user = await this.getCurrentUser()
+
 		const { error } = await supabase
 			.from('workers')
 			.update({
@@ -95,6 +115,7 @@ export class SupabaseRepository implements IDatabase {
 				default_end_time: worker.defaultEndTime,
 			})
 			.eq('id', id)
+			.eq('user_id', user.id)
 
 		if (error) {
 			console.error('Error updating worker:', error)
@@ -103,10 +124,13 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async deleteWorker(id: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
 		const { error } = await supabase
 			.from('workers')
 			.delete()
 			.eq('id', id)
+			.eq('user_id', user.id)
 
 		if (error) {
 			console.error('Error deleting worker:', error)
@@ -116,10 +140,13 @@ export class SupabaseRepository implements IDatabase {
 
 	// Schedule operations
 	async createSchedule(schedule: any): Promise<string> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('schedules')
 			.insert([{
 				id: schedule.id,
+				user_id: user.id,
 				title: schedule.title,
 				start_date: schedule.startDate,
 				end_date: schedule.endDate,
@@ -139,10 +166,13 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getSchedule(id: string): Promise<any> {
+		const user = await this.getCurrentUser()
+
 		const { data: schedule, error: scheduleError } = await supabase
 			.from('schedules')
 			.select('*')
 			.eq('id', id)
+			.eq('user_id', user.id)
 			.single()
 
 		if (scheduleError) {
@@ -158,9 +188,12 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getAllSchedules(): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('schedules')
 			.select('*')
+			.eq('user_id', user.id)
 			.order('start_date', { ascending: false })
 
 		if (error) {
@@ -181,10 +214,13 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getSchedulesByDate(date: string): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('schedules')
 			.select('*')
 			.eq('start_date', date)
+			.eq('user_id', user.id)
 			.order('created_at', { ascending: false })
 
 		if (error) {
@@ -205,11 +241,14 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getSchedulesByDateRange(startDate: string, endDate: string): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('schedules')
 			.select('*')
 			.gte('start_date', startDate)
 			.lte('end_date', endDate)
+			.eq('user_id', user.id)
 			.order('start_date', { ascending: true })
 
 		if (error) {
@@ -230,6 +269,8 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async updateSchedule(id: string, schedule: any): Promise<void> {
+		const user = await this.getCurrentUser()
+
 		const { error } = await supabase
 			.from('schedules')
 			.update({
@@ -242,6 +283,7 @@ export class SupabaseRepository implements IDatabase {
 				memo: schedule.memo,
 			})
 			.eq('id', id)
+			.eq('user_id', user.id)
 
 		if (error) {
 			console.error('Error updating schedule:', error)
@@ -250,10 +292,13 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async deleteSchedule(id: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
 		const { error } = await supabase
 			.from('schedules')
 			.delete()
 			.eq('id', id)
+			.eq('user_id', user.id)
 
 		if (error) {
 			console.error('Error deleting schedule:', error)
@@ -414,10 +459,13 @@ export class SupabaseRepository implements IDatabase {
 		icon?: string;
 		color?: string;
 	}): Promise<string> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('activities')
 			.insert([{
 				id: activity.id,
+				user_id: user.id,
 				type: activity.type,
 				title: activity.title,
 				description: activity.description,
@@ -446,9 +494,12 @@ export class SupabaseRepository implements IDatabase {
 		timestamp: string;
 		created_at: string;
 	}>> {
+		const user = await this.getCurrentUser()
+
 		const { data, error } = await supabase
 			.from('activities')
 			.select('*')
+			.eq('user_id', user.id)
 			.order('created_at', { ascending: false })
 			.limit(limit)
 
@@ -481,11 +532,14 @@ export class SupabaseRepository implements IDatabase {
 	// ==================== Client Operations ====================
 
 	async createClient(client: any): Promise<string> {
+		const user = await this.getCurrentUser()
+
 		// 1. 거래처 생성
 		const { data: clientData, error: clientError } = await supabase
 			.from('clients')
 			.insert([{
 				id: client.id,
+				user_id: user.id,
 				name: client.name,
 				phone: client.phone,
 				email: client.email,
@@ -528,10 +582,13 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getClient(id: string): Promise<any> {
+		const user = await this.getCurrentUser()
+
 		const { data: client, error: clientError } = await supabase
 			.from('clients')
 			.select('*')
 			.eq('id', id)
+			.eq('user_id', user.id)
 			.single()
 
 		if (clientError) {
@@ -573,9 +630,12 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getAllClients(): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
 		const { data: clients, error: clientsError } = await supabase
 			.from('clients')
 			.select('*')
+			.eq('user_id', user.id)
 			.order('created_at', { ascending: false })
 
 		if (clientsError) {
@@ -598,6 +658,8 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async updateClient(id: string, client: any): Promise<void> {
+		const user = await this.getCurrentUser()
+
 		// 1. 거래처 정보 업데이트
 		const { error: clientError } = await supabase
 			.from('clients')
@@ -612,6 +674,7 @@ export class SupabaseRepository implements IDatabase {
 				unpaid_amount: client.unpaidAmount,
 			})
 			.eq('id', id)
+			.eq('user_id', user.id)
 
 		if (clientError) {
 			console.error('Error updating client:', clientError)
@@ -646,10 +709,13 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async deleteClient(id: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
 		const { error } = await supabase
 			.from('clients')
 			.delete()
 			.eq('id', id)
+			.eq('user_id', user.id)
 
 		if (error) {
 			console.error('Error deleting client:', error)

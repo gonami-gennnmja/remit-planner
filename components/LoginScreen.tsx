@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -104,12 +105,14 @@ export default function LoginScreen() {
       {/* 로고 및 타이틀 */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <Ionicons name="calendar" size={48} color={Theme.colors.primary} />
+          <Image 
+            source={require('@/assets/images/favicon.png')} 
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
-        <Text style={styles.title}>리밋 플래너</Text>
-        <Text style={styles.subtitle}>
-          스케줄과 근로자를 효율적으로 관리하세요
-        </Text>
+        <Text style={styles.title}>반반</Text>
+        <Text style={styles.subtitle}>Half&Half - 일도 반반, 여유도 반반</Text>
       </View>
 
       {/* 로그인 폼 */}
@@ -239,6 +242,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Theme.spacing.xl,
     ...Theme.shadows.sm,
+  },
+  logoImage: {
+    width: 60,
+    height: 60,
   },
   title: {
     fontSize: Theme.typography.sizes.xxxl,

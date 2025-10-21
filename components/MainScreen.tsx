@@ -60,7 +60,7 @@ export default function MainScreen() {
         const db = getDatabase();
         await db.init();
 
-        loadUser();
+        loadCurrentUser();
         loadSchedules();
         await initializeActivities(); // 초기 활동 생성 및 로드
       } catch (error) {
@@ -71,11 +71,12 @@ export default function MainScreen() {
     initializeApp();
   }, []);
 
-  // 화면이 포커스될 때마다 스케줄과 활동 새로고침
+  // 화면이 포커스될 때마다 스케줄, 활동, 사용자 정보 새로고침
   useFocusEffect(
     useCallback(() => {
       loadSchedules();
       loadRecentActivitiesFromDB();
+      loadCurrentUser(); // 사용자 정보 새로고침
     }, [])
   );
 
@@ -93,7 +94,7 @@ export default function MainScreen() {
     }
   };
 
-  const loadUser = async () => {
+  const loadCurrentUser = async () => {
     const user = await getCurrentUser();
     setCurrentUser(user);
   };
@@ -352,7 +353,7 @@ export default function MainScreen() {
       title: "대시보드",
       description: "한눈에 보는 업무 현황",
       icon: "analytics-outline",
-      color: colors.primary,
+      color: "#A78BFA", // 부드러운 라벤더
       route: "/dashboard",
     },
     {
@@ -360,7 +361,7 @@ export default function MainScreen() {
       title: "일정 관리",
       description: "모든 일정을 한눈에 관리하세요",
       icon: "list-outline",
-      color: colors.primary,
+      color: "#60A5FA", // 부드러운 스카이 블루
       route: "/schedule-list",
     },
     {
@@ -368,7 +369,7 @@ export default function MainScreen() {
       title: "스케줄 관리",
       description: "캘린더로 일정을 확인하세요",
       icon: "calendar-outline",
-      color: colors.primary,
+      color: "#22D3EE", // 부드러운 아쿠아
       route: "/schedule",
     },
     {
@@ -376,7 +377,7 @@ export default function MainScreen() {
       title: "근로자 관리",
       description: "근로자 정보를 관리하세요",
       icon: "people-outline",
-      color: colors.primary,
+      color: "#34D399", // 부드러운 민트
       route: "/workers",
     },
     {
@@ -384,7 +385,7 @@ export default function MainScreen() {
       title: "거래처 관리",
       description: "거래처 정보를 관리하세요",
       icon: "business-outline",
-      color: colors.primary,
+      color: "#FBBF24", // 부드러운 골드
       route: "/clients",
     },
     {
@@ -392,7 +393,7 @@ export default function MainScreen() {
       title: "급여 관리",
       description: "급여 계산 및 지급을 관리하세요",
       icon: "card-outline",
-      color: colors.warning,
+      color: "#F87171", // 부드러운 코랄
       route: "/payroll",
     },
     {
@@ -400,7 +401,7 @@ export default function MainScreen() {
       title: "미수급 건수",
       description: "업체에서 받는 수입을 관리하세요",
       icon: "cash-outline",
-      color: colors.success,
+      color: "#F472B6", // 부드러운 로즈
       route: "/uncollected",
     },
   ];
@@ -432,12 +433,12 @@ export default function MainScreen() {
                   { color: colors.surface },
                 ]}
               >
-                리밋 플래너
+                반반
               </Text>
               <Text style={[styles.headerSubtitle, { color: colors.surface }]}>
                 {currentUser
-                  ? `${currentUser.name}님 환영합니다`
-                  : "효율적인 스케줄 & 급여 관리"}
+                  ? `${currentUser.nickname || currentUser.name}님 환영합니다`
+                  : "Half&Half - 일도 반반, 여유도 반반"}
               </Text>
             </View>
 

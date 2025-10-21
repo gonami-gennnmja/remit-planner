@@ -13,7 +13,7 @@ export type Language = "ko" | "en";
 type Dictionary = Record<string, string>;
 
 const ko: Dictionary = {
-  appName: "리밋 플래너",
+  appName: "반반",
   welcome: "효율적인 스케줄 & 급여 관리",
   settings: "설정",
   profile: "프로필",

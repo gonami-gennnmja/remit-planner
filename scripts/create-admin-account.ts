@@ -32,7 +32,7 @@ async function createAdminAccount() {
 		console.log('👑 Admin 계정 생성 중...')
 
 		const { data, error } = await supabase.auth.signUp({
-			email: 'admin@remit-planner.com',
+			email: 'admin@banban-halfhalf.com',
 			password: '123456',
 			options: {
 				data: {
@@ -57,7 +57,7 @@ async function createAdminAccount() {
 		if (error) {
 			if (error.message.includes('User already registered')) {
 				console.log('ℹ️ Admin 계정이 이미 존재합니다.')
-				console.log('이메일: admin@remit-planner.com')
+				console.log('이메일: admin@banban-halfhalf.com')
 				console.log('비밀번호: 123456')
 				return
 			}
@@ -66,7 +66,7 @@ async function createAdminAccount() {
 
 		if (data.user) {
 			console.log('✅ Admin 계정이 성공적으로 생성되었습니다!')
-			console.log('이메일: admin@remit-planner.com')
+			console.log('이메일: admin@banban-halfhalf.com')
 			console.log('비밀번호: 123456')
 			console.log('사용자 ID:', data.user.id)
 

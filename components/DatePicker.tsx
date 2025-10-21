@@ -1,9 +1,9 @@
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import React, { useState } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
-import RNDatePicker from "react-native-datepicker";
 
 interface DatePickerProps {
   label: string;
@@ -26,6 +26,38 @@ export default function DatePicker({
   minDate,
   maxDate,
 }: DatePickerProps) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (mode === "time") {
+      return date.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+    return date.toLocaleDateString("ko-KR");
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowPicker(false);
+    if (selectedDate) {
+      let formattedDate = "";
+      if (mode === "time") {
+        const hours = selectedDate.getHours().toString().padStart(2, "0");
+        const minutes = selectedDate.getMinutes().toString().padStart(2, "0");
+        formattedDate = `${hours}:${minutes}`;
+      } else {
+        const year = selectedDate.getFullYear();
+        const month = (selectedDate.getMonth() + 1).toString().padStart(2, "0");
+        const day = selectedDate.getDate().toString().padStart(2, "0");
+        formattedDate = `${year}-${month}-${day}`;
+      }
+      onDateChange(formattedDate);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -49,7 +81,7 @@ export default function DatePicker({
           }}
         >
           <Text style={[styles.webInputText, !value && styles.placeholderText]}>
-            {value || placeholder}
+            {value ? formatDate(value) : placeholder}
           </Text>
           <Ionicons
             name={mode === "time" ? "time-outline" : "calendar-outline"}
@@ -58,23 +90,31 @@ export default function DatePicker({
           />
         </Pressable>
       ) : (
-        <RNDatePicker
-          style={styles.datePickerStyle}
-          date={value}
-          mode={mode}
-          placeholder={placeholder}
-          format={format}
-          minDate={minDate}
-          maxDate={maxDate}
-          confirmBtnText="확인"
-          cancelBtnText="취소"
-          customStyles={{
-            dateInput: styles.dateButton,
-            dateText: styles.dateText,
-            placeholderText: styles.placeholderText,
-          }}
-          onDateChange={onDateChange}
-        />
+        <>
+          <Pressable
+            style={styles.dateButton}
+            onPress={() => setShowPicker(true)}
+          >
+            <Text style={[styles.dateText, !value && styles.placeholderText]}>
+              {value ? formatDate(value) : placeholder}
+            </Text>
+            <Ionicons
+              name={mode === "time" ? "time-outline" : "calendar-outline"}
+              size={20}
+              color="#666"
+            />
+          </Pressable>
+          {showPicker && (
+            <DateTimePicker
+              value={value ? new Date(value) : new Date()}
+              mode={mode}
+              display="default"
+              onChange={handleDateChange}
+              minimumDate={minDate ? new Date(minDate) : undefined}
+              maximumDate={maxDate ? new Date(maxDate) : undefined}
+            />
+          )}
+        </>
       )}
     </View>
   );

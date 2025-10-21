@@ -30,7 +30,7 @@ function getRedirectUrl(): string {
 		return "http://localhost:8081/main";
 	}
 	// 앱에서는 Deep Link 사용
-	return "remitplanner://main";
+	return "banbanhalf://main";
 }
 
 /**

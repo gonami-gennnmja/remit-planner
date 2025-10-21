@@ -13,10 +13,11 @@ import {
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
+import AnimatedSplash from "@/components/AnimatedSplash";
 import { LocalizationProvider } from "@/contexts/LocalizationContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 
@@ -43,6 +44,8 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
+  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
@@ -51,11 +54,27 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
+
+      // 애니메이션 스플래시를 3초간 보여준 후 메인 앱으로 전환
+      setTimeout(() => {
+        setShowAnimatedSplash(false);
+      }, 3000);
     }
   }, [loaded]);
 
   if (!loaded) {
     return null;
+  }
+
+  // 애니메이션 스플래시 표시
+  if (showAnimatedSplash) {
+    return (
+      <LocalizationProvider>
+        <ThemeProvider>
+          <AnimatedSplash />
+        </ThemeProvider>
+      </LocalizationProvider>
+    );
   }
 
   return <RootLayoutNav />;

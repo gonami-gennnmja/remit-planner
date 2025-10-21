@@ -43,7 +43,7 @@ export default function ForgotPasswordScreen() {
           redirectTo:
             Platform.OS === "web"
               ? `${window.location.origin}/reset-password`
-              : "remitplanner://reset-password",
+              : "banbanhalf://reset-password",
         }
       );
 
