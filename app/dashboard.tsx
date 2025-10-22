@@ -23,10 +23,25 @@ interface DashboardStats {
   totalSchedules: number;
   upcomingSchedules: number;
   totalWorkers: number;
+  activeWorkers: number;
+  totalWorkHours: number;
   totalRevenue: number;
+  totalPayroll: number;
+  totalFuelAllowance: number;
+  totalOtherAllowance: number;
   unpaidAmount: number;
   monthlyRevenue: number;
   monthlyExpense: number;
+  monthlyPayroll: number;
+  netProfit: number;
+  recentSchedules: Array<{
+    id: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    workerCount: number;
+    status: "upcoming" | "ongoing" | "completed";
+  }>;
 }
 
 export default function DashboardScreen() {
@@ -34,10 +49,18 @@ export default function DashboardScreen() {
     totalSchedules: 0,
     upcomingSchedules: 0,
     totalWorkers: 0,
+    activeWorkers: 0,
+    totalWorkHours: 0,
     totalRevenue: 0,
+    totalPayroll: 0,
+    totalFuelAllowance: 0,
+    totalOtherAllowance: 0,
     unpaidAmount: 0,
     monthlyRevenue: 0,
     monthlyExpense: 0,
+    monthlyPayroll: 0,
+    netProfit: 0,
+    recentSchedules: [],
   });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +102,9 @@ export default function DashboardScreen() {
           scheduleDate.isSameOrBefore(monthEnd)
         ) {
           schedule.workers.forEach((workerInfo) => {
-            const totalHours = workerInfo.periods.reduce((sum, period) => {
+            // periods가 존재하는지 확인하고 안전하게 처리
+            const periods = workerInfo.periods || [];
+            const totalHours = periods.reduce((sum, period) => {
               const start = dayjs(period.start);
               const end = dayjs(period.end);
               return sum + end.diff(start, "hour", true);
@@ -140,7 +165,9 @@ export default function DashboardScreen() {
     schedules.forEach((schedule) => {
       schedule.workers.forEach((workerInfo) => {
         if (!workerInfo.paid) {
-          const totalHours = workerInfo.periods.reduce((sum, period) => {
+          // periods가 존재하는지 확인하고 안전하게 처리
+          const periods = workerInfo.periods || [];
+          const totalHours = periods.reduce((sum, period) => {
             const start = dayjs(period.start);
             const end = dayjs(period.end);
             return sum + end.diff(start, "hour", true);
@@ -301,7 +328,7 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                   <Text style={styles.scheduleItemWorkers}>
-                    {schedule.workers.length}명
+                    {schedule.workers?.length || 0}명
                   </Text>
                 </View>
               </Pressable>
@@ -341,6 +368,48 @@ export default function DashboardScreen() {
               </View>
             ))
           )}
+        </View>
+
+        {/* 리포트 섹션 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>리포트</Text>
+            <Pressable onPress={() => router.push("/reports")}>
+              <Text style={styles.viewAllText}>전체보기</Text>
+            </Pressable>
+          </View>
+          <View style={styles.reportsGrid}>
+            <Pressable
+              style={styles.reportCard}
+              onPress={() => router.push("/schedule-reports")}
+            >
+              <View style={[styles.reportIcon, { backgroundColor: "#dbeafe" }]}>
+                <Ionicons name="calendar" size={24} color="#3b82f6" />
+              </View>
+              <Text style={styles.reportTitle}>일정 현황</Text>
+              <Text style={styles.reportDescription}>일정 통계 및 분석</Text>
+            </Pressable>
+            <Pressable
+              style={styles.reportCard}
+              onPress={() => router.push("/worker-reports")}
+            >
+              <View style={[styles.reportIcon, { backgroundColor: "#dcfce7" }]}>
+                <Ionicons name="people" size={24} color="#10b981" />
+              </View>
+              <Text style={styles.reportTitle}>직원 근무</Text>
+              <Text style={styles.reportDescription}>근무시간 및 급여</Text>
+            </Pressable>
+            <Pressable
+              style={styles.reportCard}
+              onPress={() => router.push("/revenue-reports")}
+            >
+              <View style={[styles.reportIcon, { backgroundColor: "#fef3c7" }]}>
+                <Ionicons name="trending-up" size={24} color="#f59e0b" />
+              </View>
+              <Text style={styles.reportTitle}>수익 분석</Text>
+              <Text style={styles.reportDescription}>수익/지출 분석</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* 빠른 작업 */}
@@ -614,5 +683,42 @@ const styles = StyleSheet.create({
     fontWeight: Theme.typography.weights.medium,
     color: Theme.colors.text.primary,
     marginTop: Theme.spacing.sm,
+  },
+  // 리포트 섹션 스타일
+  reportsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Theme.spacing.md,
+  },
+  reportCard: {
+    flex: 1,
+    minWidth: (width - Theme.spacing.lg * 3) / 3 - Theme.spacing.md,
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.lg,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Theme.colors.border.light,
+    ...Theme.shadows.sm,
+  },
+  reportIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Theme.spacing.sm,
+  },
+  reportTitle: {
+    fontSize: Theme.typography.sizes.sm,
+    fontWeight: Theme.typography.weights.semibold,
+    color: Theme.colors.text.primary,
+    marginBottom: 2,
+    textAlign: "center",
+  },
+  reportDescription: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
+    textAlign: "center",
   },
 });

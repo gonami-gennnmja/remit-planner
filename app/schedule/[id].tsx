@@ -28,7 +28,17 @@ export default function ScheduleDetailScreen() {
     startDate: "",
     endDate: "",
     category: "",
+    location: "",
     address: "",
+    uniformTime: true,
+    scheduleTimes: [] as Array<{
+      workDate: string;
+      startTime: string;
+      endTime: string;
+      breakDuration: number;
+    }>,
+    documentsFolderPath: "",
+    hasAttachments: false,
     memo: "",
   });
   const [isMultiDay, setIsMultiDay] = useState(false);
@@ -49,7 +59,12 @@ export default function ScheduleDetailScreen() {
             startDate: scheduleData.startDate,
             endDate: scheduleData.endDate,
             category: scheduleData.category || "",
+            location: scheduleData.location || "",
             address: scheduleData.address || "",
+            uniformTime: scheduleData.uniformTime ?? true,
+            scheduleTimes: scheduleData.scheduleTimes || [],
+            documentsFolderPath: scheduleData.documentsFolderPath || "",
+            hasAttachments: scheduleData.hasAttachments || false,
             memo: scheduleData.memo || "",
           });
           setIsMultiDay(scheduleData.startDate !== scheduleData.endDate);
@@ -122,20 +137,22 @@ export default function ScheduleDetailScreen() {
   };
 
   const getWorkPeriods = (schedule: Schedule) => {
-    const allPeriods = schedule.workers.flatMap((w) => w.periods);
+    const allPeriods = schedule.workers?.flatMap((w) => w.periods || []) || [];
     if (allPeriods.length === 0)
       return { start: "시간 미정", end: "시간 미정" };
 
     const startTimes = allPeriods
+      .filter((p) => p && p.start) // null/undefined 체크
       .map((p) => dayjs(p.start))
       .sort((a, b) => a.diff(b));
     const endTimes = allPeriods
+      .filter((p) => p && p.end) // null/undefined 체크
       .map((p) => dayjs(p.end))
       .sort((a, b) => b.diff(a));
 
     return {
-      start: startTimes[0].format("HH:mm"),
-      end: endTimes[0].format("HH:mm"),
+      start: startTimes[0]?.format("HH:mm") || "시간 미정",
+      end: endTimes[0]?.format("HH:mm") || "시간 미정",
     };
   };
 
@@ -190,6 +207,43 @@ export default function ScheduleDetailScreen() {
             </View>
           )}
 
+          {schedule.address && (
+            <View style={styles.infoRow}>
+              <Ionicons
+                name="map-outline"
+                size={16}
+                color={Theme.colors.text.secondary}
+              />
+              <Text style={styles.infoText}>{schedule.address}</Text>
+            </View>
+          )}
+
+          {/* 첨부파일 여부 */}
+          {schedule.hasAttachments && (
+            <View style={styles.infoRow}>
+              <Ionicons
+                name="attach-outline"
+                size={16}
+                color={Theme.colors.primary}
+              />
+              <Text style={[styles.infoText, { color: Theme.colors.primary }]}>
+                첨부파일 있음
+              </Text>
+            </View>
+          )}
+
+          {/* 일별 시간 설정 여부 */}
+          {!schedule.uniformTime && (
+            <View style={styles.infoRow}>
+              <Ionicons
+                name="time-outline"
+                size={16}
+                color={Theme.colors.text.secondary}
+              />
+              <Text style={styles.infoText}>일별 시간 설정됨</Text>
+            </View>
+          )}
+
           <View style={styles.timeRow}>
             <Ionicons
               name="time-outline"
@@ -216,7 +270,7 @@ export default function ScheduleDetailScreen() {
         {/* 근로자 목록 */}
         <View style={styles.workersSection}>
           <Text style={styles.sectionTitle}>참여 근로자</Text>
-          {schedule.workers.map((workerInfo, index) => (
+          {schedule.workers?.map((workerInfo, index) => (
             <View key={index} style={styles.workerCard}>
               <View style={styles.workerHeader}>
                 <Text style={styles.workerName}>{workerInfo.worker.name}</Text>
@@ -249,7 +303,7 @@ export default function ScheduleDetailScreen() {
               </View>
 
               <View style={styles.periodsList}>
-                {workerInfo.periods.map((period, periodIndex) => (
+                {(workerInfo.periods || []).map((period, periodIndex) => (
                   <View key={periodIndex} style={styles.periodItem}>
                     <Text style={styles.periodText}>
                       {dayjs(period.start).format("M월 D일 HH:mm")} -{" "}

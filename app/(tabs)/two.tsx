@@ -24,7 +24,7 @@ export default function TabTwoScreen() {
           return {
             ...schedule,
             workers: [
-              ...schedule.workers,
+              ...(schedule.workers || []),
               {
                 worker: {
                   id: newWorker.id,
@@ -69,7 +69,7 @@ export default function TabTwoScreen() {
     // 스케줄의 근로자 정보도 수정
     const updatedSchedules = schedules.map((schedule) => ({
       ...schedule,
-      workers: schedule.workers.map((workerInfo) =>
+      workers: (schedule.workers || []).map((workerInfo) =>
         workerInfo.worker.id === workerId
           ? {
               ...workerInfo,
@@ -179,7 +179,7 @@ export default function TabTwoScreen() {
 
     // 초기 근로자 데이터를 allWorkers에도 설정
     const initialWorkers = testSchedules.flatMap((schedule) =>
-      schedule.workers.map((workerInfo) => workerInfo.worker)
+      (schedule.workers || []).map((workerInfo) => workerInfo.worker)
     );
     setAllWorkers(initialWorkers);
   }, []);

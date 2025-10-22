@@ -1,4 +1,5 @@
 import CommonHeader from "@/components/CommonHeader";
+import FileUpload from "@/components/FileUpload";
 import { Text } from "@/components/Themed";
 import { useI18n } from "@/contexts/LocalizationContext";
 import {
@@ -40,6 +41,10 @@ export default function SettingsScreen() {
     businessAddress: "",
     businessPhone: "",
     businessEmail: "",
+    businessCardImageUrl: "",
+    businessCardImagePath: "",
+    businessLicenseImageUrl: "",
+    businessLicenseImagePath: "",
     notifications: true,
     theme: themeMode,
     language: "ko" as "ko" | "en",
@@ -352,6 +357,70 @@ export default function SettingsScreen() {
                 autoCapitalize="none"
               />
             </View>
+
+            {editing && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={getLabelStyle()}>명함 사진</Text>
+                  <FileUpload
+                    type="image"
+                    currentUrl={formData.businessCardImageUrl}
+                    currentPath={formData.businessCardImagePath}
+                    onUpload={(url, path) => {
+                      setFormData({
+                        ...formData,
+                        businessCardImageUrl: url,
+                        businessCardImagePath: path,
+                      });
+                    }}
+                    onDelete={() => {
+                      setFormData({
+                        ...formData,
+                        businessCardImageUrl: "",
+                        businessCardImagePath: "",
+                      });
+                    }}
+                    options={{
+                      bucket: "remit-planner-files",
+                      folder: `users/${user?.id || "temp"}`,
+                      fileType: "image",
+                      maxSize: 5, // 5MB
+                    }}
+                    placeholder="명함 사진을 업로드하세요"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={getLabelStyle()}>사업자등록증</Text>
+                  <FileUpload
+                    type="document"
+                    currentUrl={formData.businessLicenseImageUrl}
+                    currentPath={formData.businessLicenseImagePath}
+                    onUpload={(url, path) => {
+                      setFormData({
+                        ...formData,
+                        businessLicenseImageUrl: url,
+                        businessLicenseImagePath: path,
+                      });
+                    }}
+                    onDelete={() => {
+                      setFormData({
+                        ...formData,
+                        businessLicenseImageUrl: "",
+                        businessLicenseImagePath: "",
+                      });
+                    }}
+                    options={{
+                      bucket: "remit-planner-files",
+                      folder: `users/${user?.id || "temp"}`,
+                      fileType: "document",
+                      maxSize: 10, // 10MB
+                    }}
+                    placeholder="사업자등록증을 업로드하세요"
+                  />
+                </View>
+              </>
+            )}
           </View>
         </View>
 

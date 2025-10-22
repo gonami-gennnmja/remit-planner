@@ -83,6 +83,25 @@ npm run web
 - Android
 - Web
 
+## 📚 문서
+
+프로젝트의 모든 기술 문서는 `/docs` 폴더에 체계적으로 정리되어 있습니다.
+
+### 빠른 링크
+
+- **[📖 문서 가이드](./docs/README.md)** - 상황별 문서 찾기
+- **[🔐 인증 문서](./docs/auth/)** - 로그인, 회원가입, 소셜 로그인
+- **[🗄️ 데이터베이스 문서](./docs/database/)** - 스키마, 마이그레이션, Supabase
+- **[🔒 보안 문서](./docs/security/)** - RLS, 사용자 격리, 보안 검증
+- **[⚙️ 설정 문서](./docs/setup/)** - 초기 설정, 앱 아이콘, 약관
+- **[🔄 업데이트 문서](./docs/updates/)** - 최신 변경사항, 버그 수정
+
+### 처음 시작하시나요?
+
+1. [빠른 시작 가이드](./docs/setup/QUICK_SETUP_GUIDE.md)
+2. [Supabase 설정](./docs/database/SUPABASE_SETUP.md)
+3. [인증 시스템 개요](./docs/auth/AUTH_IMPLEMENTATION_SUMMARY.md)
+
 ## 🤝 기여하기
 
 1. Fork the Project

@@ -20,6 +20,7 @@ import "react-native-reanimated";
 import AnimatedSplash from "@/components/AnimatedSplash";
 import { LocalizationProvider } from "@/contexts/LocalizationContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
+import { FCMService } from "@/utils/fcmService";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -54,6 +55,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
+
+      // FCM 초기화
+      FCMService.initialize();
+      FCMService.setupTokenRefreshListener();
 
       // 애니메이션 스플래시를 3초간 보여준 후 메인 앱으로 전환
       setTimeout(() => {

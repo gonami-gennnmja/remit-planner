@@ -29,6 +29,8 @@ interface Client {
   email?: string;
   address?: string;
   businessNumber?: string;
+  contactPerson?: string;
+  documentsFolderPath?: string;
   memo?: string;
   totalRevenue?: number;
   unpaidAmount?: number;
@@ -209,6 +211,54 @@ export default function ClientsScreen() {
                         {client.name || "이름 없음"}
                       </Text>
                     </View>
+
+                    {/* 담당자 정보 */}
+                    {client.contactPerson && (
+                      <View style={{ marginBottom: 8 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginBottom: 4,
+                          }}
+                        >
+                          <Ionicons name="person" size={16} color="#666" />
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: "#666",
+                              marginLeft: 6,
+                            }}
+                          >
+                            담당자: {client.contactPerson}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* 첨부파일 여부 */}
+                    {client.documentsFolderPath && (
+                      <View style={{ marginBottom: 8 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginBottom: 4,
+                          }}
+                        >
+                          <Ionicons name="attach" size={16} color="#007AFF" />
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: "#007AFF",
+                              marginLeft: 6,
+                            }}
+                          >
+                            첨부파일 있음
+                          </Text>
+                        </View>
+                      </View>
+                    )}
 
                     {/* 담당자 목록 */}
                     {client.contacts && client.contacts.length > 0 && (

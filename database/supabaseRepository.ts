@@ -1,22 +1,64 @@
 import { supabase } from '@/lib/supabase'
+import { PayrollCalculation, ScheduleTime, WorkPeriod } from '@/models/types'
 import { IDatabase } from './interface'
 
+// React Native용 UUID 생성 함수
+function generateUUID(): string {
+	return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+		const r = Math.random() * 16 | 0
+		const v = c === 'x' ? r : (r & 0x3 | 0x8)
+		return v.toString(16)
+	})
+}
+
 export class SupabaseRepository implements IDatabase {
+	createScheduleTime(scheduleTime: ScheduleTime): Promise<string> {
+		throw new Error('Method not implemented.')
+	}
+	getScheduleTimes(scheduleId: string): Promise<ScheduleTime[]> {
+		throw new Error('Method not implemented.')
+	}
+	updateScheduleTime(id: string, scheduleTime: Partial<ScheduleTime>): Promise<void> {
+		throw new Error('Method not implemented.')
+	}
+	deleteScheduleTime(id: string): Promise<void> {
+		throw new Error('Method not implemented.')
+	}
+	updateWorkPeriod(id: string, workPeriod: Partial<WorkPeriod>): Promise<void> {
+		throw new Error('Method not implemented.')
+	}
+	deleteWorkPeriod(id: string): Promise<void> {
+		throw new Error('Method not implemented.')
+	}
+	createPayrollCalculation(payroll: PayrollCalculation): Promise<string> {
+		throw new Error('Method not implemented.')
+	}
+	getPayrollCalculations(scheduleWorkerId: string): Promise<PayrollCalculation[]> {
+		throw new Error('Method not implemented.')
+	}
+	updatePayrollCalculation(id: string, payroll: Partial<PayrollCalculation>): Promise<void> {
+		throw new Error('Method not implemented.')
+	}
+	deletePayrollCalculation(id: string): Promise<void> {
+		throw new Error('Method not implemented.')
+	}
+	deleteUserProfile(userId: string): Promise<void> {
+		throw new Error('Method not implemented.')
+	}
 	async init(): Promise<void> {
-		console.log('🗄️ Using Supabase database')
 		// Supabase 연결 테스트
 		const { data, error } = await supabase.from('workers').select('count').limit(1)
 		if (error) {
 			console.error('Supabase connection error:', error)
 			throw new Error('Failed to connect to Supabase')
 		}
-		console.log('✅ Supabase connected successfully')
 	}
 
 	// 사용자 인증 헬퍼 함수
 	private async getCurrentUser() {
-		const { data: { user } } = await supabase.auth.getUser()
+		const { data: { user }, error } = await supabase.auth.getUser()
 		if (!user) {
+			console.error('❌ User not authenticated')
 			throw new Error('User not authenticated')
 		}
 		return user
@@ -33,19 +75,14 @@ export class SupabaseRepository implements IDatabase {
 				user_id: user.id,
 				name: worker.name,
 				phone: worker.phone,
+				resident_number: worker.residentNumber,
 				bank_account: worker.bankAccount,
 				hourly_wage: worker.hourlyWage,
-				tax_withheld: worker.taxWithheld,
+				fuel_allowance: worker.fuelAllowance || 0,
+				other_allowance: worker.otherAllowance || 0,
+				id_card_image_url: worker.idCardImageUrl,
+				id_card_image_path: worker.idCardImagePath,
 				memo: worker.memo,
-				work_start_date: worker.workStartDate,
-				work_end_date: worker.workEndDate,
-				work_hours: worker.workHours,
-				work_minutes: worker.workMinutes,
-				is_full_period_work: worker.isFullPeriodWork,
-				is_same_work_hours_daily: worker.isSameWorkHoursDaily,
-				daily_work_times: worker.dailyWorkTimes,
-				default_start_time: worker.defaultStartTime,
-				default_end_time: worker.defaultEndTime,
 			}])
 			.select()
 
@@ -148,11 +185,15 @@ export class SupabaseRepository implements IDatabase {
 				id: schedule.id,
 				user_id: user.id,
 				title: schedule.title,
+				description: schedule.description,
 				start_date: schedule.startDate,
 				end_date: schedule.endDate,
-				description: schedule.description,
 				category: schedule.category,
+				location: schedule.location,
 				address: schedule.address,
+				uniform_time: schedule.uniformTime !== undefined ? schedule.uniformTime : true,
+				documents_folder_path: schedule.documentsFolderPath,
+				has_attachments: schedule.hasAttachments || false,
 				memo: schedule.memo,
 			}])
 			.select()
@@ -308,12 +349,14 @@ export class SupabaseRepository implements IDatabase {
 
 	// Schedule-Worker relationships
 	async addWorkerToSchedule(scheduleId: string, workerId: string, periods: any[], paid: boolean = false, workHours?: number): Promise<string> {
+		const user = await this.getCurrentUser()
 		const scheduleWorkerId = `sw_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
 		const { error: scheduleWorkerError } = await supabase
 			.from('schedule_workers')
 			.insert([{
 				id: scheduleWorkerId,
+				user_id: user.id,
 				schedule_id: scheduleId,
 				worker_id: workerId,
 				paid,
@@ -329,6 +372,7 @@ export class SupabaseRepository implements IDatabase {
 		if (periods && periods.length > 0) {
 			const workPeriods = periods.map(period => ({
 				id: period.id || `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+				user_id: user.id,
 				schedule_worker_id: scheduleWorkerId,
 				start_time: period.start,
 				end_time: period.end
@@ -348,6 +392,8 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getScheduleWorkers(scheduleId: string): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
 		const { data: scheduleWorkers, error } = await supabase
 			.from('schedule_workers')
 			.select(`
@@ -355,6 +401,7 @@ export class SupabaseRepository implements IDatabase {
         workers (*)
       `)
 			.eq('schedule_id', scheduleId)
+			.eq('user_id', user.id)
 
 		if (error) {
 			console.error('Error getting schedule workers:', error)
@@ -372,10 +419,10 @@ export class SupabaseRepository implements IDatabase {
 				worker: this.transformWorkerFromDB(sw.workers),
 				periods: periods?.map(p => ({
 					id: p.id,
-					start: p.start_time,
-					end: p.end_time
+					start: `${p.work_date}T${p.start_time}+09:00`,
+					end: `${p.work_date}T${p.end_time}+09:00`
 				})) || [],
-				paid: sw.paid
+				paid: sw.wage_paid || false
 			})
 		}
 
@@ -385,7 +432,7 @@ export class SupabaseRepository implements IDatabase {
 	async updateScheduleWorkerPaidStatus(scheduleId: string, workerId: string, paid: boolean): Promise<void> {
 		const { error } = await supabase
 			.from('schedule_workers')
-			.update({ paid })
+			.update({ wage_paid: paid })
 			.eq('schedule_id', scheduleId)
 			.eq('worker_id', workerId)
 
@@ -725,12 +772,21 @@ export class SupabaseRepository implements IDatabase {
 
 	// Category operations
 	async createCategory(category: { id: string; name: string; color: string }): Promise<string> {
+		// 현재 로그인한 사용자 ID 가져오기
+		const { data: { user } } = await supabase.auth.getUser()
+
+		if (!user) {
+			throw new Error('User not authenticated')
+		}
+
 		const { data, error } = await supabase
 			.from('categories')
 			.insert([{
 				id: category.id,
 				name: category.name,
 				color: category.color,
+				user_id: user.id,
+				is_system: false,
 			}])
 			.select()
 
@@ -758,9 +814,11 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	async getAllCategories(): Promise<any[]> {
+		// RLS 정책에 의해 시스템 카테고리 + 현재 사용자의 카테고리만 조회됨
 		const { data, error } = await supabase
 			.from('categories')
 			.select('*')
+			.order('is_system', { ascending: false }) // 시스템 카테고리가 먼저
 			.order('name')
 
 		if (error) {
@@ -799,34 +857,42 @@ export class SupabaseRepository implements IDatabase {
 	private transformWorkerFromDB(dbWorker: any): any {
 		return {
 			id: dbWorker.id,
+			userId: dbWorker.user_id,
 			name: dbWorker.name,
 			phone: dbWorker.phone,
+			residentNumber: dbWorker.resident_number,
 			bankAccount: dbWorker.bank_account,
 			hourlyWage: dbWorker.hourly_wage,
-			taxWithheld: dbWorker.tax_withheld,
+			fuelAllowance: dbWorker.fuel_allowance || 0,
+			otherAllowance: dbWorker.other_allowance || 0,
+			idCardImageUrl: dbWorker.id_card_image_url,
+			idCardImagePath: dbWorker.id_card_image_path,
 			memo: dbWorker.memo,
-			workStartDate: dbWorker.work_start_date,
-			workEndDate: dbWorker.work_end_date,
-			workHours: dbWorker.work_hours,
-			workMinutes: dbWorker.work_minutes,
-			isFullPeriodWork: dbWorker.is_full_period_work,
-			isSameWorkHoursDaily: dbWorker.is_same_work_hours_daily,
-			dailyWorkTimes: dbWorker.daily_work_times,
-			defaultStartTime: dbWorker.default_start_time,
-			defaultEndTime: dbWorker.default_end_time,
+			createdAt: dbWorker.created_at,
+			updatedAt: dbWorker.updated_at,
 		}
 	}
 
 	private transformScheduleFromDB(dbSchedule: any): any {
 		return {
 			id: dbSchedule.id,
+			userId: dbSchedule.user_id,
 			title: dbSchedule.title,
+			description: dbSchedule.description,
 			startDate: dbSchedule.start_date,
 			endDate: dbSchedule.end_date,
-			description: dbSchedule.description,
 			category: dbSchedule.category,
+			location: dbSchedule.location,
 			address: dbSchedule.address,
+			uniformTime: dbSchedule.uniform_time,
+			documentsFolderPath: dbSchedule.documents_folder_path,
+			hasAttachments: dbSchedule.has_attachments,
+			allWagesPaid: dbSchedule.all_wages_paid,
+			revenueStatus: dbSchedule.revenue_status,
+			revenueDueDate: dbSchedule.revenue_due_date,
 			memo: dbSchedule.memo,
+			createdAt: dbSchedule.created_at,
+			updatedAt: dbSchedule.updated_at,
 		}
 	}
 
@@ -921,4 +987,504 @@ export class SupabaseRepository implements IDatabase {
 			}
 		}
 	}
+
+	// ==================== Schedule Worker Operations ====================
+
+	async createScheduleWorker(scheduleWorker: any): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_workers')
+			.insert([{
+				id: scheduleWorker.id,
+				user_id: user.id,
+				schedule_id: scheduleWorker.scheduleId,
+				worker_id: scheduleWorker.workerId,
+				work_start_date: scheduleWorker.workStartDate,
+				work_end_date: scheduleWorker.workEndDate,
+				uniform_time: scheduleWorker.uniformTime !== undefined ? scheduleWorker.uniformTime : true,
+				hourly_wage: scheduleWorker.hourlyWage,
+				fuel_allowance: scheduleWorker.fuelAllowance || 0,
+				other_allowance: scheduleWorker.otherAllowance || 0,
+				overtime_enabled: scheduleWorker.overtimeEnabled !== undefined ? scheduleWorker.overtimeEnabled : true,
+				night_shift_enabled: scheduleWorker.nightShiftEnabled !== undefined ? scheduleWorker.nightShiftEnabled : true,
+				tax_withheld: scheduleWorker.taxWithheld !== undefined ? scheduleWorker.taxWithheld : true,
+				wage_paid: scheduleWorker.wagePaid || false,
+				fuel_paid: scheduleWorker.fuelPaid || false,
+				other_paid: scheduleWorker.otherPaid || false,
+			}])
+			.select()
+
+		if (error) {
+			console.error('Error creating schedule worker:', error)
+			throw error
+		}
+
+		return data[0].id
+	}
+
+
+	async updateScheduleWorker(id: string, scheduleWorker: any): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('schedule_workers')
+			.update({
+				work_start_date: scheduleWorker.workStartDate,
+				work_end_date: scheduleWorker.workEndDate,
+				uniform_time: scheduleWorker.uniformTime,
+				hourly_wage: scheduleWorker.hourlyWage,
+				fuel_allowance: scheduleWorker.fuelAllowance,
+				other_allowance: scheduleWorker.otherAllowance,
+				overtime_enabled: scheduleWorker.overtimeEnabled,
+				night_shift_enabled: scheduleWorker.nightShiftEnabled,
+				tax_withheld: scheduleWorker.taxWithheld,
+				wage_paid: scheduleWorker.wagePaid,
+				fuel_paid: scheduleWorker.fuelPaid,
+				other_paid: scheduleWorker.otherPaid,
+			})
+			.eq('id', id)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error updating schedule worker:', error)
+			throw error
+		}
+	}
+
+	async deleteScheduleWorker(id: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('schedule_workers')
+			.delete()
+			.eq('id', id)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error deleting schedule worker:', error)
+			throw error
+		}
+	}
+
+	// ==================== Work Period Operations ====================
+
+	async createWorkPeriod(workPeriod: any): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('work_periods')
+			.insert([{
+				id: workPeriod.id,
+				user_id: user.id,
+				schedule_worker_id: workPeriod.scheduleWorkerId,
+				work_date: workPeriod.workDate,
+				start_time: workPeriod.startTime,
+				end_time: workPeriod.endTime,
+				break_duration: workPeriod.breakDuration || 0,
+				overtime_hours: workPeriod.overtimeHours || 0,
+				daily_wage: workPeriod.dailyWage,
+				memo: workPeriod.memo,
+			}])
+			.select()
+
+		if (error) {
+			console.error('Error creating work period:', error)
+			throw error
+		}
+
+		return data[0].id
+	}
+
+	async getWorkPeriods(scheduleWorkerId: string): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('work_periods')
+			.select('*')
+			.eq('schedule_worker_id', scheduleWorkerId)
+			.eq('user_id', user.id)
+			.order('work_date', { ascending: true })
+
+		if (error) {
+			console.error('Error getting work periods:', error)
+			return []
+		}
+
+		return data.map(wp => this.transformWorkPeriodFromDB(wp))
+	}
+
+	// ==================== User Profile Operations ====================
+
+	async createUserProfile(profile: any): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('user_profiles')
+			.insert([{
+				id: user.id,
+				business_name: profile.businessName,
+				business_number: profile.businessNumber,
+				business_address: profile.businessAddress,
+				business_phone: profile.businessPhone,
+				business_email: profile.businessEmail,
+				business_card_image_url: profile.businessCardImageUrl,
+				business_card_image_path: profile.businessCardImagePath,
+				business_license_image_url: profile.businessLicenseImageUrl,
+				business_license_image_path: profile.businessLicenseImagePath,
+			}])
+			.select()
+
+		if (error) {
+			console.error('Error creating user profile:', error)
+			throw error
+		}
+
+		return data[0].id
+	}
+
+	async getUserProfile(): Promise<any> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('user_profiles')
+			.select('*')
+			.eq('id', user.id)
+			.single()
+
+		if (error) {
+			console.error('Error getting user profile:', error)
+			return null
+		}
+
+		return this.transformUserProfileFromDB(data)
+	}
+
+	async updateUserProfile(profile: any): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('user_profiles')
+			.update({
+				business_name: profile.businessName,
+				business_number: profile.businessNumber,
+				business_address: profile.businessAddress,
+				business_phone: profile.businessPhone,
+				business_email: profile.businessEmail,
+				business_card_image_url: profile.businessCardImageUrl,
+				business_card_image_path: profile.businessCardImagePath,
+				business_license_image_url: profile.businessLicenseImageUrl,
+				business_license_image_path: profile.businessLicenseImagePath,
+			})
+			.eq('id', user.id)
+
+		if (error) {
+			console.error('Error updating user profile:', error)
+			throw error
+		}
+	}
+
+	// ==================== Data Transform Helpers ====================
+
+	private transformScheduleWorkerFromDB(dbScheduleWorker: any): any {
+		return {
+			id: dbScheduleWorker.id,
+			scheduleId: dbScheduleWorker.schedule_id,
+			workerId: dbScheduleWorker.worker_id,
+			workStartDate: dbScheduleWorker.work_start_date,
+			workEndDate: dbScheduleWorker.work_end_date,
+			uniformTime: dbScheduleWorker.uniform_time,
+			hourlyWage: dbScheduleWorker.hourly_wage,
+			fuelAllowance: dbScheduleWorker.fuel_allowance,
+			otherAllowance: dbScheduleWorker.other_allowance,
+			overtimeEnabled: dbScheduleWorker.overtime_enabled,
+			nightShiftEnabled: dbScheduleWorker.night_shift_enabled,
+			taxWithheld: dbScheduleWorker.tax_withheld,
+			wagePaid: dbScheduleWorker.wage_paid,
+			fuelPaid: dbScheduleWorker.fuel_paid,
+			otherPaid: dbScheduleWorker.other_paid,
+			createdAt: dbScheduleWorker.created_at,
+			updatedAt: dbScheduleWorker.updated_at,
+		}
+	}
+
+	private transformWorkPeriodFromDB(dbWorkPeriod: any): any {
+		return {
+			id: dbWorkPeriod.id,
+			scheduleWorkerId: dbWorkPeriod.schedule_worker_id,
+			workDate: dbWorkPeriod.work_date,
+			startTime: dbWorkPeriod.start_time,
+			endTime: dbWorkPeriod.end_time,
+			breakDuration: dbWorkPeriod.break_duration,
+			overtimeHours: dbWorkPeriod.overtime_hours,
+			dailyWage: dbWorkPeriod.daily_wage,
+			memo: dbWorkPeriod.memo,
+			createdAt: dbWorkPeriod.created_at,
+			updatedAt: dbWorkPeriod.updated_at,
+		}
+	}
+
+	private transformUserProfileFromDB(dbProfile: any): any {
+		return {
+			id: dbProfile.id,
+			businessName: dbProfile.business_name,
+			businessNumber: dbProfile.business_number,
+			businessAddress: dbProfile.business_address,
+			businessPhone: dbProfile.business_phone,
+			businessEmail: dbProfile.business_email,
+			businessCardImageUrl: dbProfile.business_card_image_url,
+			businessCardImagePath: dbProfile.business_card_image_path,
+			businessLicenseImageUrl: dbProfile.business_license_image_url,
+			businessLicenseImagePath: dbProfile.business_license_image_path,
+			createdAt: dbProfile.created_at,
+			updatedAt: dbProfile.updated_at,
+		}
+	}
+
+	// Notification operations
+	async createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		// 클라이언트에서 UUID 생성
+		const notificationId = generateUUID()
+
+		const { data, error } = await supabase
+			.from('notifications')
+			.insert({
+				id: notificationId,
+				user_id: user.id,
+				type: notification.type,
+				title: notification.title,
+				message: notification.message,
+				is_read: notification.isRead,
+				priority: notification.priority,
+				related_id: notification.relatedId,
+				scheduled_at: notification.scheduledAt,
+			})
+			.select()
+			.single()
+
+		if (error) {
+			console.error('Error creating notification:', error)
+			throw new Error('Failed to create notification')
+		}
+
+		return data.id
+	}
+
+	async getNotification(id: string): Promise<Notification | null> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('notifications')
+			.select('*')
+			.eq('id', id)
+			.eq('user_id', user.id)
+			.single()
+
+		if (error) {
+			console.error('Error getting notification:', error)
+			return null
+		}
+
+		return this.transformNotificationFromDB(data)
+	}
+
+	async getAllNotifications(): Promise<Notification[]> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('notifications')
+			.select('*')
+			.eq('user_id', user.id)
+			.order('created_at', { ascending: false })
+
+		if (error) {
+			console.error('Error getting notifications:', error)
+			return []
+		}
+
+		return data.map(notification => this.transformNotificationFromDB(notification))
+	}
+
+	async getRecentNotifications(limit: number): Promise<Notification[]> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('notifications')
+			.select('*')
+			.eq('user_id', user.id)
+			.order('created_at', { ascending: false })
+			.limit(limit)
+
+		if (error) {
+			console.error('Error getting recent notifications:', error)
+			return []
+		}
+
+		return data.map(notification => this.transformNotificationFromDB(notification))
+	}
+
+	async updateNotification(id: string, notification: Partial<Notification>): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('notifications')
+			.update({
+				title: notification.title,
+				message: notification.message,
+				is_read: notification.isRead,
+				priority: notification.priority,
+				related_id: notification.relatedId,
+				scheduled_at: notification.scheduledAt,
+				updated_at: new Date().toISOString(),
+			})
+			.eq('id', id)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error updating notification:', error)
+			throw new Error('Failed to update notification')
+		}
+	}
+
+	async deleteNotification(id: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('notifications')
+			.delete()
+			.eq('id', id)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error deleting notification:', error)
+			throw new Error('Failed to delete notification')
+		}
+	}
+
+	async markAllNotificationsAsRead(): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('notifications')
+			.update({ is_read: true, updated_at: new Date().toISOString() })
+			.eq('user_id', user.id)
+			.eq('is_read', false)
+
+		if (error) {
+			console.error('Error marking notifications as read:', error)
+			throw new Error('Failed to mark notifications as read')
+		}
+	}
+
+	async getUnreadNotificationCount(): Promise<number> {
+		const user = await this.getCurrentUser()
+
+		const { count, error } = await supabase
+			.from('notifications')
+			.select('*', { count: 'exact', head: true })
+			.eq('user_id', user.id)
+			.eq('is_read', false)
+
+		if (error) {
+			console.error('Error getting unread count:', error)
+			return 0
+		}
+
+		return count || 0
+	}
+
+	async getNotificationByRelatedId(relatedId: string, type: string): Promise<Notification | null> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('notifications')
+			.select('*')
+			.eq('user_id', user.id)
+			.eq('related_id', relatedId)
+			.eq('type', type)
+			.single()
+
+		if (error) {
+			return null
+		}
+
+		return this.transformNotificationFromDB(data)
+	}
+
+	// NotificationSettings operations
+	async getNotificationSettings(): Promise<NotificationSettings | null> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('notification_settings')
+			.select('*')
+			.eq('user_id', user.id)
+			.single()
+
+		if (error) {
+			console.error('Error getting notification settings:', error)
+			return null
+		}
+
+		return this.transformNotificationSettingsFromDB(data)
+	}
+
+	async updateNotificationSettings(settings: Partial<NotificationSettings>): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		// 클라이언트에서 UUID 생성
+		const settingsId = generateUUID()
+
+		const { error } = await supabase
+			.from('notification_settings')
+			.upsert({
+				id: settingsId,
+				user_id: user.id,
+				wage_overdue_enabled: settings.wageOverdueEnabled,
+				revenue_overdue_enabled: settings.revenueOverdueEnabled,
+				schedule_reminder_enabled: settings.scheduleReminderEnabled,
+				schedule_reminder_unit: settings.scheduleReminderUnit,
+				schedule_reminder_value: settings.scheduleReminderValue,
+				updated_at: new Date().toISOString(),
+			})
+
+		if (error) {
+			console.error('Error updating notification settings:', error)
+			throw new Error('Failed to update notification settings')
+		}
+	}
+
+	private transformNotificationFromDB(dbNotification: any): Notification {
+		return {
+			id: dbNotification.id,
+			userId: dbNotification.user_id,
+			type: dbNotification.type,
+			title: dbNotification.title,
+			message: dbNotification.message,
+			isRead: dbNotification.is_read,
+			priority: dbNotification.priority,
+			relatedId: dbNotification.related_id,
+			scheduledAt: dbNotification.scheduled_at,
+			createdAt: dbNotification.created_at,
+			updatedAt: dbNotification.updated_at,
+		}
+	}
+
+	private transformNotificationSettingsFromDB(dbSettings: any): NotificationSettings {
+		return {
+			id: dbSettings.id,
+			userId: dbSettings.user_id,
+			wageOverdueEnabled: dbSettings.wage_overdue_enabled,
+			revenueOverdueEnabled: dbSettings.revenue_overdue_enabled,
+			scheduleReminderEnabled: dbSettings.schedule_reminder_enabled,
+			scheduleReminderUnit: dbSettings.schedule_reminder_unit,
+			scheduleReminderValue: dbSettings.schedule_reminder_value,
+			createdAt: dbSettings.created_at,
+			updatedAt: dbSettings.updated_at,
+		}
+	}
 }
+
+export const database = new SupabaseRepository()

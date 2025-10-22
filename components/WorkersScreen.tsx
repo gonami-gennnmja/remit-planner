@@ -1,4 +1,5 @@
 import CommonHeader from "@/components/CommonHeader";
+import FileUpload from "@/components/FileUpload";
 import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import {
@@ -26,15 +27,23 @@ import {
 
 interface Worker {
   id: string;
+  userId: string;
   name: string;
   phone: string;
-  bankAccount: string;
+  residentNumber?: string; // 주민등록번호 (급여 지급 시에만 필수)
+  bankAccount?: string; // 계좌번호 (급여 지급 시에만 필수)
   bankInfo?: BankInfo;
   hourlyWage: number;
-  taxWithheld: boolean;
+  fuelAllowance: number; // 유류비 (월 고정)
+  otherAllowance: number; // 기타비용
+  // 파일 관련
+  idCardImageUrl?: string; // 신분증 사진 URL
+  idCardImagePath?: string; // 신분증 사진 경로
   workTags: string[];
   schedules: string[];
   memo?: string;
+  createdAt?: string;
+  updatedAt?: string;
   scheduleDetails?: Array<{
     id: string;
     title: string;
@@ -80,12 +89,17 @@ export default function WorkersScreen({
   const [workerForm, setWorkerForm] = useState({
     name: "",
     phone: "",
-    bankAccount: "",
-    hourlyWage: "11000", // 기본값 11000원
-    taxWithheld: true,
+    residentNumber: "", // 주민등록번호
+    bankAccount: "", // 계좌번호
+    hourlyWage: "15000", // 기본값 15000원
+    fuelAllowance: "0", // 유류비
+    otherAllowance: "0", // 기타비용
     selectedBankCode: "",
     memo: "",
-    // 근무시간 관련
+    // 파일 관련
+    idCardImageUrl: "",
+    idCardImagePath: "",
+    // 근무시간 관련 (기존 호환성)
     workStartDate: "",
     workEndDate: "",
     workHours: 0,
@@ -416,9 +430,13 @@ export default function WorkersScreen({
     setWorkerForm({
       name: worker.name,
       phone: worker.phone,
-      bankAccount: worker.bankAccount,
+      residentNumber: worker.residentNumber || "",
+      bankAccount: worker.bankAccount || "",
       hourlyWage: worker.hourlyWage.toString(),
-      taxWithheld: worker.taxWithheld,
+      fuelAllowance: (worker.fuelAllowance || 0).toString(),
+      otherAllowance: (worker.otherAllowance || 0).toString(),
+      idCardImageUrl: worker.idCardImageUrl || "",
+      idCardImagePath: worker.idCardImagePath || "",
       memo: worker.memo || "",
       // 근무시간 관련 - 기존 데이터로 초기화
       workStartDate: "", // 근로자별로는 스케줄마다 다를 수 있음
@@ -494,10 +512,14 @@ export default function WorkersScreen({
     setWorkerForm({
       name: "",
       phone: "",
+      residentNumber: "",
       bankAccount: "",
-      hourlyWage: "11000", // 기본값 11000원
-      taxWithheld: true,
+      hourlyWage: "15000", // 기본값 15000원
+      fuelAllowance: "0",
+      otherAllowance: "0",
       selectedBankCode: "",
+      idCardImageUrl: "",
+      idCardImagePath: "",
       memo: "",
       // 근무시간 관련 - 스케줄 정보로 초기화
       workStartDate: currentSchedule?.startDate || "",
@@ -548,12 +570,16 @@ export default function WorkersScreen({
       const updates = {
         name: workerForm.name,
         phone: workerForm.phone,
+        residentNumber: workerForm.residentNumber,
         bankAccount: workerForm.bankAccount,
         bankInfo: selectedBank,
         hourlyWage: parseInt(workerForm.hourlyWage),
-        taxWithheld: workerForm.taxWithheld,
+        fuelAllowance: parseInt(workerForm.fuelAllowance) || 0,
+        otherAllowance: parseInt(workerForm.otherAllowance) || 0,
+        idCardImageUrl: workerForm.idCardImageUrl,
+        idCardImagePath: workerForm.idCardImagePath,
         memo: workerForm.memo,
-        // 근무시간 관련 데이터 추가
+        // 근무시간 관련 데이터 추가 (기존 호환성)
         workStartDate: workerForm.workStartDate,
         workEndDate: workerForm.workEndDate,
         workHours: workerForm.workHours,
@@ -575,12 +601,16 @@ export default function WorkersScreen({
         id: `w${Date.now()}`,
         name: workerForm.name,
         phone: workerForm.phone,
+        residentNumber: workerForm.residentNumber,
         bankAccount: workerForm.bankAccount,
         bankInfo: selectedBank,
         hourlyWage: parseInt(workerForm.hourlyWage),
-        taxWithheld: workerForm.taxWithheld,
+        fuelAllowance: parseInt(workerForm.fuelAllowance) || 0,
+        otherAllowance: parseInt(workerForm.otherAllowance) || 0,
+        idCardImageUrl: workerForm.idCardImageUrl,
+        idCardImagePath: workerForm.idCardImagePath,
         memo: workerForm.memo,
-        // 근무시간 관련 데이터 추가
+        // 근무시간 관련 데이터 추가 (기존 호환성)
         workStartDate: workerForm.workStartDate,
         workEndDate: workerForm.workEndDate,
         workHours: workerForm.workHours,
@@ -1100,7 +1130,57 @@ export default function WorkersScreen({
                           hourlyWage: text.replace(/[^0-9]/g, ""),
                         })
                       }
-                      placeholder="50000"
+                      placeholder="15000"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailLabel}>유류비 (월 고정)</Text>
+                    <TextInput
+                      style={styles.detailInput}
+                      value={workerForm.fuelAllowance}
+                      onChangeText={(text) =>
+                        setWorkerForm({
+                          ...workerForm,
+                          fuelAllowance: text.replace(/[^0-9]/g, ""),
+                        })
+                      }
+                      placeholder="0"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailLabel}>기타비용 (월 고정)</Text>
+                    <TextInput
+                      style={styles.detailInput}
+                      value={workerForm.otherAllowance}
+                      onChangeText={(text) =>
+                        setWorkerForm({
+                          ...workerForm,
+                          otherAllowance: text.replace(/[^0-9]/g, ""),
+                        })
+                      }
+                      placeholder="0"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailLabel}>
+                      주민등록번호 (급여 지급 시 필수)
+                    </Text>
+                    <TextInput
+                      style={styles.detailInput}
+                      value={workerForm.residentNumber}
+                      onChangeText={(text) =>
+                        setWorkerForm({
+                          ...workerForm,
+                          residentNumber: text.replace(/[^0-9-]/g, ""),
+                        })
+                      }
+                      placeholder="123456-1234567"
                       keyboardType="numeric"
                     />
                   </View>
@@ -1318,8 +1398,88 @@ export default function WorkersScreen({
                       hourlyWage: text.replace(/[^0-9]/g, ""),
                     })
                   }
-                  placeholder="50000"
+                  placeholder="15000"
                   keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>유류비 (월 고정)</Text>
+                <TextInput
+                  style={styles.detailInput}
+                  value={workerForm.fuelAllowance}
+                  onChangeText={(text) =>
+                    setWorkerForm({
+                      ...workerForm,
+                      fuelAllowance: text.replace(/[^0-9]/g, ""),
+                    })
+                  }
+                  placeholder="0"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>기타비용 (월 고정)</Text>
+                <TextInput
+                  style={styles.detailInput}
+                  value={workerForm.otherAllowance}
+                  onChangeText={(text) =>
+                    setWorkerForm({
+                      ...workerForm,
+                      otherAllowance: text.replace(/[^0-9]/g, ""),
+                    })
+                  }
+                  placeholder="0"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>
+                  주민등록번호 (급여 지급 시 필수)
+                </Text>
+                <TextInput
+                  style={styles.detailInput}
+                  value={workerForm.residentNumber}
+                  onChangeText={(text) =>
+                    setWorkerForm({
+                      ...workerForm,
+                      residentNumber: text.replace(/[^0-9-]/g, ""),
+                    })
+                  }
+                  placeholder="123456-1234567"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>신분증 사진</Text>
+                <FileUpload
+                  type="image"
+                  currentUrl={workerForm.idCardImageUrl}
+                  currentPath={workerForm.idCardImagePath}
+                  onUpload={(url, path) => {
+                    setWorkerForm({
+                      ...workerForm,
+                      idCardImageUrl: url,
+                      idCardImagePath: path,
+                    });
+                  }}
+                  onDelete={() => {
+                    setWorkerForm({
+                      ...workerForm,
+                      idCardImageUrl: "",
+                      idCardImagePath: "",
+                    });
+                  }}
+                  options={{
+                    bucket: "remit-planner-files",
+                    folder: `workers/${workerForm.name || "temp"}`,
+                    fileType: "image",
+                    maxSize: 5, // 5MB
+                  }}
+                  placeholder="신분증 사진을 업로드하세요"
                 />
               </View>
 

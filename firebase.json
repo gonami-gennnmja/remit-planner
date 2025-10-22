@@ -1,0 +1,8 @@
+{
+  "react-native": {
+    "messaging_android_notification_channel_id": "remit-planner-notifications",
+    "messaging_android_notification_color": "#FF6B6B",
+    "messaging_android_headless_task_timeout": 60000,
+    "messaging_android_notification_icon": "ic_notification"
+  }
+}

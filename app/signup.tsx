@@ -206,6 +206,7 @@ export default function SignupScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="홍길동"
+                placeholderTextColor="#9ca3af"
                 value={formData.name}
                 onChangeText={(text) =>
                   setFormData({ ...formData, name: text })
@@ -238,6 +239,7 @@ export default function SignupScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="example@email.com"
+                placeholderTextColor="#9ca3af"
                 value={formData.email}
                 onChangeText={(text) =>
                   setFormData({ ...formData, email: text })
@@ -273,6 +275,7 @@ export default function SignupScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="최소 6자 이상"
+                placeholderTextColor="#9ca3af"
                 value={formData.password}
                 onChangeText={(text) =>
                   setFormData({ ...formData, password: text })
@@ -320,6 +323,7 @@ export default function SignupScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="비밀번호를 다시 입력하세요"
+                placeholderTextColor="#9ca3af"
                 value={formData.confirmPassword}
                 onChangeText={(text) =>
                   setFormData({ ...formData, confirmPassword: text })

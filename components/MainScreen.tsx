@@ -1,4 +1,5 @@
 import MonthlyPayrollModal from "@/components/MonthlyPayrollModal";
+import ScheduleAddModal from "@/components/ScheduleAddModal";
 import StaffWorkStatusModal from "@/components/StaffWorkStatusModal";
 import TodayScheduleModal from "@/components/TodayScheduleModal";
 import UnpaidScheduleModal from "@/components/UnpaidScheduleModal";
@@ -52,6 +53,7 @@ export default function MainScreen() {
   const [showMonthlyPayroll, setShowMonthlyPayroll] = useState(false);
   const [showStaffWorkStatus, setShowStaffWorkStatus] = useState(false);
   const [showUnpaidSchedule, setShowUnpaidSchedule] = useState(false);
+  const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -135,7 +137,6 @@ export default function MainScreen() {
       }));
 
       setRecentActivities(formattedActivities);
-      console.log(`Loaded ${formattedActivities.length} activities from DB`);
     } catch (error) {
       console.error("Failed to load activities from DB:", error);
       // DB 오류 시에만 빈 배열 (더미 데이터 대신)
@@ -357,6 +358,14 @@ export default function MainScreen() {
       route: "/dashboard",
     },
     {
+      id: "reports",
+      title: "리포트",
+      description: "상세한 통계 및 분석",
+      icon: "bar-chart-outline",
+      color: "#F59E0B", // 부드러운 앰버
+      route: "/reports",
+    },
+    {
       id: "schedule-management",
       title: "일정 관리",
       description: "모든 일정을 한눈에 관리하세요",
@@ -398,7 +407,7 @@ export default function MainScreen() {
     },
     {
       id: "uncollected",
-      title: "미수급 건수",
+      title: "수급 관리",
       description: "업체에서 받는 수입을 관리하세요",
       icon: "cash-outline",
       color: "#F472B6", // 부드러운 로즈
@@ -525,9 +534,20 @@ export default function MainScreen() {
                 isWeb && styles.columnItemWeb,
               ]}
             >
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                오늘 일정
-              </Text>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  오늘 일정
+                </Text>
+                <Pressable
+                  style={[
+                    styles.addButton,
+                    { backgroundColor: colors.primary },
+                  ]}
+                  onPress={() => setShowAddScheduleModal(true)}
+                >
+                  <Ionicons name="add" size={20} color="white" />
+                </Pressable>
+              </View>
               <View style={styles.scheduleList}>
                 {getTodaySchedules().length > 0 ? (
                   getTodaySchedules().map((schedule) => (
@@ -563,6 +583,63 @@ export default function MainScreen() {
                             schedule.workers.flatMap((w) => w.periods)
                           )}
                         </Text>
+
+                        {/* 위치 정보 */}
+                        {schedule.location && (
+                          <View style={styles.scheduleInfoRow}>
+                            <Ionicons
+                              name="location-outline"
+                              size={12}
+                              color={colors.textSecondary}
+                            />
+                            <Text
+                              style={[
+                                styles.scheduleInfoText,
+                                { color: colors.textSecondary },
+                              ]}
+                            >
+                              {schedule.location}
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* 첨부파일 여부 */}
+                        {schedule.hasAttachments && (
+                          <View style={styles.scheduleInfoRow}>
+                            <Ionicons
+                              name="attach-outline"
+                              size={12}
+                              color={colors.primary}
+                            />
+                            <Text
+                              style={[
+                                styles.scheduleInfoText,
+                                { color: colors.primary },
+                              ]}
+                            >
+                              첨부파일
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* 일별 시간 설정 여부 */}
+                        {!schedule.uniformTime && (
+                          <View style={styles.scheduleInfoRow}>
+                            <Ionicons
+                              name="time-outline"
+                              size={12}
+                              color={colors.textSecondary}
+                            />
+                            <Text
+                              style={[
+                                styles.scheduleInfoText,
+                                { color: colors.textSecondary },
+                              ]}
+                            >
+                              일별 시간 설정
+                            </Text>
+                          </View>
+                        )}
                       </View>
                       <Ionicons
                         name="chevron-forward"
@@ -648,6 +725,16 @@ export default function MainScreen() {
         visible={showUnpaidSchedule}
         onClose={() => setShowUnpaidSchedule(false)}
         schedules={schedules}
+      />
+
+      <ScheduleAddModal
+        visible={showAddScheduleModal}
+        onClose={() => setShowAddScheduleModal(false)}
+        onSave={() => {
+          loadSchedules();
+          setShowAddScheduleModal(false);
+        }}
+        modalType="bottomSheet"
       />
 
       {/* 활동 알림 모달 */}
@@ -782,7 +869,20 @@ const styles = StyleSheet.create({
     fontWeight: Theme.typography.weights.semibold,
     fontFamily: "Inter_600SemiBold",
     color: Theme.colors.text.primary,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Theme.spacing.sm,
     marginBottom: Theme.spacing.lg,
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Theme.shadows.sm,
   },
   todayScheduleContainer: {
     padding: Theme.spacing.xl,
@@ -824,6 +924,16 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.sizes.sm,
     fontFamily: "Inter_400Regular",
     color: Theme.colors.text.secondary,
+  },
+  scheduleInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    gap: 4,
+  },
+  scheduleInfoText: {
+    fontSize: Theme.typography.sizes.xs,
+    fontFamily: "Inter_400Regular",
   },
   menuContainer: {
     padding: Theme.spacing.xl,

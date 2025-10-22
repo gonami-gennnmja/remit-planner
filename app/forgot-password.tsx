@@ -133,6 +133,7 @@ export default function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="example@email.com"
+                placeholderTextColor="#9ca3af"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"

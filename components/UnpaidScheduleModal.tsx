@@ -42,47 +42,86 @@ export default function UnpaidScheduleModal({
 
   // 미지급 건수 계산
   useEffect(() => {
-    const unpaid = calculateUnpaidSchedules();
-    setUnpaidList(unpaid);
+    const loadUnpaidSchedules = async () => {
+      const unpaid = await calculateUnpaidSchedules();
+      setUnpaidList(unpaid);
+    };
+
+    loadUnpaidSchedules();
   }, [schedules]);
 
-  const calculateUnpaidSchedules = () => {
+  const calculateUnpaidSchedules = async () => {
     const unpaid: UnpaidScheduleInfo[] = [];
     const today = dayjs();
 
-    schedules.forEach((schedule) => {
-      schedule.workers.forEach((workerInfo) => {
-        workerInfo.periods.forEach((period) => {
-          const workDate = dayjs(period.start).format("YYYY-MM-DD");
-          const workEnd = dayjs(period.end);
+    try {
+      const db = getDatabase();
 
-          // 근무가 끝났지만 아직 지급되지 않은 경우
-          if (workEnd.isBefore(today) && !workerInfo.paid) {
-            const workHours = workEnd.diff(dayjs(period.start), "hour", true);
-            const hourlyWage = workerInfo.worker.hourlyWage;
-            const taxWithheld = workerInfo.worker.taxWithheld;
-            const taxRate = 0.033; // 3.3%
+      // 모든 스케줄에 대해 미지급 근로자 정보를 가져옴
+      for (const schedule of schedules) {
+        // 스케줄의 종료일이 지났는지 확인
+        const scheduleEndDate = dayjs(schedule.endDate);
+        if (scheduleEndDate.isBefore(today)) {
+          // 해당 스케줄의 근로자들 조회
+          const scheduleWorkers = await db.getScheduleWorkers(schedule.id);
 
-            let totalAmount = hourlyWage * workHours;
-            if (taxWithheld) {
-              totalAmount = totalAmount * (1 - taxRate);
+          for (const scheduleWorker of scheduleWorkers) {
+            // 아직 지급되지 않은 경우
+            if (!scheduleWorker.paid) {
+              // scheduleWorkers에서 이미 worker 정보가 포함되어 있으므로 직접 사용
+              const worker = scheduleWorker.worker;
+              if (worker) {
+                // 작업 기간 조회
+                const workPeriods = await db.getWorkPeriods(scheduleWorker.id);
+
+                for (const period of workPeriods) {
+                  const workDate = dayjs(period.workDate).format("YYYY-MM-DD");
+                  const workEnd = dayjs(period.workDate).add(1, "day"); // 작업일 다음날로 설정
+
+                  // 근무 시간 계산
+                  const startTime = dayjs(
+                    `${period.workDate} ${period.startTime}`
+                  );
+                  const endTime = dayjs(`${period.workDate} ${period.endTime}`);
+                  const workHours =
+                    endTime.diff(startTime, "hour", true) -
+                    period.breakDuration / 60;
+
+                  const hourlyWage =
+                    scheduleWorker.hourly_wage || worker.hourly_wage;
+                  const taxWithheld = scheduleWorker.tax_withheld;
+                  const taxRate = 0.033; // 3.3%
+
+                  let totalAmount = hourlyWage * workHours;
+                  if (taxWithheld) {
+                    totalAmount = totalAmount * (1 - taxRate);
+                  }
+
+                  // 유류비 및 기타비용 추가
+                  totalAmount +=
+                    (scheduleWorker.fuel_allowance || 0) +
+                    (scheduleWorker.other_allowance || 0);
+
+                  unpaid.push({
+                    scheduleId: schedule.id,
+                    workerId: worker.id,
+                    title: schedule.title,
+                    workDate,
+                    workerName: worker.name,
+                    hourlyWage,
+                    workHours,
+                    totalAmount: Math.round(totalAmount),
+                    isOverdue: workEnd.isBefore(today.subtract(1, "day")), // 1일 이상 지연
+                  });
+                }
+              }
             }
-
-            unpaid.push({
-              scheduleId: schedule.id,
-              workerId: workerInfo.worker.id,
-              title: schedule.title,
-              workDate,
-              workerName: workerInfo.worker.name,
-              hourlyWage,
-              workHours,
-              totalAmount: Math.round(totalAmount),
-              isOverdue: workEnd.isBefore(today.subtract(1, "day")), // 1일 이상 지연
-            });
           }
-        });
-      });
-    });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to calculate unpaid schedules:", error);
+    }
 
     // 지연 순서대로 정렬
     return unpaid.sort((a, b) => {
@@ -133,7 +172,7 @@ export default function UnpaidScheduleModal({
               );
 
               // 리스트 새로고침
-              const unpaid = calculateUnpaidSchedules();
+              const unpaid = await calculateUnpaidSchedules();
               setUnpaidList(unpaid);
 
               Alert.alert("완료", "급여가 지급되었습니다.");

@@ -1,7 +1,7 @@
-// Main database export - uses simple in-memory database
+// Main database export - uses Supabase
 export type { IDatabase, ScheduleWorkerInfo, WorkPeriod } from './interface';
-export { database } from './simpleDatabase';
+export { database } from './supabaseRepository';
 
-// To switch to Supabase later, just change the import:
-// export { database } from './supabaseRepository';
+// To switch to simple database for testing, just change the import:
+// export { database } from './simpleDatabase';
 

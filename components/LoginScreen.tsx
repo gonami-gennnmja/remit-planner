@@ -8,11 +8,15 @@ import {
   Alert,
   Dimensions,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -100,125 +104,174 @@ export default function LoginScreen() {
     }
   };
 
+  // 키보드 숨기기 함수
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
+  // 안드로이드에서 뒤로가기 버튼으로 키보드 숨기기
+  useEffect(() => {
+    const keyboardDidHideListener = Keyboard.addListener(
+      "keyboardDidHide",
+      () => {
+        // 키보드가 숨겨질 때 추가 처리 (필요시)
+      }
+    );
+
+    return () => {
+      keyboardDidHideListener?.remove();
+    };
+  }, []);
+
   return (
-    <View style={styles.container}>
-      {/* 로고 및 타이틀 */}
-      <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <Image 
-            source={require('@/assets/images/favicon.png')} 
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-        </View>
-        <Text style={styles.title}>반반</Text>
-        <Text style={styles.subtitle}>Half&Half - 일도 반반, 여유도 반반</Text>
-      </View>
-
-      {/* 로그인 폼 */}
-      <View style={styles.formContainer}>
-        <View style={styles.inputContainer}>
-          <Ionicons
-            name="person"
-            size={20}
-            color="#6b7280"
-            style={styles.inputIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="이메일 또는 아이디"
-            value={userId}
-            onChangeText={setUserId}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            keyboardType="email-address"
-            returnKeyType="next"
-            blurOnSubmit={false}
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Ionicons
-            name="lock-closed"
-            size={20}
-            color="#6b7280"
-            style={styles.inputIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="비밀번호"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoComplete="password"
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-          />
-        </View>
-
-        <Pressable
-          style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-          onPress={handleLogin}
-          disabled={isLoading}
-          android_ripple={{ color: "rgba(255, 255, 255, 0.2)" }}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={dismissKeyboard}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.loginButtonText}>
-            {isLoading ? "로그인 중..." : "로그인"}
-          </Text>
-        </Pressable>
+          {/* 로고 및 타이틀 */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require("@/assets/images/favicon.png")}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.title}>반반</Text>
+            <Text style={styles.subtitle}>
+              Half&Half - 일도 반반, 여유도 반반
+            </Text>
+          </View>
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>또는</Text>
-          <View style={styles.dividerLine} />
-        </View>
+          {/* 로그인 폼 */}
+          <View style={styles.formContainer}>
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="person"
+                size={20}
+                color="#6b7280"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="이메일 또는 아이디"
+                placeholderTextColor="#9ca3af"
+                value={userId}
+                onChangeText={setUserId}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                keyboardType="email-address"
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => {
+                  // 다음 필드로 포커스 이동 (비밀번호 필드)
+                  // React Native에서는 자동으로 다음 TextInput으로 이동
+                }}
+                // 안드로이드 최적화
+                importantForAutofill="yes"
+                textContentType="emailAddress"
+              />
+            </View>
 
-        {/* 소셜 로그인 버튼들 */}
-        <View style={styles.socialContainer}>
-          <Text style={styles.socialLoginTitle}>소셜 로그인</Text>
-          <View style={styles.socialButtonRow}>
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="lock-closed"
+                size={20}
+                color="#6b7280"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="비밀번호"
+                placeholderTextColor="#9ca3af"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="password"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+                blurOnSubmit={true}
+                // 안드로이드 최적화
+                importantForAutofill="yes"
+                textContentType="password"
+              />
+            </View>
+
             <Pressable
-              style={[styles.socialIconButton, styles.kakaoButton]}
-              onPress={() => handleSocialLogin("kakao")}
+              style={[
+                styles.loginButton,
+                isLoading && styles.loginButtonDisabled,
+              ]}
+              onPress={handleLogin}
               disabled={isLoading}
+              android_ripple={{ color: "rgba(255, 255, 255, 0.2)" }}
             >
-              <Ionicons name="chatbubble" size={28} color="#000000" />
+              <Text style={styles.loginButtonText}>
+                {isLoading ? "로그인 중..." : "로그인"}
+              </Text>
             </Pressable>
 
-            <Pressable
-              style={[styles.socialIconButton, styles.googleButton]}
-              onPress={() => handleSocialLogin("google")}
-              disabled={isLoading}
-            >
-              <Ionicons name="logo-google" size={28} color="#4285F4" />
-            </Pressable>
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>또는</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-            {/* Apple Login - 추후 구현 ($99/년 필요) */}
-            {/* <Pressable
+            {/* 소셜 로그인 버튼들 */}
+            <View style={styles.socialContainer}>
+              <Text style={styles.socialLoginTitle}>소셜 로그인</Text>
+              <View style={styles.socialButtonRow}>
+                <Pressable
+                  style={[styles.socialIconButton, styles.kakaoButton]}
+                  onPress={() => handleSocialLogin("kakao")}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="chatbubble" size={28} color="#000000" />
+                </Pressable>
+
+                <Pressable
+                  style={[styles.socialIconButton, styles.googleButton]}
+                  onPress={() => handleSocialLogin("google")}
+                  disabled={isLoading}
+                >
+                  <Ionicons name="logo-google" size={28} color="#4285F4" />
+                </Pressable>
+
+                {/* Apple Login - 추후 구현 ($99/년 필요) */}
+                {/* <Pressable
               style={[styles.socialIconButton, styles.appleButton]}
               onPress={() => handleSocialLogin("apple")}
               disabled={isLoading}
             >
               <Ionicons name="logo-apple" size={28} color="white" />
             </Pressable> */}
+              </View>
+            </View>
           </View>
-        </View>
-      </View>
 
-      {/* 하단 링크 */}
-      <View style={styles.footer}>
-        <Pressable onPress={() => navigation.push("/forgot-password")}>
-          <Text style={styles.footerLink}>비밀번호를 잊으셨나요?</Text>
-        </Pressable>
-        <View style={styles.signupContainer}>
-          <Text style={styles.footerText}>계정이 없으신가요? </Text>
-          <Pressable onPress={() => navigation.push("/signup")}>
-            <Text style={styles.footerLink}>회원가입</Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
+          {/* 하단 링크 */}
+          <View style={styles.footer}>
+            <Pressable onPress={() => navigation.push("/forgot-password")}>
+              <Text style={styles.footerLink}>비밀번호를 잊으셨나요?</Text>
+            </Pressable>
+            <View style={styles.signupContainer}>
+              <Text style={styles.footerText}>계정이 없으신가요? </Text>
+              <Pressable onPress={() => navigation.push("/signup")}>
+                <Text style={styles.footerLink}>회원가입</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -226,7 +279,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: Theme.spacing.xxl,
+    justifyContent: "center",
   },
   header: {
     alignItems: "center",

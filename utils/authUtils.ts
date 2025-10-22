@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  createAdminAccount,
   getCurrentSupabaseUser,
   isSupabaseLoggedIn,
   loginWithSupabase,
@@ -52,17 +51,8 @@ export async function initializeAuthDB(): Promise<void> {
       );
     }
 
-    // Supabase에서 admin 계정이 있는지 확인하고, 없으면 생성
-    try {
-      const result = await createAdminAccount();
-      if (result.success) {
-        console.log('✅ Admin 계정 초기화 완료');
-      } else {
-        console.log('ℹ️ Admin 계정이 이미 존재하거나 생성 실패:', result.message);
-      }
-    } catch (error) {
-      console.log('ℹ️ Admin 계정 생성 건너뛰기:', error);
-    }
+    // Admin 계정 자동 생성 비활성화 (이미 존재하므로)
+    console.log('ℹ️ Admin 계정 자동 생성 건너뛰기 (이미 존재)');
 
     console.log('✅ Supabase Auth 초기화 완료');
   } catch (error) {

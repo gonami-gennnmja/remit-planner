@@ -1,11 +1,15 @@
 // Database interface - allows easy switching between SQLite and Supabase
-import { Category, Schedule, ScheduleCategory, Worker } from '@/models/types';
-
-export interface WorkPeriod {
-  id: string;
-  start: string;
-  end: string;
-}
+import {
+  Category,
+  Client,
+  PayrollCalculation,
+  Schedule,
+  ScheduleTime,
+  ScheduleWorker,
+  UserProfile,
+  Worker,
+  WorkPeriod
+} from '@/models/types';
 
 export interface ScheduleWorkerInfo {
   worker: Worker;
@@ -25,15 +29,7 @@ export interface IDatabase {
   deleteWorker(id: string): Promise<void>;
 
   // Schedule operations
-  createSchedule(schedule: {
-    id: string;
-    title: string;
-    description?: string;
-    date?: string;
-    startDate?: string;
-    endDate?: string;
-    category: ScheduleCategory;
-  }): Promise<string>;
+  createSchedule(schedule: Schedule): Promise<string>;
   getSchedule(id: string): Promise<Schedule | null>;
   getAllSchedules(): Promise<Schedule[]>;
   getSchedulesByDate(date: string): Promise<Schedule[]>;
@@ -41,18 +37,29 @@ export interface IDatabase {
   updateSchedule(id: string, schedule: Partial<Schedule>): Promise<void>;
   deleteSchedule(id: string): Promise<void>;
 
+  // Schedule times operations
+  createScheduleTime(scheduleTime: ScheduleTime): Promise<string>;
+  getScheduleTimes(scheduleId: string): Promise<ScheduleTime[]>;
+  updateScheduleTime(id: string, scheduleTime: Partial<ScheduleTime>): Promise<void>;
+  deleteScheduleTime(id: string): Promise<void>;
+
   // Schedule-Worker relationship operations
-  addWorkerToSchedule(
-    scheduleId: string,
-    workerId: string,
-    periods: WorkPeriod[],
-    paid?: boolean,
-    workHours?: number
-  ): Promise<string>;
-  getScheduleWorkers(scheduleId: string): Promise<ScheduleWorkerInfo[]>;
-  updateScheduleWorkerPaidStatus(scheduleId: string, workerId: string, paid: boolean): Promise<void>;
-  updateScheduleWorkerHours(scheduleId: string, workerId: string, hours: number): Promise<void>;
-  removeWorkerFromSchedule(scheduleId: string, workerId: string): Promise<void>;
+  createScheduleWorker(scheduleWorker: ScheduleWorker): Promise<string>;
+  getScheduleWorkers(scheduleId: string): Promise<ScheduleWorker[]>;
+  updateScheduleWorker(id: string, scheduleWorker: Partial<ScheduleWorker>): Promise<void>;
+  deleteScheduleWorker(id: string): Promise<void>;
+
+  // Work periods operations
+  createWorkPeriod(workPeriod: WorkPeriod): Promise<string>;
+  getWorkPeriods(scheduleWorkerId: string): Promise<WorkPeriod[]>;
+  updateWorkPeriod(id: string, workPeriod: Partial<WorkPeriod>): Promise<void>;
+  deleteWorkPeriod(id: string): Promise<void>;
+
+  // Payroll operations
+  createPayrollCalculation(payroll: PayrollCalculation): Promise<string>;
+  getPayrollCalculations(scheduleWorkerId: string): Promise<PayrollCalculation[]>;
+  updatePayrollCalculation(id: string, payroll: Partial<PayrollCalculation>): Promise<void>;
+  deletePayrollCalculation(id: string): Promise<void>;
 
   // Worker tax settings
   updateWorkerTaxWithheld(workerId: string, taxWithheld: boolean): Promise<void>;
@@ -80,27 +87,32 @@ export interface IDatabase {
   clearOldActivities(daysToKeep?: number): Promise<void>;
 
   // Client operations
-  createClient(client: {
-    id: string;
-    name: string;
-    phone: string;
-    email?: string;
-    address?: string;
-    businessNumber?: string;
-    memo?: string;
-    contacts: Array<{
-      id: string;
-      name: string;
-      position?: string;
-      phone: string;
-      memo?: string;
-      isPrimary?: boolean;
-    }>;
-  }): Promise<string>;
-  getClient(id: string): Promise<any>;
-  getAllClients(): Promise<any[]>;
-  updateClient(id: string, client: any): Promise<void>;
+  createClient(client: Client): Promise<string>;
+  getClient(id: string): Promise<Client | null>;
+  getAllClients(): Promise<Client[]>;
+  updateClient(id: string, client: Partial<Client>): Promise<void>;
   deleteClient(id: string): Promise<void>;
+
+  // User profile operations
+  createUserProfile(profile: UserProfile): Promise<string>;
+  getUserProfile(userId: string): Promise<UserProfile | null>;
+  updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<void>;
+  deleteUserProfile(userId: string): Promise<void>;
+
+  // Notification operations
+  createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>): Promise<string>;
+  getNotification(id: string): Promise<Notification | null>;
+  getAllNotifications(): Promise<Notification[]>;
+  getRecentNotifications(limit: number): Promise<Notification[]>;
+  updateNotification(id: string, notification: Partial<Notification>): Promise<void>;
+  deleteNotification(id: string): Promise<void>;
+  markAllNotificationsAsRead(): Promise<void>;
+  getUnreadNotificationCount(): Promise<number>;
+  getNotificationByRelatedId(relatedId: string, type: string): Promise<Notification | null>;
+
+  // NotificationSettings operations
+  getNotificationSettings(): Promise<NotificationSettings | null>;
+  updateNotificationSettings(settings: Partial<NotificationSettings>): Promise<void>;
 
   // Category operations
   createCategory(category: {

@@ -8,6 +8,11 @@
     "scheme": "banbanhalf",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      }
+    },
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -29,7 +34,17 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": ["expo-router", "expo-sqlite"],
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "color": "#FF6B6B",
+          "defaultChannel": "remit-planner-notifications"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

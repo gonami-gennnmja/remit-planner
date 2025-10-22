@@ -1,6 +1,11 @@
 // IndexedDB implementation for web platform
-import { Schedule, ScheduleCategory, Worker } from '@/models/types';
-import { IDatabase, ScheduleWorkerInfo, WorkPeriod } from './interface';
+import {
+  Schedule,
+  ScheduleCategory,
+  Worker,
+  WorkPeriod
+} from '@/models/types';
+import { IDatabase, ScheduleWorkerInfo } from './interface';
 
 class IndexedDBRepository implements IDatabase {
   private db: IDBDatabase | null = null;
@@ -23,26 +28,75 @@ class IndexedDBRepository implements IDatabase {
         // Workers store
         if (!db.objectStoreNames.contains('workers')) {
           const workerStore = db.createObjectStore('workers', { keyPath: 'id' });
+          workerStore.createIndex('userId', 'userId', { unique: false });
           workerStore.createIndex('name', 'name', { unique: false });
         }
 
         // Schedules store
         if (!db.objectStoreNames.contains('schedules')) {
           const scheduleStore = db.createObjectStore('schedules', { keyPath: 'id' });
-          scheduleStore.createIndex('date', 'date', { unique: false });
+          scheduleStore.createIndex('userId', 'userId', { unique: false });
+          scheduleStore.createIndex('startDate', 'startDate', { unique: false });
+          scheduleStore.createIndex('endDate', 'endDate', { unique: false });
+        }
+
+        // Schedule times store
+        if (!db.objectStoreNames.contains('scheduleTimes')) {
+          const scheduleTimeStore = db.createObjectStore('scheduleTimes', { keyPath: 'id' });
+          scheduleTimeStore.createIndex('scheduleId', 'scheduleId', { unique: false });
+          scheduleTimeStore.createIndex('workDate', 'workDate', { unique: false });
         }
 
         // Schedule workers store
         if (!db.objectStoreNames.contains('scheduleWorkers')) {
           const scheduleWorkerStore = db.createObjectStore('scheduleWorkers', { keyPath: 'id' });
+          scheduleWorkerStore.createIndex('userId', 'userId', { unique: false });
           scheduleWorkerStore.createIndex('scheduleId', 'scheduleId', { unique: false });
           scheduleWorkerStore.createIndex('workerId', 'workerId', { unique: false });
+        }
+
+        // Worker times store
+        if (!db.objectStoreNames.contains('workerTimes')) {
+          const workerTimeStore = db.createObjectStore('workerTimes', { keyPath: 'id' });
+          workerTimeStore.createIndex('scheduleWorkerId', 'scheduleWorkerId', { unique: false });
+          workerTimeStore.createIndex('workDate', 'workDate', { unique: false });
         }
 
         // Work periods store
         if (!db.objectStoreNames.contains('workPeriods')) {
           const workPeriodStore = db.createObjectStore('workPeriods', { keyPath: 'id' });
           workPeriodStore.createIndex('scheduleWorkerId', 'scheduleWorkerId', { unique: false });
+        }
+
+        // Payroll calculations store
+        if (!db.objectStoreNames.contains('payrollCalculations')) {
+          const payrollStore = db.createObjectStore('payrollCalculations', { keyPath: 'id' });
+          payrollStore.createIndex('scheduleWorkerId', 'scheduleWorkerId', { unique: false });
+        }
+
+        // Clients store
+        if (!db.objectStoreNames.contains('clients')) {
+          const clientStore = db.createObjectStore('clients', { keyPath: 'id' });
+          clientStore.createIndex('userId', 'userId', { unique: false });
+          clientStore.createIndex('name', 'name', { unique: false });
+        }
+
+        // User profiles store
+        if (!db.objectStoreNames.contains('userProfiles')) {
+          const userProfileStore = db.createObjectStore('userProfiles', { keyPath: 'id' });
+          userProfileStore.createIndex('userId', 'userId', { unique: true });
+        }
+
+        // Activities store
+        if (!db.objectStoreNames.contains('activities')) {
+          const activityStore = db.createObjectStore('activities', { keyPath: 'id' });
+          activityStore.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+
+        // Categories store
+        if (!db.objectStoreNames.contains('categories')) {
+          const categoryStore = db.createObjectStore('categories', { keyPath: 'id' });
+          categoryStore.createIndex('name', 'name', { unique: true });
         }
       };
     });
