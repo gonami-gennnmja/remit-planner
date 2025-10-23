@@ -1,4 +1,7 @@
+import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { Client, ClientContact } from "@/models/types";
 import { formatPhoneNumber } from "@/utils/bankUtils";
@@ -6,7 +9,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Modal,
@@ -20,6 +22,7 @@ import {
 } from "react-native";
 
 export default function ClientsScreen() {
+  const { colors } = useTheme();
   const [clients, setClients] = useState<Client[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,7 +65,7 @@ export default function ClientsScreen() {
 
       const allClients = await db.getAllClients();
       console.log("📊 Raw clients data:", allClients);
-      
+
       // 기본값 설정
       const clientsWithDefaults = allClients.map((client) => ({
         ...client,
@@ -74,7 +77,7 @@ export default function ClientsScreen() {
         memo: client.memo || "",
         contacts: client.contacts || [],
       }));
-      
+
       console.log("✅ Processed clients:", clientsWithDefaults);
       setClients(clientsWithDefaults);
       setInitialized(true);
@@ -266,10 +269,7 @@ export default function ClientsScreen() {
           { justifyContent: "center", alignItems: "center" },
         ]}
       >
-        <ActivityIndicator size="large" color={Theme.colors.primary} />
-        <Text style={{ marginTop: 16, color: Theme.colors.text.secondary }}>
-          거래처를 불러오는 중...
-        </Text>
+        <LoadingSpinner message="거래처를 불러오는 중..." />
       </View>
     );
   }
@@ -277,26 +277,22 @@ export default function ClientsScreen() {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#000" />
-        </Pressable>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>거래처 관리</Text>
-          <Text style={styles.headerSubtitle}>총 {clients?.length || 0}개</Text>
-        </View>
-        <Pressable
-          style={styles.addButton}
-          onPress={() => {
+      <CommonHeader
+        title="거래처 관리"
+        leftButton={{
+          icon: "arrow-back",
+          onPress: () => router.back(),
+        }}
+        rightButton={{
+          icon: "add",
+          onPress: () => {
             setIsEditMode(false);
             setEditingClientId(null);
             setContacts([]);
             setShowAddModal(true);
-          }}
-        >
-          <Ionicons name="add" size={24} color="#000" />
-        </Pressable>
-      </View>
+          },
+        }}
+      />
 
       {/* 검색 */}
       <View style={styles.searchContainer}>
@@ -441,7 +437,7 @@ export default function ClientsScreen() {
                         handleCall(client.phone || "");
                       }}
                     >
-                      <Ionicons name="call" size={16} color="#3b82f6" />
+                      <Ionicons name="call" size={16} color={colors.primary} />
                     </Pressable>
                     <Pressable
                       style={styles.actionButton}
@@ -693,7 +689,7 @@ export default function ClientsScreen() {
                     <Ionicons
                       name="add-circle-outline"
                       size={20}
-                      color="#3b82f6"
+                      color={colors.primary}
                     />
                     <Text style={styles.addContactButtonText}>담당자 추가</Text>
                   </Pressable>
@@ -876,7 +872,7 @@ export default function ClientsScreen() {
                                   <Ionicons
                                     name="call"
                                     size={14}
-                                    color="#3b82f6"
+                                    color={colors.primary}
                                   />
                                 </Pressable>
                                 <Pressable
@@ -912,7 +908,11 @@ export default function ClientsScreen() {
                           style={styles.actionButton}
                           onPress={() => handleCall(selectedClient.phone)}
                         >
-                          <Ionicons name="call" size={16} color="#3b82f6" />
+                          <Ionicons
+                            name="call"
+                            size={16}
+                            color={colors.primary}
+                          />
                         </Pressable>
                         <Pressable
                           style={styles.actionButton}
@@ -1006,7 +1006,11 @@ export default function ClientsScreen() {
                   }
                 }}
               >
-                <Ionicons name="create-outline" size={20} color="#3b82f6" />
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={colors.primary}
+                />
                 <Text style={styles.editButtonText}>수정</Text>
               </Pressable>
               <Pressable
@@ -1032,47 +1036,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
-  },
-  header: {
-    backgroundColor: Theme.colors.card,
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 16,
-    paddingHorizontal: Theme.spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitleContainer: {
-    flex: 1,
-    marginLeft: Theme.spacing.md,
-  },
-  headerTitle: {
-    fontSize: Theme.typography.sizes.xl,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.primary,
-  },
-  headerSubtitle: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
-    marginTop: 2,
-  },
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Theme.colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
   },
   searchContainer: {
     flexDirection: "row",

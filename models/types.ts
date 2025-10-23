@@ -157,6 +157,8 @@ export type Schedule = {
   uniformTime: boolean; // 일정 시간이 동일한지 여부
   documentsFolderPath?: string; // 문서 폴더 경로
   hasAttachments: boolean; // 첨부파일 여부
+  // 거래처 관련 필드
+  clientId?: string; // 연결된 거래처 ID
   // 수급 관련 필드들
   allWagesPaid: boolean; // 모든 근로자 임금 지급 완료 여부
   revenueStatus: 'received' | 'pending' | 'overdue'; // 수급 상태
@@ -169,6 +171,8 @@ export type Schedule = {
     worker: Worker;
     periods: WorkPeriod[]; // one or more days/hours
     paid: boolean;
+    taxWithheld?: boolean;
+    wagePaid?: boolean;
   }>;
 };
 

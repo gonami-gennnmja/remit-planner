@@ -1,8 +1,8 @@
+import CommonHeader from "@/components/CommonHeader";
 import { Theme } from "@/constants/Theme";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TermsOfServiceScreen() {
@@ -11,16 +11,13 @@ export default function TermsOfServiceScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color={Theme.colors.text.primary}
-          />
-        </Pressable>
-        <Text style={styles.headerTitle}>이용약관</Text>
-      </View>
+      <CommonHeader
+        title="이용약관"
+        leftButton={{
+          icon: "arrow-back",
+          onPress: () => router.back(),
+        }}
+      />
 
       {/* 내용 */}
       <ScrollView
@@ -232,26 +229,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Theme.spacing.lg,
-    paddingVertical: Theme.spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
-    backgroundColor: Theme.colors.card,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    marginRight: Theme.spacing.md,
-  },
-  headerTitle: {
-    fontSize: Theme.typography.sizes.xl,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.primary,
   },
   content: {
     flex: 1,

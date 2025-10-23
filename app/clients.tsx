@@ -1,46 +1,36 @@
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { getDatabase } from "@/database/platformDatabase";
+import { Client } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
-interface ClientContact {
-  id: string;
-  name: string;
-  position?: string;
-  phone: string;
-  memo?: string;
-  isPrimary: boolean;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  phone: string;
-  email?: string;
-  address?: string;
-  businessNumber?: string;
-  contactPerson?: string;
-  documentsFolderPath?: string;
-  memo?: string;
-  totalRevenue?: number;
-  unpaidAmount?: number;
-  contacts?: ClientContact[];
-}
-
 export default function ClientsScreen() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addData, setAddData] = useState({
+    name: "",
+    contactPerson: "",
+    phone: "",
+    email: "",
+    address: "",
+    businessNumber: "",
+    memo: "",
+  });
 
   useEffect(() => {
     loadClients();
@@ -93,20 +83,56 @@ export default function ClientsScreen() {
     Linking.openURL(`sms:${phone}`);
   };
 
+  const handleAddClient = async () => {
+    if (!addData.name.trim() || !addData.phone.trim()) {
+      Alert.alert("오류", "거래처명과 연락처는 필수입니다.");
+      return;
+    }
+
+    try {
+      const db = getDatabase();
+      const newClient: Client = {
+        id: Date.now().toString(),
+        userId: "current-user", // TODO: 실제 사용자 ID로 변경
+        name: addData.name.trim(),
+        contactPerson: addData.contactPerson.trim() || undefined,
+        phone: addData.phone.trim(),
+        email: addData.email.trim() || undefined,
+        address: addData.address.trim() || undefined,
+        businessNumber: addData.businessNumber.trim() || undefined,
+        memo: addData.memo.trim() || undefined,
+        totalRevenue: 0,
+        unpaidAmount: 0,
+      };
+
+      await db.createClient(newClient);
+      await loadClients();
+
+      setShowAddModal(false);
+      setAddData({
+        name: "",
+        contactPerson: "",
+        phone: "",
+        email: "",
+        address: "",
+        businessNumber: "",
+        memo: "",
+      });
+
+      Alert.alert("성공", "거래처가 추가되었습니다.");
+    } catch (error) {
+      console.error("Failed to add client:", error);
+      Alert.alert("오류", "거래처 추가에 실패했습니다.");
+    }
+  };
+
   const formatPhoneNumber = (phone: string) => {
     if (!phone) return "";
     return phone.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
   };
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{ marginTop: 16, color: "#666" }}>
-          거래처를 불러오는 중...
-        </Text>
-      </View>
-    );
+    return <LoadingSpinner message="거래처를 불러오는 중..." />;
   }
 
   return (
@@ -116,9 +142,7 @@ export default function ClientsScreen() {
         title="거래처 관리"
         rightButton={{
           icon: "add",
-          onPress: () => {
-            // TODO: 거래처 추가 기능 구현
-          },
+          onPress: () => setShowAddModal(true),
         }}
       />
 
@@ -184,6 +208,7 @@ export default function ClientsScreen() {
                   shadowRadius: 4,
                   elevation: 3,
                 }}
+                onPress={() => router.push(`/client/${client.id}` as any)}
               >
                 <View
                   style={{
@@ -374,12 +399,158 @@ export default function ClientsScreen() {
                       </Pressable>
                     </View>
                   </View>
+                  <Ionicons name="chevron-forward" size={20} color="#ccc" />
                 </View>
               </Pressable>
             ))}
           </View>
         )}
       </ScrollView>
+
+      {/* 거래처 추가 모달 */}
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <CommonHeader
+            title="거래처 추가"
+            showBackButton={false}
+            rightButton={{
+              icon: "checkmark",
+              onPress: handleAddClient,
+            }}
+          />
+          <Pressable
+            style={{
+              position: "absolute",
+              left: 16,
+              top: 16,
+              zIndex: 1,
+              padding: 8,
+            }}
+            onPress={() => setShowAddModal(false)}
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </Pressable>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>거래처명 *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={addData.name}
+                onChangeText={(text) => setAddData({ ...addData, name: text })}
+                placeholder="거래처명을 입력하세요"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>담당자</Text>
+              <TextInput
+                style={styles.formInput}
+                value={addData.contactPerson}
+                onChangeText={(text) =>
+                  setAddData({ ...addData, contactPerson: text })
+                }
+                placeholder="담당자명을 입력하세요"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>대표 연락처 *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={addData.phone}
+                onChangeText={(text) => setAddData({ ...addData, phone: text })}
+                placeholder="연락처를 입력하세요"
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>이메일</Text>
+              <TextInput
+                style={styles.formInput}
+                value={addData.email}
+                onChangeText={(text) => setAddData({ ...addData, email: text })}
+                placeholder="이메일을 입력하세요"
+                keyboardType="email-address"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>주소</Text>
+              <TextInput
+                style={styles.formInput}
+                value={addData.address}
+                onChangeText={(text) =>
+                  setAddData({ ...addData, address: text })
+                }
+                placeholder="주소를 입력하세요"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>사업자등록번호</Text>
+              <TextInput
+                style={styles.formInput}
+                value={addData.businessNumber}
+                onChangeText={(text) =>
+                  setAddData({ ...addData, businessNumber: text })
+                }
+                placeholder="사업자등록번호를 입력하세요"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>메모</Text>
+              <TextInput
+                style={[styles.formInput, styles.memoInput]}
+                value={addData.memo}
+                onChangeText={(text) => setAddData({ ...addData, memo: text })}
+                placeholder="메모를 입력하세요"
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  formSection: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: "#333",
+    backgroundColor: "#f9f9f9",
+  },
+  memoInput: {
+    height: 80,
+    textAlignVertical: "top",
+  },
+});

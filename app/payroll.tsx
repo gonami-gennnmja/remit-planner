@@ -169,7 +169,6 @@ export default function PayrollScreen() {
   return (
     <View style={styles.container}>
       <CommonHeader title="급여 관리" />
-
       <ScrollView
         style={styles.content}
         refreshControl={

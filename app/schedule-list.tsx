@@ -1,4 +1,5 @@
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import ScheduleAddModal from "@/components/ScheduleAddModal";
 import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
@@ -8,7 +9,6 @@ import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -195,12 +195,7 @@ export default function ScheduleListScreen() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Theme.colors.primary} />
-        <Text style={styles.loadingText}>일정을 불러오는 중...</Text>
-      </View>
-    );
+    return <LoadingSpinner message="일정을 불러오는 중..." />;
   }
 
   return (

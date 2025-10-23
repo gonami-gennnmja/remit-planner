@@ -1,9 +1,10 @@
+import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { getDatabase } from "@/database/platformDatabase";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Pressable,
@@ -97,41 +98,25 @@ export default function ClientsScreen() {
   };
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{ marginTop: 16, color: "#666" }}>
-          거래처를 불러오는 중...
-        </Text>
-      </View>
-    );
+    return <LoadingSpinner message="거래처를 불러오는 중..." />;
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {/* 헤더 */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          padding: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: "#e0e0e0",
+      <CommonHeader
+        title="거래처 관리"
+        leftButton={{
+          icon: "arrow-back",
+          onPress: () => router.back(),
         }}
-      >
-        <Pressable style={{ padding: 8 }} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#000" />
-        </Pressable>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={{ fontSize: 18, fontWeight: "600" }}>거래처 관리</Text>
-          <Text style={{ fontSize: 14, color: "#666" }}>
-            총 {clients?.length || 0}개
-          </Text>
-        </View>
-        <Pressable style={{ padding: 8 }}>
-          <Ionicons name="add" size={24} color="#000" />
-        </Pressable>
-      </View>
+        rightButton={{
+          icon: "add",
+          onPress: () => {
+            Alert.alert("알림", "거래처 추가 기능은 준비 중입니다.");
+          },
+        }}
+      />
 
       {/* 검색 */}
       <View

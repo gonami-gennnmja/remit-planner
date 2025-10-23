@@ -1,6 +1,9 @@
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import PeriodSelector, { PeriodType } from "@/components/PeriodSelector";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule, Worker } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +12,6 @@ import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -46,6 +48,7 @@ interface WorkerStats {
 }
 
 export default function WorkerReportsScreen() {
+  const { colors } = useTheme();
   const [stats, setStats] = useState<WorkerStats>({
     totalWorkers: 0,
     activeWorkers: 0,
@@ -60,13 +63,13 @@ export default function WorkerReportsScreen() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState<
-    "week" | "month" | "year"
-  >("month");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>("month");
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
 
   useEffect(() => {
     loadWorkerData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, customStartDate, customEndDate]);
 
   const loadWorkerData = async () => {
     try {
@@ -81,7 +84,8 @@ export default function WorkerReportsScreen() {
       setWorkers(allWorkers);
 
       const today = dayjs();
-      let periodStart, periodEnd;
+      let periodStart: dayjs.Dayjs;
+      let periodEnd: dayjs.Dayjs;
 
       switch (selectedPeriod) {
         case "week":
@@ -96,6 +100,17 @@ export default function WorkerReportsScreen() {
           periodStart = today.startOf("year");
           periodEnd = today.endOf("year");
           break;
+        case "custom":
+          periodStart = customStartDate
+            ? dayjs(customStartDate)
+            : today.startOf("month");
+          periodEnd = customEndDate
+            ? dayjs(customEndDate)
+            : today.endOf("month");
+          break;
+        default:
+          periodStart = today.startOf("month");
+          periodEnd = today.endOf("month");
       }
 
       // 기간 내 일정 필터링
@@ -266,6 +281,15 @@ export default function WorkerReportsScreen() {
 
   const periodSchedules = getPeriodSchedules();
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <CommonHeader title="직원 근무 리포트" />
+        <LoadingSpinner message="근로자 데이터를 불러오는 중..." />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <CommonHeader title="직원 근무 리포트" />
@@ -275,62 +299,21 @@ export default function WorkerReportsScreen() {
         contentContainerStyle={isWeb ? styles.contentContainerWeb : undefined}
       >
         {/* 기간 선택 */}
-        <View style={styles.periodSelector}>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "week" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("week")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "week" && styles.periodButtonTextActive,
-              ]}
-            >
-              주간
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "month" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("month")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "month" && styles.periodButtonTextActive,
-              ]}
-            >
-              월간
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "year" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("year")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "year" && styles.periodButtonTextActive,
-              ]}
-            >
-              연간
-            </Text>
-          </Pressable>
-        </View>
+        <PeriodSelector
+          selectedPeriod={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
+          startDate={customStartDate}
+          endDate={customEndDate}
+          onStartDateChange={setCustomStartDate}
+          onEndDateChange={setCustomEndDate}
+          showCustomRange={true}
+        />
 
         {/* 주요 통계 카드 */}
         <View style={[styles.statsGrid, isWeb && styles.statsGridWeb]}>
           <View style={[styles.statCard, isWeb && styles.statCardWeb]}>
             <View style={[styles.statIcon, { backgroundColor: "#dbeafe" }]}>
-              <Ionicons name="people" size={24} color="#3b82f6" />
+              <Ionicons name="people" size={24} color={colors.primary} />
             </View>
             <Text style={styles.statValue}>{stats.totalWorkers}</Text>
             <Text style={styles.statLabel}>총 직원</Text>
@@ -518,30 +501,6 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
     padding: Theme.spacing.xl,
-  },
-  periodSelector: {
-    flexDirection: "row",
-    margin: Theme.spacing.lg,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.lg,
-    padding: 4,
-  },
-  periodButton: {
-    flex: 1,
-    paddingVertical: Theme.spacing.sm,
-    alignItems: "center",
-    borderRadius: Theme.borderRadius.md,
-  },
-  periodButtonActive: {
-    backgroundColor: Theme.colors.primary,
-  },
-  periodButtonText: {
-    fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.medium,
-    color: Theme.colors.text.secondary,
-  },
-  periodButtonTextActive: {
-    color: "white",
   },
   statsGrid: {
     flexDirection: "row",

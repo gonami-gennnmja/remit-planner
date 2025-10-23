@@ -1,8 +1,10 @@
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { useResponsive } from "@/hooks/useResponsive";
 import { Schedule, ScheduleCategory, Worker } from "@/models/types";
+import { createScheduleCompletionActivities } from "@/utils/activityUtils";
 import {
   detectBankFromAccount,
   formatAccountNumber,
@@ -44,12 +46,16 @@ dayjs.extend(isSameOrBefore);
 
 interface PlannerCalendarProps {
   onAddSchedulePress?: (date?: string, endDate?: string) => void;
+  filter?: string; // 'upcoming' for upcoming schedules only
 }
 
-function getCategoryColor(category: ScheduleCategory): string {
+function getCategoryColor(
+  category: ScheduleCategory,
+  themeColors: any
+): string {
   const colors: Record<ScheduleCategory, string> = {
     education: "#8b5cf6",
-    meeting: "#3b82f6",
+    meeting: themeColors.primary,
     event: "#ef4444",
     others: "#6b7280",
   };
@@ -155,7 +161,7 @@ function WorkerCard({
             style={styles.actionButton}
             onPress={() => onCall(worker.phone)}
           >
-            <Ionicons name="call" size={16} color="#3b82f6" />
+            <Ionicons name="call" size={16} color={colors.primary} />
           </Pressable>
           <Pressable
             style={styles.actionButton}
@@ -231,12 +237,14 @@ function getSchedulePosition(
 
 export default function PlannerCalendar({
   onAddSchedulePress,
+  filter,
 }: PlannerCalendarProps = {}) {
   const [selectedDate, setSelectedDate] = useState<string>(
     dayjs().format("YYYY-MM-DD")
   );
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
+  const { colors } = useTheme();
   const [currentMonth, setCurrentMonth] = useState<string>(
     dayjs().format("YYYY-MM")
   );
@@ -299,6 +307,18 @@ export default function PlannerCalendar({
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 필터링된 스케줄 계산
+  const filteredSchedules = useMemo(() => {
+    if (filter === "upcoming") {
+      const today = dayjs();
+      return schedules.filter((schedule) => {
+        const endDate = dayjs(schedule.endDate);
+        return endDate.isSameOrAfter(today, "day");
+      });
+    }
+    return schedules;
+  }, [schedules, filter]);
+
   const translateY = new Animated.Value(0);
 
   // DB에서 스케줄 로드
@@ -309,19 +329,24 @@ export default function PlannerCalendar({
         const db = getDatabase();
         await db.init();
 
-        // 현재 월의 스케줄 로드
-        const startOfMonth = dayjs(currentMonth)
-          .startOf("month")
+        // 연간 달력을 위해 1년 범위의 스케줄 로드
+        const startOfYear = dayjs(currentMonth)
+          .startOf("year")
           .format("YYYY-MM-DD");
-        const endOfMonth = dayjs(currentMonth)
-          .endOf("month")
+        const endOfYear = dayjs(currentMonth)
+          .endOf("year")
           .format("YYYY-MM-DD");
 
-        const monthSchedules = await db.getSchedulesByDateRange(
-          startOfMonth,
-          endOfMonth
+        const yearSchedules = await db.getSchedulesByDateRange(
+          startOfYear,
+          endOfYear
         );
-        setSchedules(monthSchedules);
+        setSchedules(yearSchedules);
+
+        // 완료된 스케줄에 대해 알림 생성
+        for (const schedule of yearSchedules) {
+          await createScheduleCompletionActivities(schedule);
+        }
       } catch (error) {
         console.error("Failed to load schedules:", error);
       } finally {
@@ -424,7 +449,7 @@ export default function PlannerCalendar({
         }
       > = {};
 
-      schedules.forEach((schedule: Schedule) => {
+      filteredSchedules.forEach((schedule: Schedule) => {
         const startDate = dayjs(schedule.startDate);
         const endDate = dayjs(schedule.endDate);
 
@@ -437,8 +462,8 @@ export default function PlannerCalendar({
           }
           marks[dateStr].dots.push({
             key: schedule.id,
-            color: getCategoryColor(schedule.category),
-            selectedDotColor: getCategoryColor(schedule.category),
+            color: getCategoryColor(schedule.category, colors),
+            selectedDotColor: getCategoryColor(schedule.category, colors),
           });
           currentDate = currentDate.add(1, "day");
         }
@@ -449,10 +474,10 @@ export default function PlannerCalendar({
       // Multi-Period Marking
       const marks: Record<string, any> = {};
 
-      schedules.forEach((schedule: Schedule) => {
+      filteredSchedules.forEach((schedule: Schedule) => {
         const startDate = dayjs(schedule.startDate);
         const endDate = dayjs(schedule.endDate);
-        const color = getCategoryColor(schedule.category);
+        const color = getCategoryColor(schedule.category, colors);
 
         let currentDate = startDate;
         while (currentDate.isSameOrBefore(endDate, "day")) {
@@ -496,14 +521,31 @@ export default function PlannerCalendar({
 
       return marks;
     }
-  }, [schedules, markingType]);
+  }, [filteredSchedules, markingType]);
 
   const selectedDateSchedules = useMemo(() => {
-    return schedules
+    return filteredSchedules
       .filter((s) => {
         const startDate = dayjs(s.startDate);
         const endDate = dayjs(s.endDate);
         const selected = dayjs(selectedDate);
+        const currentMonthString = dayjs(currentMonth).format("YYYY-MM");
+
+        // 연간 달력에서 월별 선택 시 해당 월의 모든 일정 표시
+        // 현재 월과 일치하는 모든 스케줄을 표시
+        if (currentMonthString) {
+          const scheduleStartMonth = startDate.format("YYYY-MM");
+          const scheduleEndMonth = endDate.format("YYYY-MM");
+
+          return (
+            scheduleStartMonth === currentMonthString ||
+            scheduleEndMonth === currentMonthString ||
+            (startDate.isBefore(dayjs(currentMonth).endOf("month"), "day") &&
+              endDate.isAfter(dayjs(currentMonth).startOf("month"), "day"))
+          );
+        }
+
+        // 일반적인 날짜별 필터링 (fallback)
         return (
           selected.isSameOrAfter(startDate, "day") &&
           selected.isSameOrBefore(endDate, "day")
@@ -529,7 +571,7 @@ export default function PlannerCalendar({
           .sort((x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0))[0];
         return (aStart?.valueOf() ?? 0) - (bStart?.valueOf() ?? 0);
       });
-  }, [schedules, selectedDate]);
+  }, [filteredSchedules, selectedDate, showYearView, currentMonth]);
 
   const goToPreviousMonth = () => {
     const newMonth = dayjs(currentMonth).subtract(1, "month").format("YYYY-MM");
@@ -670,7 +712,7 @@ export default function PlannerCalendar({
       console.log("Adding worker to schedule:", scheduleId, worker);
 
       const newWorkerId = `w${Date.now()}`;
-      const schedule = schedules.find((s) => s.id === scheduleId);
+      const schedule = filteredSchedules.find((s) => s.id === scheduleId);
       if (!schedule) {
         console.error("Schedule not found:", scheduleId);
         return;
@@ -926,15 +968,17 @@ export default function PlannerCalendar({
   const toggleYearView = () => {
     setShowYearView((prev) => !prev);
     if (!showYearView) {
-      // 연간 달력으로 전환할 때 올해 위치로 스크롤
+      // 연간 달력으로 전환할 때 현재 선택된 달이 가운데 오도록 스크롤
       setTimeout(() => {
+        const currentYear = dayjs(currentMonth).year();
         const todayYear = dayjs().year();
-        const currentYearIndex = 5; // 올해는 항상 5번째 인덱스 (2020~2029 중 2025)
+        const yearIndex = currentYear - todayYear + 5; // 현재 연도 기준으로 인덱스 계산
+
         yearScrollViewRef.current?.scrollTo({
-          y: currentYearIndex * 600, // 올해 위치로 스크롤
-          animated: true,
+          y: yearIndex * 400, // 현재 연도 위치로 스크롤
+          animated: true, // 부드러운 애니메이션으로 이동
         });
-      }, 300);
+      }, 200); // 애니메이션을 위한 대기 시간
     }
   };
 
@@ -969,7 +1013,7 @@ export default function PlannerCalendar({
 
   return (
     <CalendarProvider
-      key={`${currentMonth}-${selectedDate}`} // 강제 리렌더링을 위한 key
+      key={`${currentMonth}-${selectedDate}-${showYearView}`} // 강제 리렌더링을 위한 key
       date={selectedDate || currentMonth}
       onDateChanged={(date) => {
         const newDate = dayjs(date);
@@ -1027,7 +1071,7 @@ export default function PlannerCalendar({
 
               <Pressable
                 style={{
-                  backgroundColor: "#00adf5",
+                  backgroundColor: colors.primary,
                   paddingHorizontal: 12,
                   paddingVertical: 8,
                   borderRadius: 8,
@@ -1133,7 +1177,7 @@ export default function PlannerCalendar({
               const todayYear = dayjs().year(); // 오늘 날짜의 연도
               const year = todayYear - 5 + yearIndex;
               return (
-                <View key={year} style={{ padding: 16, minHeight: 600 }}>
+                <View key={year} style={{ padding: 16, minHeight: 400 }}>
                   {/* 연도 헤더 */}
                   <View
                     style={{
@@ -1156,7 +1200,7 @@ export default function PlannerCalendar({
                     {year === todayYear && (
                       <View
                         style={{
-                          backgroundColor: "#00adf5",
+                          backgroundColor: colors.primary,
                           paddingHorizontal: 8,
                           paddingVertical: 4,
                           borderRadius: 12,
@@ -1193,22 +1237,24 @@ export default function PlannerCalendar({
                       const monthString = monthDate.format("YYYY-MM");
 
                       // 해당 월에 스케줄이 있는지 확인
-                      const hasSchedules = schedules.some((schedule) => {
-                        const scheduleStart = dayjs(schedule.startDate);
-                        const scheduleEnd = dayjs(schedule.endDate);
-                        return (
-                          scheduleStart.format("YYYY-MM") === monthString ||
-                          scheduleEnd.format("YYYY-MM") === monthString ||
-                          (scheduleStart.isBefore(
-                            monthDate.endOf("month"),
-                            "day"
-                          ) &&
-                            scheduleEnd.isAfter(
-                              monthDate.startOf("month"),
+                      const hasSchedules = filteredSchedules.some(
+                        (schedule) => {
+                          const scheduleStart = dayjs(schedule.startDate);
+                          const scheduleEnd = dayjs(schedule.endDate);
+                          return (
+                            scheduleStart.format("YYYY-MM") === monthString ||
+                            scheduleEnd.format("YYYY-MM") === monthString ||
+                            (scheduleStart.isBefore(
+                              monthDate.endOf("month"),
                               "day"
-                            ))
-                        );
-                      });
+                            ) &&
+                              scheduleEnd.isAfter(
+                                monthDate.startOf("month"),
+                                "day"
+                              ))
+                          );
+                        }
+                      );
 
                       // 작은 달력 생성
                       const firstDay = monthDate.startOf("month");
@@ -1227,27 +1273,36 @@ export default function PlannerCalendar({
                           key={`${year}-${month}`}
                           style={{
                             width: isMobile ? "30%" : isTablet ? "25%" : "20%",
-                            aspectRatio: 1,
+                            aspectRatio: 1.2, // 달력 비율 조정 (더 직사각형으로)
                             backgroundColor: "white",
                             borderRadius: 8,
                             borderWidth: 1,
-                            borderColor: hasSchedules ? "#00adf5" : "#e5e7eb",
-                            padding: 4,
+                            borderColor: hasSchedules
+                              ? colors.primary
+                              : "#e5e7eb",
+                            padding: 6, // 패딩 증가
                             marginBottom: 8,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 2,
+                            elevation: 2,
                           }}
                           onPress={() => {
-                            const selectedDateString =
-                              monthDate.format("YYYY-MM-DD");
-
                             // 연간 뷰 종료
                             setShowYearView(false);
 
-                            // 강제로 월과 날짜 업데이트
+                            // 월 업데이트 (1일로 설정하지 않음)
                             setCurrentMonth(monthString);
-                            setSelectedDate(selectedDateString);
 
-                            // 달력 확장
-                            setIsCalendarExpanded(true);
+                            // 선택된 날짜를 해당 월의 첫 번째 날로 설정하되,
+                            // 실제로는 해당 월의 모든 일정이 표시되도록 함
+                            const firstDayOfMonth =
+                              monthDate.format("YYYY-MM-DD");
+                            setSelectedDate(firstDayOfMonth);
+
+                            // 달력 축소 (토글 버튼 닫힌 상태)
+                            setIsCalendarExpanded(false);
 
                             // 추가 강제 업데이트 (ExpandableCalendar current prop 반영)
                             setTimeout(() => {
@@ -1260,7 +1315,7 @@ export default function PlannerCalendar({
                             style={{
                               fontSize: getResponsiveValue(10, 12, 14),
                               fontWeight: "600",
-                              color: hasSchedules ? "#00adf5" : "#374151",
+                              color: hasSchedules ? colors.primary : "#374151",
                               textAlign: "center",
                               marginBottom: 2,
                             }}
@@ -1326,24 +1381,30 @@ export default function PlannerCalendar({
                                 <View
                                   key={dayIndex}
                                   style={{
-                                    width: getResponsiveValue(8, 10, 12),
-                                    height: getResponsiveValue(8, 10, 12),
+                                    width: getResponsiveValue(10, 12, 14),
+                                    height: getResponsiveValue(10, 12, 14),
                                     alignItems: "center",
                                     justifyContent: "center",
                                     marginBottom: 1,
+                                    borderRadius: 2,
+                                    backgroundColor: isToday
+                                      ? colors.primary
+                                      : hasScheduleOnDay
+                                      ? "#e3f2fd"
+                                      : "transparent",
                                   }}
                                 >
                                   <Text
                                     style={{
-                                      fontSize: getResponsiveValue(6, 7, 8),
+                                      fontSize: getResponsiveValue(7, 8, 9),
                                       color: isCurrentMonth
                                         ? isToday
-                                          ? "#00adf5"
+                                          ? "#ffffff"
                                           : hasScheduleOnDay
-                                          ? "#00adf5"
+                                          ? colors.primary
                                           : "#374151"
                                         : "#d1d5db",
-                                      fontWeight: isToday ? "700" : "400",
+                                      fontWeight: isToday ? "700" : "500",
                                     }}
                                   >
                                     {day.format("D")}
@@ -1363,7 +1424,7 @@ export default function PlannerCalendar({
                                 width: getResponsiveValue(4, 5, 6),
                                 height: getResponsiveValue(4, 5, 6),
                                 borderRadius: getResponsiveValue(2, 2.5, 3),
-                                backgroundColor: "#00adf5",
+                                backgroundColor: colors.primary,
                               }}
                             />
                           )}
@@ -1384,6 +1445,7 @@ export default function PlannerCalendar({
             <CalendarList
               current={currentMonth}
               markingType={markingType}
+              onDayPress={handleDatePress}
               renderHeader={(date: any) => {
                 const monthDate = dayjs(date);
                 return (
@@ -1451,6 +1513,21 @@ export default function PlannerCalendar({
                   } as any;
                 }
 
+                // 연간 달력에서 월별 선택 시 해당 월의 첫 번째 날 표시
+                if (showYearView === false && currentMonth && !selectedDate) {
+                  const firstDayOfMonth =
+                    dayjs(currentMonth).format("YYYY-MM-DD");
+                  if (!marked[firstDayOfMonth]) {
+                    marked[firstDayOfMonth] = {};
+                  }
+                  marked[firstDayOfMonth] = {
+                    ...marked[firstDayOfMonth],
+                    selected: true,
+                    selectedColor: colors.primary,
+                    selectedTextColor: "white",
+                  };
+                }
+
                 return marked;
               })()}
               pastScrollRange={12}
@@ -1474,11 +1551,11 @@ export default function PlannerCalendar({
                   calendarBackground: "#ffffff",
 
                   // 선택된 날짜
-                  selectedDayBackgroundColor: "#00adf5",
+                  selectedDayBackgroundColor: colors.primary,
                   selectedDayTextColor: "#ffffff",
 
                   // 오늘 날짜 - 강조
-                  todayTextColor: "#00adf5",
+                  todayTextColor: colors.primary,
                   todayBackgroundColor: "#f0f9ff",
 
                   // 텍스트 색상
@@ -1498,7 +1575,7 @@ export default function PlannerCalendar({
                   textMonthFontWeight: "700",
 
                   // 점 마커 스타일
-                  dotColor: "#00adf5",
+                  dotColor: colors.primary,
                   dotStyle: { marginTop: -2 },
                 } as any
               }
@@ -1625,7 +1702,7 @@ export default function PlannerCalendar({
             <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
               {(() => {
                 // 범위 선택 모드일 경우 범위 내의 모든 스케줄 표시
-                const dailySchedules = schedules.filter((s) => {
+                const dailySchedules = filteredSchedules.filter((s) => {
                   const scheduleStart = dayjs(s.startDate);
                   const scheduleEnd = dayjs(s.endDate);
 
@@ -1742,7 +1819,8 @@ export default function PlannerCalendar({
                             elevation: 3,
                             borderLeftWidth: 4,
                             borderLeftColor: getCategoryColor(
-                              schedule.category
+                              schedule.category,
+                              colors
                             ),
                           }}
                           onPress={() => onSchedulePress(schedule.id)}
@@ -1796,7 +1874,8 @@ export default function PlannerCalendar({
                             <View
                               style={{
                                 backgroundColor: getCategoryColor(
-                                  schedule.category
+                                  schedule.category,
+                                  colors
                                 ),
                                 paddingHorizontal: 8,
                                 paddingVertical: 4,
@@ -1924,7 +2003,7 @@ export default function PlannerCalendar({
             <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16 }}>
               {(() => {
                 // 범위 선택 모드일 경우 범위 내의 모든 스케줄 표시
-                const dailySchedules = schedules.filter((s) => {
+                const dailySchedules = filteredSchedules.filter((s) => {
                   const scheduleStart = dayjs(s.startDate);
                   const scheduleEnd = dayjs(s.endDate);
 
@@ -2040,7 +2119,8 @@ export default function PlannerCalendar({
                             elevation: 3,
                             borderLeftWidth: 4,
                             borderLeftColor: getCategoryColor(
-                              schedule.category
+                              schedule.category,
+                              colors
                             ),
                           }}
                           onPress={() => onSchedulePress(schedule.id)}
@@ -2094,7 +2174,8 @@ export default function PlannerCalendar({
                             <View
                               style={{
                                 backgroundColor: getCategoryColor(
-                                  schedule.category
+                                  schedule.category,
+                                  colors
                                 ),
                                 paddingHorizontal: 8,
                                 paddingVertical: 4,
@@ -2123,163 +2204,13 @@ export default function PlannerCalendar({
           </View>
         )}
 
-        {/* 앱에서만 표시되는 선택된 날짜의 스케줄 목록 */}
-        {Platform.OS !== "web" && selectedDate && (
+        {/* 중복된 하단 일정 화면 제거 */}
+        {false && Platform.OS !== "web" && selectedDate && (
           <View style={styles.mobileScheduleList}>
             <Text style={styles.mobileScheduleListTitle}>
               {dayjs(selectedDate).format("M월 D일 dddd")} 일정
             </Text>
-            {(() => {
-              const dailySchedules = schedules.filter((s) => {
-                const startDate = dayjs(s.startDate);
-                const endDate = dayjs(s.endDate);
-                const selected = dayjs(selectedDate);
-                return (
-                  selected.isSameOrAfter(startDate, "day") &&
-                  selected.isSameOrBefore(endDate, "day")
-                );
-              });
-
-              const sortedSchedules = dailySchedules.slice().sort((a, b) => {
-                const aStart = a.workers
-                  .flatMap((w) =>
-                    (w.periods || [])
-                      .filter((p: any) => p && p.start)
-                      .map((p: any) => (p && p.start ? dayjs(p.start) : null))
-                      .filter((d: any) => d !== null)
-                  )
-                  .sort((x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0))[0];
-                const bStart = b.workers
-                  .flatMap((w) =>
-                    (w.periods || [])
-                      .filter((p: any) => p && p.start)
-                      .map((p: any) => (p && p.start ? dayjs(p.start) : null))
-                      .filter((d: any) => d !== null)
-                  )
-                  .sort((x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0))[0];
-                return (aStart?.valueOf() ?? 0) - (bStart?.valueOf() ?? 0);
-              });
-
-              if (sortedSchedules.length === 0) {
-                return (
-                  <Text style={styles.noScheduleText}>
-                    이 날에는 일정이 없습니다.
-                  </Text>
-                );
-              }
-
-              return (
-                <ScrollView
-                  style={styles.scheduleScrollView}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {sortedSchedules.map((schedule) => {
-                    const scheduleStart = schedule.workers
-                      .flatMap((w) =>
-                        (w.periods || [])
-                          .filter((p: any) => p && p.start)
-                          .map((p: any) =>
-                            p && p.start ? dayjs(p.start) : null
-                          )
-                          .filter((d: any) => d !== null)
-                      )
-                      .sort(
-                        (x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0)
-                      )[0];
-                    const scheduleEnd = schedule.workers
-                      .flatMap((w) =>
-                        (w.periods || [])
-                          .filter((p: any) => p && p.end)
-                          .map((p: any) => (p && p.end ? dayjs(p.end) : null))
-                          .filter((d: any) => d !== null)
-                      )
-                      .sort(
-                        (x, y) => (y?.valueOf() || 0) - (x?.valueOf() || 0)
-                      )[0];
-
-                    return (
-                      <Pressable
-                        key={schedule.id}
-                        style={styles.mobileScheduleItem}
-                        onPress={() => onSchedulePress(schedule.id)}
-                      >
-                        <View style={styles.mobileScheduleContent}>
-                          <View style={styles.mobileScheduleLeft}>
-                            <Text style={styles.mobileScheduleTitle}>
-                              {schedule.title}
-                            </Text>
-                            <Text style={styles.mobileScheduleLocation}>
-                              {schedule.address ||
-                                schedule.location ||
-                                "위치 정보 없음"}
-                            </Text>
-                            {/* 모바일에서 지도 연동 버튼 */}
-                            {(schedule.address || schedule.location) && (
-                              <View style={styles.mobileMapButtons}>
-                                <Pressable
-                                  style={styles.mobileMapButton}
-                                  onPress={() => {
-                                    const address =
-                                      schedule.address || schedule.location!;
-                                    if (Platform.OS === "web") {
-                                      openKakaoMap(address);
-                                    } else {
-                                      openMapApp(address, "kakao");
-                                    }
-                                  }}
-                                >
-                                  <Ionicons
-                                    name="map"
-                                    size={12}
-                                    color="#FFEB3B"
-                                  />
-                                  <Text style={styles.mobileMapButtonText}>
-                                    카카오맵
-                                  </Text>
-                                </Pressable>
-                                <Pressable
-                                  style={styles.mobileMapButton}
-                                  onPress={() => {
-                                    const address =
-                                      schedule.address || schedule.location!;
-                                    if (Platform.OS === "web") {
-                                      openNaverMap(address);
-                                    } else {
-                                      openMapApp(address, "naver");
-                                    }
-                                  }}
-                                >
-                                  <Ionicons
-                                    name="map"
-                                    size={12}
-                                    color="#03C75A"
-                                  />
-                                  <Text style={styles.mobileMapButtonText}>
-                                    네이버지도
-                                  </Text>
-                                </Pressable>
-                              </View>
-                            )}
-                          </View>
-                          <View style={styles.mobileScheduleRight}>
-                            <Text style={styles.mobileScheduleTime}>
-                              {scheduleStart
-                                ? scheduleStart.format("A h:mm")
-                                : "시간 미정"}
-                            </Text>
-                            <Text style={styles.mobileScheduleTime}>
-                              {scheduleEnd
-                                ? scheduleEnd.format("A h:mm")
-                                : "시간 미정"}
-                            </Text>
-                          </View>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              );
-            })()}
+            {(() => {})()}
           </View>
         )}
 
@@ -2477,7 +2408,8 @@ export default function PlannerCalendar({
                                       left: `${blockLeft}%`,
                                       width: `${blockWidth}%`,
                                       backgroundColor: getCategoryColor(
-                                        schedule.category
+                                        schedule.category,
+                                        colors
                                       ),
                                       borderRadius: 6,
                                       padding: 4,
@@ -2566,12 +2498,12 @@ export default function PlannerCalendar({
                             );
                             console.log(
                               "Available schedules:",
-                              schedules.map((s) => ({
+                              filteredSchedules.map((s) => ({
                                 id: s.id,
                                 title: s.title,
                               }))
                             );
-                            const schedule = schedules.find(
+                            const schedule = filteredSchedules.find(
                               (s) => s.id === selectedScheduleId
                             );
                             if (!schedule) {
@@ -2596,7 +2528,7 @@ export default function PlannerCalendar({
                                   >
                                     사용 가능한 스케쥴:
                                   </Text>
-                                  {schedules.map((s, index) => (
+                                  {filteredSchedules.map((s, index) => (
                                     <Text
                                       key={index}
                                       style={{ fontSize: 12, color: "#6b7280" }}
@@ -5301,7 +5233,7 @@ export default function PlannerCalendar({
           onSelectAddress={handleAddressSelect}
           currentAddress={
             selectedScheduleId
-              ? schedules.find((s) => s.id === selectedScheduleId)?.address ||
+              ? filteredSchedules.find((s) => s.id === selectedScheduleId)?.address ||
                 ""
               : ""
           }

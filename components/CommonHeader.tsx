@@ -47,8 +47,8 @@ export default function CommonHeader({
           {title}
         </Text>
 
-        {/* 오른쪽 버튼 */}
-        {rightButton && (
+        {/* 오른쪽 버튼 또는 빈 공간 */}
+        {rightButton ? (
           <Pressable
             style={[styles.rightButton, { backgroundColor: colors.surface }]}
             onPress={rightButton.onPress}
@@ -60,6 +60,8 @@ export default function CommonHeader({
               </Text>
             )}
           </Pressable>
+        ) : (
+          <View style={styles.rightButton} />
         )}
       </View>
     </View>

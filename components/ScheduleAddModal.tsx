@@ -292,6 +292,7 @@ export default function ScheduleAddModal({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColors, setCustomColors] = useState<string[]>([]); // 커스텀 색상 목록
   const [previewColor, setPreviewColor] = useState("#8b5cf6"); // 색상 미리보기용
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   // DateTimePicker 상태
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -837,7 +838,10 @@ export default function ScheduleAddModal({
                         </Pressable>
                       </View>
                       <View style={styles.categoryContainer}>
-                        {categories.map((category) => (
+                        {(showAllCategories
+                          ? categories
+                          : categories.slice(0, 3)
+                        ).map((category) => (
                           <Pressable
                             key={category.id}
                             style={[
@@ -879,6 +883,26 @@ export default function ScheduleAddModal({
                             </View>
                           </Pressable>
                         ))}
+                        {categories.length > 3 && !showAllCategories && (
+                          <Pressable
+                            style={styles.showMoreCategoryButton}
+                            onPress={() => setShowAllCategories(true)}
+                          >
+                            <Text style={styles.showMoreCategoryText}>
+                              +{categories.length - 3}개 더 보기
+                            </Text>
+                          </Pressable>
+                        )}
+                        {categories.length > 3 && showAllCategories && (
+                          <Pressable
+                            style={styles.showLessCategoryButton}
+                            onPress={() => setShowAllCategories(false)}
+                          >
+                            <Text style={styles.showLessCategoryText}>
+                              접기
+                            </Text>
+                          </Pressable>
+                        )}
                       </View>
 
                       {/* 카테고리 추가 폼 */}
@@ -2203,5 +2227,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: "white",
     textAlign: "center",
+  },
+  showMoreCategoryButton: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  showMoreCategoryText: {
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  showLessCategoryButton: {
+    backgroundColor: "#e5e7eb",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  showLessCategoryText: {
+    fontSize: 12,
+    color: "#6b7280",
+    fontWeight: "500",
   },
 });

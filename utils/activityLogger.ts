@@ -21,6 +21,8 @@ export async function logActivity(config: ActivityConfig): Promise<void> {
 		await db.createActivity({
 			id,
 			...config,
+			isRead: false,
+			isDeleted: false,
 		});
 
 		console.log(`Activity logged: ${config.type} - ${config.title}`);

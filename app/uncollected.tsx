@@ -194,8 +194,6 @@ export default function RevenueScreen() {
 
   return (
     <View style={styles.container}>
-      <CommonHeader title="수급 현황" />
-
       <ScrollView
         style={styles.content}
         refreshControl={

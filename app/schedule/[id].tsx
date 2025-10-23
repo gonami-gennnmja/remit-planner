@@ -1,12 +1,14 @@
+import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
-import { Schedule } from "@/models/types";
+import { Client, Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Platform,
@@ -19,9 +21,13 @@ import {
 } from "react-native";
 
 export default function ScheduleDetailScreen() {
+  const { colors } = useTheme();
   const { id } = useLocalSearchParams();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [editData, setEditData] = useState({
     title: "",
     description: "",
@@ -39,6 +45,7 @@ export default function ScheduleDetailScreen() {
     }>,
     documentsFolderPath: "",
     hasAttachments: false,
+    clientId: "",
     memo: "",
   });
   const [isMultiDay, setIsMultiDay] = useState(false);
@@ -65,6 +72,7 @@ export default function ScheduleDetailScreen() {
             scheduleTimes: scheduleData.scheduleTimes || [],
             documentsFolderPath: scheduleData.documentsFolderPath || "",
             hasAttachments: scheduleData.hasAttachments || false,
+            clientId: scheduleData.clientId || "",
             memo: scheduleData.memo || "",
           });
           setIsMultiDay(scheduleData.startDate !== scheduleData.endDate);
@@ -74,8 +82,19 @@ export default function ScheduleDetailScreen() {
       }
     };
 
+    const loadClients = async () => {
+      try {
+        const db = getDatabase();
+        const clientsData = await db.getAllClients();
+        setClients(clientsData);
+      } catch (error) {
+        console.error("Failed to load clients:", error);
+      }
+    };
+
     if (id) {
       loadSchedule();
+      loadClients();
     }
   }, [id]);
 
@@ -92,6 +111,7 @@ export default function ScheduleDetailScreen() {
         endDate: isMultiDay ? editData.endDate : editData.startDate,
         category: editData.category,
         address: editData.address,
+        clientId: editData.clientId || undefined,
         memo: editData.memo,
         updatedAt: new Date().toISOString(),
       };
@@ -115,10 +135,7 @@ export default function ScheduleDetailScreen() {
           { justifyContent: "center", alignItems: "center" },
         ]}
       >
-        <ActivityIndicator size="large" color={Theme.colors.primary} />
-        <Text style={{ marginTop: 16, color: Theme.colors.text.secondary }}>
-          로딩 중...
-        </Text>
+        <LoadingSpinner message="일정 정보를 불러오는 중..." />
       </View>
     );
   }
@@ -161,18 +178,17 @@ export default function ScheduleDetailScreen() {
   return (
     <View style={styles.container}>
       {/* 헤더 */}
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </Pressable>
-        <Text style={styles.headerTitle}>스케줄 상세</Text>
-        <Pressable
-          style={styles.editButton}
-          onPress={() => setShowEditModal(true)}
-        >
-          <Ionicons name="create-outline" size={24} color="white" />
-        </Pressable>
-      </View>
+      <CommonHeader
+        title="스케줄 상세"
+        leftButton={{
+          icon: "arrow-back",
+          onPress: () => router.back(),
+        }}
+        rightButton={{
+          icon: "create-outline",
+          onPress: () => setShowEditModal(true),
+        }}
+      />
 
       <ScrollView style={styles.content}>
         {/* 스케줄 정보 */}
@@ -194,6 +210,21 @@ export default function ScheduleDetailScreen() {
 
           {schedule.description && (
             <Text style={styles.description}>{schedule.description}</Text>
+          )}
+
+          {schedule.clientId && (
+            <View style={styles.infoRow}>
+              <Ionicons
+                name="business-outline"
+                size={16}
+                color={Theme.colors.text.secondary}
+              />
+              <Text style={styles.infoText}>
+                거래처:{" "}
+                {clients.find((c) => c.id === schedule.clientId)?.name ||
+                  "알 수 없음"}
+              </Text>
+            </View>
           )}
 
           {schedule.location && (
@@ -437,6 +468,56 @@ export default function ScheduleDetailScreen() {
                 />
               </View>
 
+              {/* 거래처 선택 */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{ fontSize: 14, marginBottom: 4, color: "#374151" }}
+                >
+                  거래처
+                </Text>
+                <Pressable
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#d1d5db",
+                    borderRadius: 6,
+                    padding: 12,
+                    backgroundColor: "#f9fafb",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  onPress={() => setShowClientModal(true)}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      flex: 1,
+                    }}
+                  >
+                    <Ionicons
+                      name="business-outline"
+                      size={20}
+                      color="#6b7280"
+                    />
+                    <Text
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 16,
+                        color: editData.clientId ? "#374151" : "#9ca3af",
+                        flex: 1,
+                      }}
+                    >
+                      {editData.clientId
+                        ? clients.find((c) => c.id === editData.clientId)
+                            ?.name || "알 수 없음"
+                        : "거래처를 선택하세요"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={20} color="#9ca3af" />
+                </Pressable>
+              </View>
+
               {/* 날짜 및 시간 */}
               <View style={{ marginBottom: 16 }}>
                 <Text
@@ -665,6 +746,274 @@ export default function ScheduleDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 거래처 선택 모달 */}
+      <Modal
+        visible={showClientModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowClientModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: "#fff" }}>
+          {/* 헤더 */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: "#e5e7eb",
+            }}
+          >
+            <Pressable
+              style={{ padding: 8 }}
+              onPress={() => setShowClientModal(false)}
+            >
+              <Ionicons name="close" size={24} color="#374151" />
+            </Pressable>
+            <Text style={{ fontSize: 18, fontWeight: "600", color: "#111827" }}>
+              거래처 선택
+            </Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* 검색 */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 16,
+              backgroundColor: "#f5f5f5",
+            }}
+          >
+            <Ionicons name="search" size={20} color="#666" />
+            <TextInput
+              style={{
+                flex: 1,
+                marginLeft: 8,
+                fontSize: 16,
+                paddingVertical: 8,
+              }}
+              placeholder="거래처명으로 검색"
+              value={clientSearchQuery}
+              onChangeText={setClientSearchQuery}
+            />
+            {clientSearchQuery.length > 0 && (
+              <Pressable onPress={() => setClientSearchQuery("")}>
+                <Ionicons name="close-circle" size={20} color="#666" />
+              </Pressable>
+            )}
+          </View>
+
+          {/* 거래처 목록 */}
+          <ScrollView style={{ flex: 1 }}>
+            {/* 거래처 없음 옵션 */}
+            <Pressable
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: 12,
+                padding: 16,
+                margin: 16,
+                marginBottom: 8,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+                borderWidth: editData.clientId === "" ? 2 : 0,
+                borderColor:
+                  editData.clientId === "" ? colors.primary : "transparent",
+              }}
+              onPress={() => {
+                setEditData({ ...editData, clientId: "" });
+                setShowClientModal(false);
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    flex: 1,
+                  }}
+                >
+                  <Ionicons
+                    name="remove-circle-outline"
+                    size={20}
+                    color="#6b7280"
+                  />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "600",
+                      marginLeft: 8,
+                      color: "#374151",
+                    }}
+                  >
+                    거래처 없음
+                  </Text>
+                </View>
+                {editData.clientId === "" && (
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
+                )}
+              </View>
+            </Pressable>
+
+            {/* 거래처 목록 */}
+            {clients
+              .filter(
+                (client) =>
+                  client.name
+                    .toLowerCase()
+                    .includes(clientSearchQuery.toLowerCase()) ||
+                  (client.contactPerson &&
+                    client.contactPerson
+                      .toLowerCase()
+                      .includes(clientSearchQuery.toLowerCase()))
+              )
+              .map((client) => (
+                <Pressable
+                  key={client.id}
+                  style={{
+                    backgroundColor: "#fff",
+                    borderRadius: 12,
+                    padding: 16,
+                    marginHorizontal: 16,
+                    marginBottom: 8,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                    borderWidth: editData.clientId === client.id ? 2 : 0,
+                    borderColor:
+                      editData.clientId === client.id
+                        ? colors.primary
+                        : "transparent",
+                  }}
+                  onPress={() => {
+                    setEditData({ ...editData, clientId: client.id });
+                    setShowClientModal(false);
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Ionicons name="business" size={20} color="#007AFF" />
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "600",
+                            marginLeft: 8,
+                          }}
+                        >
+                          {client.name || "이름 없음"}
+                        </Text>
+                      </View>
+
+                      {/* 담당자 정보 */}
+                      {client.contactPerson && (
+                        <View style={{ marginBottom: 8 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <Ionicons name="person" size={16} color="#666" />
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                color: "#666",
+                                marginLeft: 6,
+                              }}
+                            >
+                              담당자: {client.contactPerson}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* 연락처 */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Ionicons name="call" size={16} color="#666" />
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: "#666",
+                            marginLeft: 6,
+                          }}
+                        >
+                          {client.phone}
+                        </Text>
+                      </View>
+                    </View>
+                    {editData.clientId === client.id && (
+                      <Ionicons
+                        name="checkmark"
+                        size={20}
+                        color={colors.primary}
+                      />
+                    )}
+                  </View>
+                </Pressable>
+              ))}
+
+            {clients.filter(
+              (client) =>
+                client.name
+                  .toLowerCase()
+                  .includes(clientSearchQuery.toLowerCase()) ||
+                (client.contactPerson &&
+                  client.contactPerson
+                    .toLowerCase()
+                    .includes(clientSearchQuery.toLowerCase()))
+            ).length === 0 && (
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  padding: 32,
+                }}
+              >
+                <Ionicons name="business-outline" size={64} color="#ccc" />
+                <Text style={{ marginTop: 16, fontSize: 16, color: "#666" }}>
+                  {clientSearchQuery
+                    ? "검색 결과가 없습니다"
+                    : "등록된 거래처가 없습니다"}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -673,37 +1022,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
-  },
-  header: {
-    backgroundColor: "#1e40af",
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "white",
-  },
-  placeholder: {
-    width: 40,
-  },
-  editButton: {
-    width: 24,
-    height: 24,
-    alignItems: "center",
-    justifyContent: "center",
   },
   content: {
     flex: 1,

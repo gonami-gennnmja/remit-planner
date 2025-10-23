@@ -11,7 +11,9 @@
     "extra": {
       "eas": {
         "projectId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-      }
+      },
+      "supabaseUrl": "YOUR_SUPABASE_URL",
+      "supabaseAnonKey": "YOUR_SUPABASE_ANON_KEY"
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",

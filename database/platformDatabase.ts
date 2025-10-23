@@ -1,10 +1,119 @@
 // Platform-specific database factory
-import { Category } from '@/models/types';
+import { Category, PayrollCalculation, ScheduleTime, ScheduleWorker, UserProfile, WorkPeriod } from '@/models/types';
+import Constants from 'expo-constants';
 import { IDatabase } from './interface';
 import { SupabaseRepository } from './supabaseRepository';
 
 // Web fallback database
 class WebDatabase implements IDatabase {
+	createClientDocument(document: { id: string; clientId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; }): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getClientDocuments(clientId: string): Promise<Array<{ id: string; clientId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; uploadedAt: string; }>> {
+		throw new Error('Method not implemented.');
+	}
+	deleteClientDocument(documentId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createScheduleDocument(document: { id: string; scheduleId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; }): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getScheduleDocuments(scheduleId: string): Promise<Array<{ id: string; scheduleId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; uploadedAt: string; }>> {
+		throw new Error('Method not implemented.');
+	}
+	deleteScheduleDocument(documentId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createScheduleTime(scheduleTime: ScheduleTime): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getScheduleTimes(scheduleId: string): Promise<ScheduleTime[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateScheduleTime(id: string, scheduleTime: Partial<ScheduleTime>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteScheduleTime(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createScheduleWorker(scheduleWorker: ScheduleWorker): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	updateScheduleWorker(id: string, scheduleWorker: Partial<ScheduleWorker>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteScheduleWorker(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createWorkPeriod(workPeriod: WorkPeriod): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getWorkPeriods(scheduleWorkerId: string): Promise<WorkPeriod[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateWorkPeriod(id: string, workPeriod: Partial<WorkPeriod>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteWorkPeriod(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createPayrollCalculation(payroll: PayrollCalculation): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getPayrollCalculations(scheduleWorkerId: string): Promise<PayrollCalculation[]> {
+		throw new Error('Method not implemented.');
+	}
+	updatePayrollCalculation(id: string, payroll: Partial<PayrollCalculation>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deletePayrollCalculation(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createUserProfile(profile: UserProfile): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getUserProfile(userId: string): Promise<UserProfile | null> {
+		throw new Error('Method not implemented.');
+	}
+	updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteUserProfile(userId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getNotification(id: string): Promise<Notification | null> {
+		throw new Error('Method not implemented.');
+	}
+	getAllNotifications(): Promise<Notification[]> {
+		throw new Error('Method not implemented.');
+	}
+	getRecentNotifications(limit: number): Promise<Notification[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateNotification(id: string, notification: Partial<Notification>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteNotification(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	markAllNotificationsAsRead(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getUnreadNotificationCount(): Promise<number> {
+		throw new Error('Method not implemented.');
+	}
+	getNotificationByRelatedId(relatedId: string, type: string): Promise<Notification | null> {
+		throw new Error('Method not implemented.');
+	}
+	getNotificationSettings(): Promise<NotificationSettings | null> {
+		throw new Error('Method not implemented.');
+	}
+	updateNotificationSettings(settings: Partial<NotificationSettings>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	createCategory(category: { id: string; name: string; color: string; }): Promise<string> {
 		throw new Error('Method not implemented.');
 	}
@@ -293,9 +402,11 @@ class WebDatabase implements IDatabase {
 		type: string;
 		title: string;
 		description?: string;
-		related_id?: string;
+		relatedId?: string;
 		icon?: string;
 		color?: string;
+		isRead?: boolean;
+		isDeleted?: boolean;
 	}): Promise<string> {
 		// For web, we'll store activities in localStorage
 		try {
@@ -316,16 +427,17 @@ class WebDatabase implements IDatabase {
 		}
 	}
 
-	async getRecentActivities(limit: number = 10): Promise<Array<{
+	async getRecentActivities(limit: number = 10, offset: number = 0): Promise<Array<{
 		id: string;
 		type: string;
 		title: string;
 		description?: string;
-		related_id?: string;
+		relatedId?: string;
 		icon?: string;
 		color?: string;
+		isRead: boolean;
+		isDeleted: boolean;
 		timestamp: string;
-		created_at: string;
 	}>> {
 		try {
 			const activitiesData = localStorage.getItem('remit_planner_activities');
@@ -333,11 +445,56 @@ class WebDatabase implements IDatabase {
 
 			const activities = JSON.parse(activitiesData);
 			return activities
+				.filter((activity: any) => !activity.isDeleted && !activity.isRead)
 				.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-				.slice(0, limit);
+				.slice(offset, offset + limit)
+				.map((activity: any) => ({
+					id: activity.id,
+					type: activity.type,
+					title: activity.title,
+					description: activity.description,
+					relatedId: activity.relatedId || activity.related_id,
+					icon: activity.icon,
+					color: activity.color,
+					isRead: Boolean(activity.isRead),
+					isDeleted: Boolean(activity.isDeleted),
+					timestamp: activity.timestamp || activity.created_at,
+				}));
 		} catch (error) {
 			console.warn('Failed to get activities:', error);
 			return [];
+		}
+	}
+
+	async markActivityAsRead(activityId: string): Promise<void> {
+		try {
+			const activitiesData = localStorage.getItem('remit_planner_activities');
+			if (!activitiesData) return;
+
+			const activities = JSON.parse(activitiesData);
+			const activityIndex = activities.findIndex((a: any) => a.id === activityId);
+			if (activityIndex !== -1) {
+				activities[activityIndex].isRead = true;
+				localStorage.setItem('remit_planner_activities', JSON.stringify(activities));
+			}
+		} catch (error) {
+			console.warn('Failed to mark activity as read:', error);
+		}
+	}
+
+	async markActivityAsDeleted(activityId: string): Promise<void> {
+		try {
+			const activitiesData = localStorage.getItem('remit_planner_activities');
+			if (!activitiesData) return;
+
+			const activities = JSON.parse(activitiesData);
+			const activityIndex = activities.findIndex((a: any) => a.id === activityId);
+			if (activityIndex !== -1) {
+				activities[activityIndex].isDeleted = true;
+				localStorage.setItem('remit_planner_activities', JSON.stringify(activities));
+			}
+		} catch (error) {
+			console.warn('Failed to mark activity as deleted:', error);
 		}
 	}
 
@@ -436,8 +593,13 @@ class WebDatabase implements IDatabase {
 let database: IDatabase;
 
 // 환경 변수 확인
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig?.extra?.supabaseUrl;
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig?.extra?.supabaseAnonKey;
+
+console.log('🔍 Supabase 설정 확인:');
+console.log('supabaseUrl:', supabaseUrl);
+console.log('supabaseKey:', supabaseKey ? `${supabaseKey.substring(0, 20)}...` : 'NOT_SET');
+console.log('URL !== YOUR_SUPABASE_URL:', supabaseUrl !== 'YOUR_SUPABASE_URL');
 
 if (supabaseUrl && supabaseKey && supabaseUrl !== 'YOUR_SUPABASE_URL') {
 	// Supabase 설정이 완료된 경우
@@ -446,6 +608,7 @@ if (supabaseUrl && supabaseKey && supabaseUrl !== 'YOUR_SUPABASE_URL') {
 } else {
 	// Supabase 설정이 안된 경우 로컬 데이터베이스 사용
 	console.log('💾 Using local database (Supabase not configured)');
+	console.log('Reason: supabaseUrl=', supabaseUrl, 'supabaseKey=', supabaseKey ? 'SET' : 'NOT_SET');
 	database = new WebDatabase();
 }
 
@@ -454,5 +617,6 @@ export { database };
 
 // Export a function to get the database instance
 export const getDatabase = (): IDatabase => {
+	console.log('getDatabase called, using:', database.constructor.name);
 	return database;
 };

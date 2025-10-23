@@ -1,5 +1,7 @@
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +17,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { BarChart, LineChart } from "react-native-chart-kit";
 
 const { width } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
@@ -30,10 +33,35 @@ interface DashboardStats {
   totalFuelAllowance: number;
   totalOtherAllowance: number;
   unpaidAmount: number;
+  totalReceivable: number;
   monthlyRevenue: number;
   monthlyExpense: number;
   monthlyPayroll: number;
   netProfit: number;
+  // 비교/트렌드 지표들
+  lastMonthRevenue: number;
+  lastMonthExpense: number;
+  lastMonthSchedules: number;
+  lastMonthWorkHours: number;
+  lastYearSameMonthRevenue: number;
+  lastWeekRevenue: number;
+  lastWeekWorkHours: number;
+  avg3MonthRevenue: number;
+  avg3MonthExpense: number;
+  // 차트 데이터
+  monthlyTrendData: Array<{
+    month: string;
+    revenue: number;
+    expense: number;
+    netProfit: number;
+  }>;
+  weeklyPerformanceData: Array<{
+    week: string;
+    revenue: number;
+    expense: number;
+    workHours: number;
+    schedules: number;
+  }>;
   recentSchedules: Array<{
     id: string;
     title: string;
@@ -45,6 +73,7 @@ interface DashboardStats {
 }
 
 export default function DashboardScreen() {
+  const { colors } = useTheme();
   const [stats, setStats] = useState<DashboardStats>({
     totalSchedules: 0,
     upcomingSchedules: 0,
@@ -56,10 +85,24 @@ export default function DashboardScreen() {
     totalFuelAllowance: 0,
     totalOtherAllowance: 0,
     unpaidAmount: 0,
+    totalReceivable: 0,
     monthlyRevenue: 0,
     monthlyExpense: 0,
     monthlyPayroll: 0,
     netProfit: 0,
+    // 비교/트렌드 지표들
+    lastMonthRevenue: 0,
+    lastMonthExpense: 0,
+    lastMonthSchedules: 0,
+    lastMonthWorkHours: 0,
+    lastYearSameMonthRevenue: 0,
+    lastWeekRevenue: 0,
+    lastWeekWorkHours: 0,
+    avg3MonthRevenue: 0,
+    avg3MonthExpense: 0,
+    // 차트 데이터
+    monthlyTrendData: [],
+    weeklyPerformanceData: [],
     recentSchedules: [],
   });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -91,18 +134,208 @@ export default function DashboardScreen() {
       // 이번 달 매출/지출 계산
       const monthStart = today.startOf("month");
       const monthEnd = today.endOf("month");
+      const lastMonthStart = today.subtract(1, "month").startOf("month");
+      const lastMonthEnd = today.subtract(1, "month").endOf("month");
+      const lastYearSameMonthStart = today.subtract(1, "year").startOf("month");
+      const lastYearSameMonthEnd = today.subtract(1, "year").endOf("month");
+      const weekStart = today.startOf("week");
+      const weekEnd = today.endOf("week");
+      const lastWeekStart = today.subtract(1, "week").startOf("week");
+      const lastWeekEnd = today.subtract(1, "week").endOf("week");
+      const threeMonthsAgoStart = today.subtract(3, "month").startOf("month");
+
       let monthRevenue = 0;
       let monthExpense = 0;
       let totalUnpaid = 0;
+      let totalReceivable = 0;
+      let monthWorkHours = 0;
+      let monthSchedules = 0;
+
+      // 비교 지표들
+      let lastMonthRevenue = 0;
+      let lastMonthExpense = 0;
+      let lastMonthWorkHours = 0;
+      let lastMonthSchedules = 0;
+      let lastYearSameMonthRevenue = 0;
+      let lastWeekRevenue = 0;
+      let lastWeekWorkHours = 0;
+      let avg3MonthRevenue = 0;
+      let avg3MonthExpense = 0;
 
       allSchedules.forEach((schedule) => {
         const scheduleDate = dayjs(schedule.startDate);
-        if (
+        const isThisMonth =
           scheduleDate.isSameOrAfter(monthStart) &&
-          scheduleDate.isSameOrBefore(monthEnd)
-        ) {
+          scheduleDate.isSameOrBefore(monthEnd);
+        const isLastMonth =
+          scheduleDate.isSameOrAfter(lastMonthStart) &&
+          scheduleDate.isSameOrBefore(lastMonthEnd);
+        const isLastYearSameMonth =
+          scheduleDate.isSameOrAfter(lastYearSameMonthStart) &&
+          scheduleDate.isSameOrBefore(lastYearSameMonthEnd);
+        const isThisWeek =
+          scheduleDate.isSameOrAfter(weekStart) &&
+          scheduleDate.isSameOrBefore(weekEnd);
+        const isLastWeek =
+          scheduleDate.isSameOrAfter(lastWeekStart) &&
+          scheduleDate.isSameOrBefore(lastWeekEnd);
+        const isLast3Months =
+          scheduleDate.isSameOrAfter(threeMonthsAgoStart) &&
+          scheduleDate.isSameOrBefore(monthEnd);
+
+        if (isThisMonth) monthSchedules++;
+        if (isLastMonth) lastMonthSchedules++;
+
+        schedule.workers.forEach((workerInfo) => {
+          // periods가 존재하는지 확인하고 안전하게 처리
+          const periods = workerInfo.periods || [];
+          const totalHours = periods.reduce((sum, period) => {
+            const start = dayjs(period.start);
+            const end = dayjs(period.end);
+            return sum + end.diff(start, "hour", true);
+          }, 0);
+
+          const grossPay = workerInfo.worker.hourlyWage * totalHours;
+          const tax = workerInfo.worker.taxWithheld ? grossPay * 0.033 : 0;
+          const netPay = grossPay - tax;
+          const fuelAllowance = workerInfo.worker.fuelAllowance || 0;
+          const otherAllowance = workerInfo.worker.otherAllowance || 0;
+          const totalAmount =
+            Math.round(netPay) + fuelAllowance + otherAllowance;
+
+          // 이번 달 데이터
+          if (isThisMonth) {
+            monthExpense += totalAmount;
+            monthWorkHours += totalHours;
+          }
+
+          // 지난 달 데이터
+          if (isLastMonth) {
+            lastMonthExpense += totalAmount;
+            lastMonthWorkHours += totalHours;
+          }
+
+          // 이번 주 데이터
+          if (isThisWeek) {
+            lastWeekRevenue += totalAmount; // 실제로는 이번 주이지만 변수명 유지
+          }
+
+          // 지난 주 데이터
+          if (isLastWeek) {
+            lastWeekRevenue += totalAmount;
+            lastWeekWorkHours += totalHours;
+          }
+
+          // 미지급 금액 계산 (스케줄 종료 후 미지급 상태)
+          const scheduleEndDate = dayjs(schedule.endDate);
+          const isScheduleEnded = scheduleEndDate.isBefore(today, "day");
+
+          if (isScheduleEnded) {
+            // 지급 상태 확인 (미지급 상세와 동일한 로직)
+            const isWagePaid = (workerInfo as any).wagePaid || false;
+            const isFuelPaid = (workerInfo as any).fuelPaid || false;
+            const isOtherPaid = (workerInfo as any).otherPaid || false;
+            const isAllPaid =
+              isWagePaid &&
+              (fuelAllowance === 0 || isFuelPaid) &&
+              (otherAllowance === 0 || isOtherPaid);
+
+            if (!isAllPaid) {
+              totalUnpaid += totalAmount;
+            }
+          }
+
+          // 수익 계산 (거래처가 있는 스케줄)
+          if (schedule.clientId && isScheduleEnded) {
+            const REVENUE_PER_SCHEDULE = 500000; // 스케줄당 수익 (예시)
+
+            if (isThisMonth) {
+              monthRevenue += REVENUE_PER_SCHEDULE;
+            }
+            if (isLastMonth) {
+              lastMonthRevenue += REVENUE_PER_SCHEDULE;
+            }
+            if (isLastYearSameMonth) {
+              lastYearSameMonthRevenue += REVENUE_PER_SCHEDULE;
+            }
+            if (isLast3Months) {
+              avg3MonthRevenue += REVENUE_PER_SCHEDULE;
+            }
+
+            totalReceivable += REVENUE_PER_SCHEDULE;
+          }
+        });
+      });
+
+      // 3개월 평균 계산
+      avg3MonthRevenue = avg3MonthRevenue / 3;
+      avg3MonthExpense = avg3MonthExpense / 3;
+
+      // 차트 데이터 생성
+      const monthlyTrendData = generateMonthlyTrendData(allSchedules);
+      const weeklyPerformanceData = generateWeeklyPerformanceData(allSchedules);
+
+      setStats({
+        totalSchedules: allSchedules.length,
+        upcomingSchedules: upcomingCount,
+        totalWorkers: allWorkers.length,
+        totalRevenue: 0, // TODO: 거래처 매출 데이터 연동 시 계산
+        unpaidAmount: totalUnpaid,
+        totalReceivable: totalReceivable,
+        monthlyRevenue: monthRevenue,
+        monthlyExpense: monthExpense,
+        // 비교/트렌드 지표들
+        lastMonthRevenue: lastMonthRevenue,
+        lastMonthExpense: lastMonthExpense,
+        lastMonthSchedules: lastMonthSchedules,
+        lastMonthWorkHours: lastMonthWorkHours,
+        lastYearSameMonthRevenue: lastYearSameMonthRevenue,
+        lastWeekRevenue: lastWeekRevenue,
+        lastWeekWorkHours: lastWeekWorkHours,
+        avg3MonthRevenue: avg3MonthRevenue,
+        avg3MonthExpense: avg3MonthExpense,
+        // 차트 데이터
+        monthlyTrendData: monthlyTrendData,
+        weeklyPerformanceData: weeklyPerformanceData,
+      });
+    } catch (error) {
+      console.error("Failed to load dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 월별 트렌드 데이터 생성
+  const generateMonthlyTrendData = (schedules: Schedule[]) => {
+    const data = [];
+    const today = dayjs();
+
+    for (let i = 5; i >= 0; i--) {
+      const month = today.subtract(i, "month");
+      const monthStart = month.startOf("month");
+      const monthEnd = month.endOf("month");
+
+      let revenue = 0;
+      let expense = 0;
+
+      schedules.forEach((schedule) => {
+        const scheduleDate = dayjs(schedule.startDate);
+        const isInMonth =
+          scheduleDate.isSameOrAfter(monthStart) &&
+          scheduleDate.isSameOrBefore(monthEnd);
+
+        if (isInMonth) {
+          // 수익 계산 (거래처가 있는 스케줄)
+          if (schedule.clientId) {
+            const scheduleEndDate = dayjs(schedule.endDate);
+            const isScheduleEnded = scheduleEndDate.isBefore(today, "day");
+            if (isScheduleEnded) {
+              revenue += 500000; // 스케줄당 수익
+            }
+          }
+
+          // 지출 계산
           schedule.workers.forEach((workerInfo) => {
-            // periods가 존재하는지 확인하고 안전하게 처리
             const periods = workerInfo.periods || [];
             const totalHours = periods.reduce((sum, period) => {
               const start = dayjs(period.start);
@@ -113,30 +346,94 @@ export default function DashboardScreen() {
             const grossPay = workerInfo.worker.hourlyWage * totalHours;
             const tax = workerInfo.worker.taxWithheld ? grossPay * 0.033 : 0;
             const netPay = grossPay - tax;
+            const fuelAllowance = workerInfo.worker.fuelAllowance || 0;
+            const otherAllowance = workerInfo.worker.otherAllowance || 0;
+            const totalAmount =
+              Math.round(netPay) + fuelAllowance + otherAllowance;
 
-            monthExpense += Math.round(netPay);
-
-            if (!workerInfo.paid) {
-              totalUnpaid += Math.round(netPay);
-            }
+            expense += totalAmount;
           });
         }
       });
 
-      setStats({
-        totalSchedules: allSchedules.length,
-        upcomingSchedules: upcomingCount,
-        totalWorkers: allWorkers.length,
-        totalRevenue: 0, // TODO: 거래처 매출 데이터 연동 시 계산
-        unpaidAmount: totalUnpaid,
-        monthlyRevenue: monthRevenue,
-        monthlyExpense: monthExpense,
+      data.push({
+        month: month.format("MM월"),
+        revenue: revenue,
+        expense: expense,
+        netProfit: revenue - expense,
       });
-    } catch (error) {
-      console.error("Failed to load dashboard data:", error);
-    } finally {
-      setLoading(false);
     }
+
+    return data;
+  };
+
+  // 주간 성과 데이터 생성
+  const generateWeeklyPerformanceData = (schedules: Schedule[]) => {
+    const data = [];
+    const today = dayjs();
+
+    for (let i = 3; i >= 0; i--) {
+      const week = today.subtract(i, "week");
+      const weekStart = week.startOf("week");
+      const weekEnd = week.endOf("week");
+
+      let revenue = 0;
+      let expense = 0;
+      let workHours = 0;
+      let scheduleCount = 0;
+
+      schedules.forEach((schedule) => {
+        const scheduleDate = dayjs(schedule.startDate);
+        const isInWeek =
+          scheduleDate.isSameOrAfter(weekStart) &&
+          scheduleDate.isSameOrBefore(weekEnd);
+
+        if (isInWeek) {
+          scheduleCount++;
+
+          // 수익 계산
+          if (schedule.clientId) {
+            const scheduleEndDate = dayjs(schedule.endDate);
+            const isScheduleEnded = scheduleEndDate.isBefore(today, "day");
+            if (isScheduleEnded) {
+              revenue += 500000;
+            }
+          }
+
+          // 지출 및 근무시간 계산
+          schedule.workers.forEach((workerInfo) => {
+            const periods = workerInfo.periods || [];
+            const totalHours = periods.reduce((sum, period) => {
+              const start = dayjs(period.start);
+              const end = dayjs(period.end);
+              return sum + end.diff(start, "hour", true);
+            }, 0);
+
+            workHours += totalHours;
+
+            const grossPay = workerInfo.worker.hourlyWage * totalHours;
+            const tax = workerInfo.worker.taxWithheld ? grossPay * 0.033 : 0;
+            const netPay = grossPay - tax;
+            const fuelAllowance = workerInfo.worker.fuelAllowance || 0;
+            const otherAllowance = workerInfo.worker.otherAllowance || 0;
+            const totalAmount =
+              Math.round(netPay) + fuelAllowance + otherAllowance;
+
+            expense += totalAmount;
+          });
+        }
+      });
+
+      data.push({
+        week: `${week.format("MM/DD")}주`,
+        revenue: revenue,
+        expense: expense,
+        workHours: workHours,
+        schedules: scheduleCount,
+      });
+    }
+
+    return data;
   };
 
   // 이번 주 스케줄
@@ -192,6 +489,15 @@ export default function DashboardScreen() {
   const thisWeekSchedules = getThisWeekSchedules();
   const unpaidWorkers = getUnpaidWorkers();
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <CommonHeader title="대시보드" />
+        <LoadingSpinner message="대시보드 데이터를 불러오는 중..." />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* 헤더 */}
@@ -204,34 +510,46 @@ export default function DashboardScreen() {
         {/* 주요 통계 카드 */}
         <View style={[styles.statsGrid, isWeb && styles.statsGridWeb]}>
           {/* 총 일정 */}
-          <View style={[styles.statCard, isWeb && styles.statCardWeb]}>
+          <Pressable
+            style={[styles.statCard, isWeb && styles.statCardWeb]}
+            onPress={() => router.push("/schedule-list")}
+          >
             <View style={[styles.statIcon, { backgroundColor: "#dbeafe" }]}>
-              <Ionicons name="calendar" size={24} color="#3b82f6" />
+              <Ionicons name="calendar" size={24} color={colors.primary} />
             </View>
             <Text style={styles.statValue}>{stats.totalSchedules}</Text>
             <Text style={styles.statLabel}>총 일정</Text>
-          </View>
+          </Pressable>
 
           {/* 예정 일정 */}
-          <View style={[styles.statCard, isWeb && styles.statCardWeb]}>
+          <Pressable
+            style={[styles.statCard, isWeb && styles.statCardWeb]}
+            onPress={() => router.push("/schedule-list?filter=upcoming")}
+          >
             <View style={[styles.statIcon, { backgroundColor: "#dcfce7" }]}>
               <Ionicons name="time" size={24} color="#10b981" />
             </View>
             <Text style={styles.statValue}>{stats.upcomingSchedules}</Text>
             <Text style={styles.statLabel}>예정 일정</Text>
-          </View>
+          </Pressable>
 
           {/* 총 근로자 */}
-          <View style={[styles.statCard, isWeb && styles.statCardWeb]}>
+          <Pressable
+            style={[styles.statCard, isWeb && styles.statCardWeb]}
+            onPress={() => router.push("/workers")}
+          >
             <View style={[styles.statIcon, { backgroundColor: "#fef3c7" }]}>
               <Ionicons name="people" size={24} color="#f59e0b" />
             </View>
             <Text style={styles.statValue}>{stats.totalWorkers}</Text>
             <Text style={styles.statLabel}>총 근로자</Text>
-          </View>
+          </Pressable>
 
           {/* 미지급 금액 */}
-          <View style={[styles.statCard, isWeb && styles.statCardWeb]}>
+          <Pressable
+            style={[styles.statCard, isWeb && styles.statCardWeb]}
+            onPress={() => router.push("/unpaid-details")}
+          >
             <View style={[styles.statIcon, { backgroundColor: "#fee2e2" }]}>
               <Ionicons name="alert-circle" size={24} color="#ef4444" />
             </View>
@@ -242,7 +560,44 @@ export default function DashboardScreen() {
               }).format(stats.unpaidAmount)}
             </Text>
             <Text style={styles.statLabel}>미지급 금액</Text>
-          </View>
+          </Pressable>
+
+          {/* 미수금 */}
+          <Pressable
+            style={[styles.statCard, isWeb && styles.statCardWeb]}
+            onPress={() => router.push("/revenue-reports")}
+          >
+            <View style={[styles.statIcon, { backgroundColor: "#e0e7ff" }]}>
+              <Ionicons name="trending-up" size={24} color="#6366f1" />
+            </View>
+            <Text style={[styles.statValue, { color: "#6366f1" }]}>
+              {new Intl.NumberFormat("ko-KR", {
+                notation: "compact",
+                compactDisplay: "short",
+              }).format(stats.totalReceivable)}
+            </Text>
+            <Text style={styles.statLabel}>미수금</Text>
+          </Pressable>
+
+          {/* 성과 분석 */}
+          <Pressable
+            style={[styles.statCard, isWeb && styles.statCardWeb]}
+            onPress={() => router.push("/performance-analysis")}
+          >
+            <View style={[styles.statIcon, { backgroundColor: "#f0f9ff" }]}>
+              <Ionicons name="analytics" size={24} color="#0ea5e9" />
+            </View>
+            <Text style={[styles.statValue, { color: "#0ea5e9" }]}>
+              {stats.lastMonthRevenue > 0
+                ? `${Math.round(
+                    ((stats.monthlyRevenue - stats.lastMonthRevenue) /
+                      stats.lastMonthRevenue) *
+                      100
+                  )}%`
+                : "0%"}
+            </Text>
+            <Text style={styles.statLabel}>전월 대비 수익</Text>
+          </Pressable>
         </View>
 
         {/* 이번 달 재무 현황 */}
@@ -286,6 +641,106 @@ export default function DashboardScreen() {
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* 차트 섹션 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>수익/지출 트렌드</Text>
+          {stats.monthlyTrendData.length > 0 && (
+            <View style={styles.chartContainer}>
+              <LineChart
+                data={{
+                  labels: stats.monthlyTrendData.map((d) => d.month),
+                  datasets: [
+                    {
+                      data: stats.monthlyTrendData.map(
+                        (d) => d.revenue / 1000000
+                      ), // 백만원 단위로 변환
+                      color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // 초록색
+                      strokeWidth: 3,
+                    },
+                    {
+                      data: stats.monthlyTrendData.map(
+                        (d) => d.expense / 1000000
+                      ), // 백만원 단위로 변환
+                      color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`, // 빨간색
+                      strokeWidth: 3,
+                    },
+                  ],
+                }}
+                width={width - Theme.spacing.lg * 2}
+                height={220}
+                chartConfig={{
+                  backgroundColor: Theme.colors.surface,
+                  backgroundGradientFrom: Theme.colors.surface,
+                  backgroundGradientTo: Theme.colors.surface,
+                  decimalPlaces: 1,
+                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: "6",
+                    strokeWidth: "2",
+                    stroke: "#fff",
+                  },
+                }}
+                bezier
+                style={styles.chart}
+              />
+              <View style={styles.chartLegend}>
+                <View style={styles.legendItem}>
+                  <View
+                    style={[styles.legendColor, { backgroundColor: "#10b981" }]}
+                  />
+                  <Text style={styles.legendText}>수익 (백만원)</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View
+                    style={[styles.legendColor, { backgroundColor: "#ef4444" }]}
+                  />
+                  <Text style={styles.legendText}>지출 (백만원)</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* 주간 성과 차트 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>주간 성과</Text>
+          {stats.weeklyPerformanceData.length > 0 && (
+            <View style={styles.chartContainer}>
+              <BarChart
+                data={{
+                  labels: stats.weeklyPerformanceData.map((d) => d.week),
+                  datasets: [
+                    {
+                      data: stats.weeklyPerformanceData.map(
+                        (d) => d.revenue / 1000000
+                      ), // 백만원 단위로 변환
+                    },
+                  ],
+                }}
+                width={width - Theme.spacing.lg * 2}
+                height={220}
+                chartConfig={{
+                  backgroundColor: Theme.colors.surface,
+                  backgroundGradientFrom: Theme.colors.surface,
+                  backgroundGradientTo: Theme.colors.surface,
+                  decimalPlaces: 1,
+                  color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`, // 파란색
+                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                }}
+                style={styles.chart}
+              />
+              <Text style={styles.chartSubtitle}>주간 수익 (백만원)</Text>
+            </View>
+          )}
         </View>
 
         {/* 이번 주 일정 */}
@@ -384,7 +839,7 @@ export default function DashboardScreen() {
               onPress={() => router.push("/schedule-reports")}
             >
               <View style={[styles.reportIcon, { backgroundColor: "#dbeafe" }]}>
-                <Ionicons name="calendar" size={24} color="#3b82f6" />
+                <Ionicons name="calendar" size={24} color={colors.primary} />
               </View>
               <Text style={styles.reportTitle}>일정 현황</Text>
               <Text style={styles.reportDescription}>일정 통계 및 분석</Text>
@@ -420,7 +875,11 @@ export default function DashboardScreen() {
               style={styles.quickActionCard}
               onPress={() => router.push("/schedule-list")}
             >
-              <Ionicons name="add-circle-outline" size={32} color="#3b82f6" />
+              <Ionicons
+                name="add-circle-outline"
+                size={32}
+                color={colors.primary}
+              />
               <Text style={styles.quickActionText}>일정 추가</Text>
             </Pressable>
             <Pressable
@@ -477,7 +936,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    minWidth: (width - Theme.spacing.lg * 3) / 2 - Theme.spacing.md,
+    minWidth: (width - Theme.spacing.lg * 4) / 3 - Theme.spacing.md,
     backgroundColor: Theme.colors.card,
     borderRadius: Theme.borderRadius.lg,
     padding: Theme.spacing.lg,
@@ -487,9 +946,9 @@ const styles = StyleSheet.create({
     ...Theme.shadows.sm,
   },
   statCardWeb: {
-    minWidth: 200,
+    minWidth: 180,
     flex: 0,
-    flexBasis: "calc(25% - 12px)",
+    flexBasis: "calc(33.333% - 12px)",
   },
   statIcon: {
     width: 56,
@@ -720,5 +1179,44 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.sizes.xs,
     color: Theme.colors.text.secondary,
     textAlign: "center",
+  },
+  // 차트 스타일
+  chartContainer: {
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.md,
+    marginTop: Theme.spacing.md,
+    ...Theme.shadows.sm,
+    elevation: 2,
+  },
+  chart: {
+    marginVertical: 8,
+    borderRadius: 16,
+  },
+  chartLegend: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Theme.spacing.lg,
+    marginTop: Theme.spacing.sm,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Theme.spacing.xs,
+  },
+  legendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendText: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.secondary,
+  },
+  chartSubtitle: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.secondary,
+    textAlign: "center",
+    marginTop: Theme.spacing.sm,
   },
 });

@@ -52,8 +52,8 @@ class SQLiteDatabase {
     if (!this.db) throw new Error('Database not initialized');
 
     try {
-      const result = await this.db.getAllAsync<T>(query, params);
-      return result;
+      const result = await this.db.getAllAsync(query, params);
+      return result as T[];
     } catch (error) {
       console.error('Query error:', error, { query, params });
       throw error;
@@ -104,6 +104,82 @@ class SQLiteDatabase {
       DELETE FROM schedules;
       DELETE FROM workers;
     `);
+  }
+
+  // Activity operations
+  async createActivity(activity: {
+    id: string;
+    type: string;
+    title: string;
+    description?: string;
+    relatedId?: string;
+    icon?: string;
+    color?: string;
+    isRead?: boolean;
+    isDeleted?: boolean;
+  }): Promise<string> {
+    const query = `
+      INSERT INTO activities (id, type, title, description, related_id, icon, color, is_read, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await this.executeUpdate(query, [
+      activity.id,
+      activity.type,
+      activity.title,
+      activity.description || null,
+      activity.relatedId || null,
+      activity.icon || null,
+      activity.color || null,
+      activity.isRead ? 1 : 0,
+      activity.isDeleted ? 1 : 0,
+    ]);
+    return activity.id;
+  }
+
+  async getRecentActivities(limit: number = 10): Promise<Array<{
+    id: string;
+    type: string;
+    title: string;
+    description?: string;
+    relatedId?: string;
+    icon?: string;
+    color?: string;
+    isRead: boolean;
+    isDeleted: boolean;
+    timestamp: string;
+  }>> {
+    const query = `
+      SELECT id, type, title, description, related_id as relatedId, icon, color, 
+             is_read as isRead, is_deleted as isDeleted, created_at as timestamp
+      FROM activities 
+      WHERE is_deleted = 0
+      ORDER BY created_at DESC 
+      LIMIT ?
+    `;
+    const results = await this.executeQuery(query, [limit]);
+    return results.map(row => ({
+      ...row,
+      isRead: Boolean(row.isRead),
+      isDeleted: Boolean(row.isDeleted),
+    }));
+  }
+
+  async markActivityAsRead(activityId: string): Promise<void> {
+    const query = 'UPDATE activities SET is_read = 1 WHERE id = ?';
+    await this.executeUpdate(query, [activityId]);
+  }
+
+  async markActivityAsDeleted(activityId: string): Promise<void> {
+    const query = 'UPDATE activities SET is_deleted = 1 WHERE id = ?';
+    await this.executeUpdate(query, [activityId]);
+  }
+
+  async clearOldActivities(daysToKeep: number = 30): Promise<void> {
+    const query = `
+      DELETE FROM activities 
+      WHERE created_at < datetime('now', '-${daysToKeep} days')
+    `;
+    await this.executeUpdate(query);
   }
 }
 

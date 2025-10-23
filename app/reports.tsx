@@ -1,6 +1,7 @@
 import CommonHeader from "@/components/CommonHeader";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
@@ -52,6 +53,7 @@ const reportItems = [
 ];
 
 export default function ReportsScreen() {
+  const { colors } = useTheme();
   return (
     <View style={styles.container}>
       <CommonHeader title="보고서" />

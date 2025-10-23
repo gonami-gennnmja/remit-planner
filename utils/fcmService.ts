@@ -1,4 +1,4 @@
-import { database } from '@/database';
+import { getDatabase } from '@/database/platformDatabase';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
@@ -94,44 +94,98 @@ export class FCMService {
 	}
 
 	// 알림 클릭 핸들러
-	static handleNotificationPress(data: any): void {
+	static async handleNotificationPress(data: any): Promise<void> {
 		if (!data) return;
 
-		const { type, relatedId } = data;
+		const { type, relatedId, activityId } = data;
+
+		// 활동이 있으면 읽음 처리
+		if (activityId) {
+			try {
+				const db = getDatabase();
+				await db.markActivityAsRead(activityId);
+				console.log('Activity marked as read:', activityId);
+			} catch (error) {
+				console.error('Failed to mark activity as read:', error);
+			}
+		}
 
 		// 알림 타입에 따라 다른 화면으로 이동
-		switch (type) {
-			case 'wage_overdue':
-				// 급여 관리 화면으로 이동
-				console.log('급여 관리 화면으로 이동');
-				break;
-			case 'revenue_overdue':
-				// 수급 현황 화면으로 이동
-				console.log('수급 현황 화면으로 이동');
-				break;
-			case 'schedule_reminder':
-				// 해당 스케줄 상세 화면으로 이동
-				console.log('스케줄 상세 화면으로 이동:', relatedId);
-				break;
-			default:
-				console.log('알 수 없는 알림 타입:', type);
+		try {
+			const db = getDatabase();
+
+			switch (type) {
+				case 'payment':
+					// 미지급 급여 알림 - 스케줄 상세로 이동 (근로자 정보 포함)
+					if (relatedId) {
+						const schedule = await db.getSchedule(relatedId);
+						if (schedule) {
+							console.log('스케줄 상세 화면으로 이동 (미지급 급여):', relatedId);
+							// TODO: router.push(`/schedule/${relatedId}`);
+						} else {
+							alert("존재하지 않는 스케줄입니다.");
+						}
+					}
+					break;
+				case 'revenue':
+					// 미수금 알림 - 거래처 존재 여부 확인 후 상세로 이동
+					if (relatedId) {
+						const client = await db.getClient(relatedId);
+						if (client) {
+							console.log('거래처 상세 화면으로 이동:', relatedId);
+							// TODO: router.push(`/client/${relatedId}`);
+						} else {
+							alert("존재하지 않는 거래처입니다.");
+						}
+					}
+					break;
+				case 'schedule':
+					// 스케줄 관련 - 스케줄 존재 여부 확인 후 상세로 이동
+					if (relatedId) {
+						const schedule = await db.getSchedule(relatedId);
+						if (schedule) {
+							console.log('스케줄 상세 화면으로 이동:', relatedId);
+							// TODO: router.push(`/schedule/${relatedId}`);
+						} else {
+							alert("존재하지 않는 스케줄입니다.");
+						}
+					}
+					break;
+				case 'worker':
+					// 근로자 관련 - 근로자 관리로 이동
+					console.log('근로자 관리 화면으로 이동');
+					// TODO: router.push('/workers');
+					break;
+				default:
+					console.log('알 수 없는 알림 타입:', type);
+			}
+		} catch (error) {
+			console.error('Error handling notification press:', error);
+			alert("데이터를 확인하는 중 오류가 발생했습니다.");
 		}
 	}
 
 	// 알림 데이터를 데이터베이스에 저장
 	static async saveNotificationToDB(data: any): Promise<void> {
 		try {
-			const { type, title, message, relatedId, priority } = data;
+			const { type, title, message, relatedId, priority, activityId } = data;
 
-			await database.createNotification({
-				userId: '', // 현재 사용자 ID로 설정
-				type: type as 'wage_overdue' | 'revenue_overdue' | 'schedule_reminder',
-				title: title || '알림',
-				message: message || '',
-				isRead: false,
-				priority: priority ? parseInt(priority) : 2,
-				relatedId: relatedId || undefined,
-			});
+			// 활동이 있으면 활동을 읽음 처리
+			if (activityId) {
+				const db = getDatabase();
+				await db.markActivityAsRead(activityId);
+			}
+
+			// 기존 알림 시스템은 유지 (필요한 경우)
+			// await database.createNotification({
+			// 	userId: '', // 현재 사용자 ID로 설정
+			// 	type: type as 'wage_overdue' | 'revenue_overdue' | 'schedule_reminder',
+			// 	title: title || '알림',
+			// 	message: message || '',
+			// 	isRead: false,
+			// 	priority: priority ? parseInt(priority) : 2,
+			// 	relatedId: relatedId || undefined,
+			// });
 		} catch (error) {
 			console.error('알림 데이터베이스 저장 오류:', error);
 		}

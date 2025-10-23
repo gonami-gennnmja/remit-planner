@@ -530,36 +530,6 @@ export class SupabaseRepository implements IDatabase {
 		return data[0].id
 	}
 
-	async getRecentActivities(limit: number = 10): Promise<Array<{
-		id: string;
-		type: string;
-		title: string;
-		description?: string;
-		related_id?: string;
-		icon?: string;
-		color?: string;
-		timestamp: string;
-		created_at: string;
-	}>> {
-		const user = await this.getCurrentUser()
-
-		const { data, error } = await supabase
-			.from('activities')
-			.select('*')
-			.eq('user_id', user.id)
-			.order('created_at', { ascending: false })
-			.limit(limit)
-
-		if (error) {
-			console.error('Error getting activities:', error)
-			return []
-		}
-
-		return data.map(activity => ({
-			...activity,
-			timestamp: activity.created_at
-		}))
-	}
 
 	async clearOldActivities(daysToKeep: number = 30): Promise<void> {
 		const cutoffDate = new Date()
@@ -648,6 +618,7 @@ export class SupabaseRepository implements IDatabase {
 			.from('client_contacts')
 			.select('*')
 			.eq('client_id', id)
+			.eq('user_id', user.id)
 			.order('is_primary', { ascending: false })
 
 		if (contactsError) {
@@ -730,12 +701,13 @@ export class SupabaseRepository implements IDatabase {
 
 		// 2. 담당자 정보 업데이트 (기존 삭제 후 재생성)
 		if (client.contacts) {
-			await supabase.from('client_contacts').delete().eq('client_id', id)
+			await supabase.from('client_contacts').delete().eq('client_id', id).eq('user_id', user.id)
 
 			if (client.contacts.length > 0) {
 				const contactsToInsert = client.contacts.map((contact: any) => ({
 					id: contact.id,
 					client_id: id,
+					user_id: user.id,
 					name: contact.name,
 					position: contact.position,
 					phone: contact.phone,
@@ -1483,6 +1455,346 @@ export class SupabaseRepository implements IDatabase {
 			scheduleReminderValue: dbSettings.schedule_reminder_value,
 			createdAt: dbSettings.created_at,
 			updatedAt: dbSettings.updated_at,
+		}
+	}
+
+	// ==================== Activity Operations ====================
+
+	async createActivity(activity: {
+		id: string;
+		type: string;
+		title: string;
+		description?: string;
+		relatedId?: string;
+		icon?: string;
+		color?: string;
+		isRead?: boolean;
+		isDeleted?: boolean;
+	}): Promise<string> {
+		// Get current user ID
+		const { data: { user } } = await supabase.auth.getUser()
+		if (!user) {
+			throw new Error('User not authenticated')
+		}
+
+		const { data, error } = await supabase
+			.from('activities')
+			.insert({
+				id: activity.id,
+				user_id: user.id,
+				type: activity.type,
+				title: activity.title,
+				description: activity.description || null,
+				related_id: activity.relatedId || null,
+				icon: activity.icon || null,
+				color: activity.color || null,
+				is_read: activity.isRead || false,
+				is_deleted: activity.isDeleted || false,
+			})
+			.select()
+			.single()
+
+		if (error) {
+			console.error('Error creating activity:', error)
+			throw error
+		}
+
+		return data.id
+	}
+
+	async getRecentActivities(limit: number = 10, offset: number = 0): Promise<Array<{
+		id: string;
+		type: string;
+		title: string;
+		description?: string;
+		relatedId?: string;
+		icon?: string;
+		color?: string;
+		isRead: boolean;
+		isDeleted: boolean;
+		timestamp: string;
+	}>> {
+		// Get current user ID
+		const { data: { user } } = await supabase.auth.getUser()
+		if (!user) {
+			throw new Error('User not authenticated')
+		}
+
+		console.log('📋 Loading recent activities for user:', user.id);
+
+		const { data, error } = await supabase
+			.from('activities')
+			.select('*')
+			.eq('user_id', user.id)
+			.eq('is_deleted', false)
+			.eq('is_read', false)
+			.order('created_at', { ascending: false })
+			.range(offset, offset + limit - 1)
+
+		if (error) {
+			console.error('❌ Error fetching activities:', error)
+			throw error
+		}
+
+		console.log('📋 Raw activities from Supabase:', data);
+		console.log('📋 Activities count:', data.length);
+
+		const result = data.map(activity => ({
+			id: activity.id,
+			type: activity.type,
+			title: activity.title,
+			description: activity.description,
+			relatedId: activity.related_id,
+			icon: activity.icon,
+			color: activity.color,
+			isRead: activity.is_read,
+			isDeleted: activity.is_deleted,
+			timestamp: activity.created_at,
+		}));
+
+		console.log('📋 Processed activities:', result);
+		return result;
+	}
+
+	async markActivityAsRead(activityId: string): Promise<void> {
+		// Get current user ID
+		const { data: { user } } = await supabase.auth.getUser()
+		if (!user) {
+			throw new Error('User not authenticated')
+		}
+
+		console.log('👁️ Marking activity as read:', activityId, 'for user:', user.id);
+
+		const { data, error } = await supabase
+			.from('activities')
+			.update({ is_read: true })
+			.eq('id', activityId)
+			.eq('user_id', user.id)
+			.select()
+
+		if (error) {
+			console.error('❌ Error marking activity as read:', error)
+			throw error
+		}
+
+		console.log('✅ Activity marked as read successfully:', data);
+	}
+
+	async markActivityAsDeleted(activityId: string): Promise<void> {
+		// Get current user ID
+		const { data: { user } } = await supabase.auth.getUser()
+		if (!user) {
+			throw new Error('User not authenticated')
+		}
+
+		console.log('🗑️ Marking activity as deleted:', activityId, 'for user:', user.id);
+
+		const { data, error } = await supabase
+			.from('activities')
+			.update({ is_deleted: true })
+			.eq('id', activityId)
+			.eq('user_id', user.id)
+			.select()
+
+		if (error) {
+			console.error('❌ Error marking activity as deleted:', error)
+			throw error
+		}
+
+		console.log('✅ Activity marked as deleted successfully:', data);
+	}
+
+	async clearOldActivities(daysToKeep: number = 30): Promise<void> {
+		// Get current user ID
+		const { data: { user } } = await supabase.auth.getUser()
+		if (!user) {
+			throw new Error('User not authenticated')
+		}
+
+		const cutoffDate = new Date()
+		cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
+
+		const { error } = await supabase
+			.from('activities')
+			.delete()
+			.eq('user_id', user.id)
+			.lt('created_at', cutoffDate.toISOString())
+
+		if (error) {
+			console.error('Error clearing old activities:', error)
+			throw error
+		}
+	}
+
+	// Client document operations
+	async createClientDocument(document: {
+		id: string;
+		clientId: string;
+		fileName: string;
+		fileUrl: string;
+		filePath: string;
+		fileType: string;
+		fileSize?: number;
+	}): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('client_documents')
+			.insert({
+				id: document.id,
+				client_id: document.clientId,
+				user_id: user.id,
+				file_name: document.fileName,
+				file_url: document.fileUrl,
+				file_path: document.filePath,
+				file_type: document.fileType,
+				file_size: document.fileSize,
+			})
+			.select()
+			.single()
+
+		if (error) {
+			console.error('Error creating client document:', error)
+			throw error
+		}
+
+		return data.id
+	}
+
+	async getClientDocuments(clientId: string): Promise<Array<{
+		id: string;
+		clientId: string;
+		fileName: string;
+		fileUrl: string;
+		filePath: string;
+		fileType: string;
+		fileSize?: number;
+		uploadedAt: string;
+	}>> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('client_documents')
+			.select('*')
+			.eq('client_id', clientId)
+			.eq('user_id', user.id)
+			.order('uploaded_at', { ascending: false })
+
+		if (error) {
+			console.error('Error getting client documents:', error)
+			return []
+		}
+
+		return (data || []).map((doc: any) => ({
+			id: doc.id,
+			clientId: doc.client_id,
+			fileName: doc.file_name,
+			fileUrl: doc.file_url,
+			filePath: doc.file_path,
+			fileType: doc.file_type,
+			fileSize: doc.file_size,
+			uploadedAt: doc.uploaded_at,
+		}))
+	}
+
+	async deleteClientDocument(documentId: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('client_documents')
+			.delete()
+			.eq('id', documentId)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error deleting client document:', error)
+			throw error
+		}
+	}
+
+	// Schedule document operations
+	async createScheduleDocument(document: {
+		id: string;
+		scheduleId: string;
+		fileName: string;
+		fileUrl: string;
+		filePath: string;
+		fileType: string;
+		fileSize?: number;
+	}): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_documents')
+			.insert({
+				id: document.id,
+				schedule_id: document.scheduleId,
+				user_id: user.id,
+				file_name: document.fileName,
+				file_url: document.fileUrl,
+				file_path: document.filePath,
+				file_type: document.fileType,
+				file_size: document.fileSize,
+			})
+			.select()
+			.single()
+
+		if (error) {
+			console.error('Error creating schedule document:', error)
+			throw error
+		}
+
+		return data.id
+	}
+
+	async getScheduleDocuments(scheduleId: string): Promise<Array<{
+		id: string;
+		scheduleId: string;
+		fileName: string;
+		fileUrl: string;
+		filePath: string;
+		fileType: string;
+		fileSize?: number;
+		uploadedAt: string;
+	}>> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_documents')
+			.select('*')
+			.eq('schedule_id', scheduleId)
+			.eq('user_id', user.id)
+			.order('uploaded_at', { ascending: false })
+
+		if (error) {
+			console.error('Error getting schedule documents:', error)
+			return []
+		}
+
+		return (data || []).map((doc: any) => ({
+			id: doc.id,
+			scheduleId: doc.schedule_id,
+			fileName: doc.file_name,
+			fileUrl: doc.file_url,
+			filePath: doc.file_path,
+			fileType: doc.file_type,
+			fileSize: doc.file_size,
+			uploadedAt: doc.uploaded_at,
+		}))
+	}
+
+	async deleteScheduleDocument(documentId: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('schedule_documents')
+			.delete()
+			.eq('id', documentId)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error deleting schedule document:', error)
+			throw error
 		}
 	}
 }

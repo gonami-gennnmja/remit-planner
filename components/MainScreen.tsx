@@ -8,14 +8,16 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { useResponsive } from "@/hooks/useResponsive";
 import { Schedule } from "@/models/types";
-import { checkAndCreateOverduePaymentActivities } from "@/utils/activityUtils";
 import { getCurrentUser, User } from "@/utils/authUtils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Animated,
+  Dimensions,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -23,18 +25,329 @@ import {
   Text,
   View,
 } from "react-native";
+import { PanGestureHandler, State } from "react-native-gesture-handler";
 
 const isWeb = Platform.OS === "web";
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+
+// 활동 갯수 표시 헬퍼 함수
+const formatActivityCount = (count: number): string => {
+  return count > 10 ? "10+" : count.toString();
+};
 
 interface Activity {
   id: string;
-  type: "schedule" | "worker" | "payment";
+  type: "schedule" | "worker" | "payment" | "revenue";
   title: string;
   description: string;
   timestamp: string;
   icon: string;
   color: string;
+  relatedId?: string;
+  isRead?: boolean;
+  isDeleted?: boolean;
 }
+
+// 드래그로 삭제할 수 있는 활동 아이템 컴포넌트
+const SwipeableActivityItem = ({
+  activity,
+  onDelete,
+  onViewDetails,
+  colors,
+  formatActivityTime,
+}: {
+  activity: Activity;
+  onDelete: (id: string) => void;
+  onViewDetails: (activity: Activity) => void;
+  colors: any;
+  formatActivityTime: (timestamp: string) => string;
+}) => {
+  const translateX = new Animated.Value(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+
+  // 웹에서는 PanGestureHandler 사용, 네이티브에서는 PanResponder 사용
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => false, // 터치 이벤트 우선
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      console.log("Gesture detected:", gestureState.dx);
+      return Math.abs(gestureState.dx) > 10; // 드래그 감도 증가
+    },
+    onPanResponderGrant: () => {
+      console.log("Pan responder granted");
+    },
+    onPanResponderMove: (_, gestureState) => {
+      console.log("Pan responder move:", gestureState.dx);
+      if (gestureState.dx < 0) {
+        // 드래그 거리를 제한하여 부드럽게
+        const maxDrag = -screenWidth * 0.6;
+        const dragValue = Math.max(gestureState.dx, maxDrag);
+        translateX.setValue(dragValue);
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      console.log("Pan responder release:", gestureState.dx);
+      const deleteThreshold = -screenWidth * 0.4; // 화면 너비의 40%로 설정
+      const actionThreshold = -screenWidth * 0.15; // 화면 너비의 15%로 설정
+
+      if (gestureState.dx < deleteThreshold) {
+        // 화면 너비의 40% 이상 드래그 - 바로 삭제
+        console.log("Delete gesture detected - immediate delete");
+        Animated.timing(translateX, {
+          toValue: -screenWidth,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          setIsDeleting(true);
+          onDelete(activity.id);
+        });
+      } else if (gestureState.dx < actionThreshold) {
+        // 화면 너비의 15%~40% 드래그 - 액션 버튼 표시
+        console.log("Show action buttons");
+        setShowActions(true);
+        Animated.spring(translateX, {
+          toValue: -120, // 액션 버튼 공간만큼 이동
+          useNativeDriver: true,
+        }).start();
+      } else {
+        // 화면 너비의 15% 미만 드래그 - 원래 위치로 복귀
+        console.log("Return to original position");
+        setShowActions(false);
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    },
+  });
+
+  // 웹용 PanGestureHandler 핸들러
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationX } = event.nativeEvent;
+      console.log("Web gesture release:", translationX);
+      const deleteThreshold = -screenWidth * 0.4; // 화면 너비의 40%로 설정
+      const actionThreshold = -screenWidth * 0.15; // 화면 너비의 15%로 설정
+
+      if (translationX < deleteThreshold) {
+        // 화면 너비의 40% 이상 드래그 - 바로 삭제
+        console.log("Web delete gesture detected - immediate delete");
+        Animated.timing(translateX, {
+          toValue: -screenWidth,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          setIsDeleting(true);
+          onDelete(activity.id);
+        });
+      } else if (translationX < actionThreshold) {
+        // 화면 너비의 15%~40% 드래그 - 액션 버튼 표시
+        console.log("Web show action buttons");
+        setShowActions(true);
+        Animated.spring(translateX, {
+          toValue: -120, // 액션 버튼 공간만큼 이동
+          useNativeDriver: true,
+        }).start();
+      } else {
+        // 화면 너비의 15% 미만 드래그 - 원래 위치로 복귀
+        console.log("Web return to original position");
+        setShowActions(false);
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+  };
+
+  if (isDeleting) {
+    return null;
+  }
+
+  const content = (
+    <Pressable
+      style={[
+        styles.activityModalItem,
+        {
+          borderBottomColor: colors.border,
+          backgroundColor: colors.surface,
+        },
+      ]}
+      onPress={() => onViewDetails(activity)}
+    >
+      <View
+        style={[
+          styles.activityModalIcon,
+          { backgroundColor: `${activity.color}20` },
+        ]}
+      >
+        <Ionicons
+          name={activity.icon as any}
+          size={20}
+          color={activity.color}
+        />
+      </View>
+      <View style={styles.activityModalContent}>
+        <Text style={[styles.activityModalTitle, { color: colors.text }]}>
+          {activity.title}
+        </Text>
+        <Text
+          style={[
+            styles.activityModalDescription,
+            { color: colors.textSecondary },
+          ]}
+        >
+          {activity.description}
+        </Text>
+        <Text
+          style={[styles.activityModalTime, { color: colors.textSecondary }]}
+        >
+          {formatActivityTime(activity.timestamp)}
+        </Text>
+      </View>
+      {!activity.isRead && (
+        <View
+          style={[styles.unreadIndicator, { backgroundColor: colors.primary }]}
+        />
+      )}
+
+      {/* 액션 버튼들 */}
+      {showActions ? (
+        <View style={styles.actionButtons}>
+          <Pressable
+            style={[styles.actionButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              setShowActions(false);
+              onViewDetails(activity);
+            }}
+          >
+            <Ionicons name="eye" size={16} color="white" />
+            <Text style={styles.actionButtonText}>더보기</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.actionButton, { backgroundColor: colors.error }]}
+            onPress={() => {
+              setShowActions(false);
+              onDelete(activity.id);
+            }}
+          >
+            <Ionicons name="trash" size={16} color="white" />
+            <Text style={styles.actionButtonText}>삭제</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={[styles.dragHint, { backgroundColor: colors.error }]}>
+          <Ionicons name="trash" size={16} color="white" />
+          <Text style={styles.dragHintText}>삭제</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+
+  // 웹에서는 PanGestureHandler 사용, 네이티브에서는 PanResponder 사용
+  if (isWeb) {
+    return (
+      <PanGestureHandler
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+      >
+        <Animated.View style={{ transform: [{ translateX }] }}>
+          {content}
+        </Animated.View>
+      </PanGestureHandler>
+    );
+  }
+
+  return (
+    <Animated.View
+      style={[
+        {
+          transform: [{ translateX }],
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      {content}
+    </Animated.View>
+  );
+};
+
+// 웹용 알림 패널 컴포넌트
+const WebNotificationPanel = ({
+  activities,
+  onDelete,
+  onClose,
+  colors,
+  formatActivityTime,
+}: {
+  activities: Activity[];
+  onDelete: (id: string) => void;
+  onClose: () => void;
+  colors: any;
+  formatActivityTime: (timestamp: string) => string;
+}) => {
+  if (!isWeb) return null;
+
+  return (
+    <View style={styles.webNotificationPanel}>
+      {/* 배경 오버레이 */}
+      <Pressable style={styles.webNotificationOverlay} onPress={onClose} />
+
+      {/* 알림 패널 */}
+      <View
+        style={[
+          styles.webNotificationContent,
+          { backgroundColor: colors.surface },
+        ]}
+      >
+        <View
+          style={[
+            styles.webNotificationHeader,
+            { backgroundColor: colors.surface },
+          ]}
+        >
+          <Text style={[styles.webNotificationTitle, { color: colors.text }]}>
+            최근 활동
+          </Text>
+          <Pressable onPress={onClose} style={styles.webNotificationClose}>
+            <Ionicons name="close" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+
+        <ScrollView style={styles.webNotificationList}>
+          {activities.length === 0 ? (
+            <View style={styles.webNotificationEmpty}>
+              <Text
+                style={[
+                  styles.webNotificationEmptyText,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                최근 활동이 없습니다
+              </Text>
+            </View>
+          ) : (
+            activities.map((activity) => (
+              <SwipeableActivityItem
+                key={activity.id}
+                activity={activity}
+                onDelete={onDelete}
+                onViewDetails={handleViewActivityDetails}
+                colors={colors}
+                formatActivityTime={formatActivityTime}
+              />
+            ))
+          )}
+        </ScrollView>
+      </View>
+    </View>
+  );
+};
 
 export default function MainScreen() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -44,6 +357,8 @@ export default function MainScreen() {
   );
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showWebNotificationPanel, setShowWebNotificationPanel] =
+    useState(false);
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
   const { colors } = useTheme();
@@ -82,13 +397,10 @@ export default function MainScreen() {
     }, [])
   );
 
-  // 활동 초기화 및 미지급 급여 체크
+  // 활동 초기화 (알림 생성 없이 DB에서만 로드)
   const initializeActivities = async () => {
     try {
-      // 미지급 급여 체크 및 활동 생성
-      await checkAndCreateOverduePaymentActivities();
-
-      // 활동 로드
+      // DB에서 기존 활동만 로드 (새로 생성하지 않음)
       await loadRecentActivitiesFromDB();
     } catch (error) {
       console.error("Failed to initialize activities:", error);
@@ -115,8 +427,11 @@ export default function MainScreen() {
   // 실제 DB에서 활동 로드
   const loadRecentActivitiesFromDB = async () => {
     try {
+      console.log("Loading activities from DB...");
       const db = getDatabase();
-      const dbActivities = await db.getRecentActivities(10);
+      console.log("Database type for loading:", db.constructor.name);
+      const dbActivities = await db.getRecentActivities(20); // 초기 20개 로드
+      console.log("Raw activities from DB:", dbActivities);
 
       // DB에 활동이 없으면 빈 배열 표시
       if (dbActivities.length === 0) {
@@ -125,22 +440,112 @@ export default function MainScreen() {
         return;
       }
 
-      // DB 활동을 UI에 맞는 형식으로 변환
-      const formattedActivities: Activity[] = dbActivities.map((activity) => ({
-        id: activity.id,
-        type: activity.type as "schedule" | "worker" | "payment",
-        title: activity.title,
-        description: activity.description || "",
-        timestamp: activity.timestamp,
-        icon: activity.icon || getDefaultIcon(activity.type),
-        color: activity.color || getDefaultColor(activity.type),
-      }));
+      // DB 활동을 UI에 맞는 형식으로 변환 (Supabase에서 이미 삭제된 활동은 제외됨)
+      const formattedActivities: Activity[] = dbActivities.map(
+        (activity: any) => ({
+          id: activity.id,
+          type: activity.type as "schedule" | "worker" | "payment" | "revenue",
+          title: activity.title,
+          description: activity.description || "",
+          timestamp: activity.timestamp,
+          icon: activity.icon || getDefaultIcon(activity.type),
+          color: activity.color || getDefaultColor(activity.type),
+          relatedId: activity.relatedId || activity.related_id,
+          isRead: activity.isRead || false,
+          isDeleted: activity.isDeleted || false,
+        })
+      );
 
+      console.log("Filtered activities for UI:", formattedActivities);
       setRecentActivities(formattedActivities);
     } catch (error) {
       console.error("Failed to load activities from DB:", error);
       // DB 오류 시에만 빈 배열 (더미 데이터 대신)
       setRecentActivities([]);
+    }
+  };
+
+  // 활동 삭제 함수
+  const handleDeleteActivity = async (activityId: string) => {
+    try {
+      console.log("Deleting activity:", activityId);
+      const db = getDatabase();
+      console.log("Database type:", db.constructor.name);
+      await db.markActivityAsDeleted(activityId);
+      console.log("Activity marked as deleted in DB:", activityId);
+
+      // UI에서 즉시 제거
+      setRecentActivities((prev) =>
+        prev.filter((activity) => activity.id !== activityId)
+      );
+
+      console.log("Activity removed from UI:", activityId);
+    } catch (error) {
+      console.error("Failed to delete activity:", error);
+    }
+  };
+
+  // 활동 상세 보기 함수
+  const handleViewActivityDetails = async (activity: Activity) => {
+    console.log("Viewing activity details:", activity);
+
+    // 최근 활동 모달 닫기
+    setShowActivityModal(false);
+
+    if (activity.relatedId) {
+      try {
+        const db = getDatabase();
+
+        // 활동을 읽음 처리
+        await db.markActivityAsRead(activity.id);
+        console.log("Activity marked as read:", activity.id);
+
+        // UI에서 즉시 제거 (읽음 처리된 활동은 더 이상 표시되지 않음)
+        setRecentActivities((prev) => prev.filter((a) => a.id !== activity.id));
+
+        // 관련 ID가 있으면 해당 상세 화면으로 이동
+        switch (activity.type) {
+          case "schedule":
+            // 스케줄 존재 여부 확인
+            const schedule = await db.getSchedule(activity.relatedId);
+            if (schedule) {
+              router.push(`/schedule/${activity.relatedId}`);
+            } else {
+              alert("존재하지 않는 스케줄입니다.");
+            }
+            break;
+          case "worker":
+            router.push(`/workers`);
+            break;
+          case "payment":
+            // 미지급 급여 알림 - 스케줄 상세로 이동 (근로자 정보 포함)
+            const paymentSchedule = await db.getSchedule(activity.relatedId);
+            if (paymentSchedule) {
+              router.push(`/schedule/${activity.relatedId}`);
+            } else {
+              alert("존재하지 않는 스케줄입니다.");
+            }
+            break;
+          case "revenue":
+            // 미수금 알림 - 거래처 존재 여부 확인
+            const client = await db.getClient(activity.relatedId);
+            if (client) {
+              router.push(`/client/${activity.relatedId}`);
+            } else {
+              alert("존재하지 않는 거래처입니다.");
+            }
+            break;
+          default:
+            console.log("Unknown activity type:", activity.type);
+        }
+      } catch (error) {
+        console.error("Error checking related ID:", error);
+        alert("데이터를 확인하는 중 오류가 발생했습니다.");
+      }
+    } else {
+      // 관련 ID가 없으면 일반 상세 표시 (모달 등)
+      console.log("No related ID, showing general details");
+      // TODO: 일반 상세 모달 구현
     }
   };
 
@@ -153,6 +558,8 @@ export default function MainScreen() {
         return "person-add";
       case "payment":
         return "card";
+      case "revenue":
+        return "business";
       default:
         return "information-circle";
     }
@@ -167,6 +574,8 @@ export default function MainScreen() {
         return "#10b981";
       case "payment":
         return "#f59e0b";
+      case "revenue":
+        return "#10b981";
       default:
         return "#6b7280";
     }
@@ -196,7 +605,9 @@ export default function MainScreen() {
     });
 
     // 근로자 기반 활동
-    const allWorkers = schedules.flatMap((s) => s.workers.map((w) => w.worker));
+    const allWorkers = schedules.flatMap(
+      (s) => s.workers?.map((w) => w.worker) || []
+    );
     allWorkers.forEach((worker, index) => {
       if (index < 2) {
         // 최근 2명의 근로자
@@ -217,8 +628,8 @@ export default function MainScreen() {
     });
 
     // 급여 지급 활동
-    const paidWorkers = schedules.flatMap((s) =>
-      s.workers.filter((w) => w.paid)
+    const paidWorkers = schedules.flatMap(
+      (s) => s.workers?.filter((w) => w.paid) || []
     );
     paidWorkers.forEach((workerInfo, index) => {
       if (index < 1) {
@@ -258,8 +669,8 @@ export default function MainScreen() {
     if (periods.length === 0) return "시간 미정";
 
     const times = periods.map((p) => ({
-      start: dayjs(p.start).format("HH:mm"),
-      end: dayjs(p.end).format("HH:mm"),
+      start: dayjs(p.startTime || p.start).format("HH:mm"),
+      end: dayjs(p.endTime || p.end).format("HH:mm"),
     }));
 
     if (times.length === 1) {
@@ -304,16 +715,17 @@ export default function MainScreen() {
         scheduleStart.isSameOrBefore(periodEnd) &&
         scheduleEnd.isSameOrAfter(periodStart)
       ) {
-        schedule.workers.forEach((workerInfo) => {
+        schedule.workers?.forEach((workerInfo) => {
           const hourlyWage = workerInfo.worker.hourlyWage;
-          const taxWithheld = workerInfo.worker.taxWithheld;
+          const taxWithheld = (workerInfo as any).taxWithheld ?? false;
           const taxRate = 0.033;
 
-          const totalHours = workerInfo.periods.reduce((sum, period) => {
-            const start = dayjs(period.start);
-            const end = dayjs(period.end);
-            return sum + end.diff(start, "hour", true);
-          }, 0);
+          const totalHours =
+            workerInfo.periods?.reduce((sum, period) => {
+              const start = dayjs(period.startTime);
+              const end = dayjs(period.endTime);
+              return sum + end.diff(start, "hour", true);
+            }, 0) || 0;
 
           let grossPay = hourlyWage * totalHours;
           let netPay = grossPay;
@@ -335,10 +747,13 @@ export default function MainScreen() {
     let count = 0;
 
     schedules.forEach((schedule) => {
-      schedule.workers.forEach((workerInfo) => {
-        workerInfo.periods.forEach((period) => {
-          const workEnd = dayjs(period.end);
-          if (workEnd.isBefore(today) && !workerInfo.paid) {
+      schedule.workers?.forEach((workerInfo) => {
+        workerInfo.periods?.forEach((period) => {
+          const workEnd = dayjs(period.endTime);
+          if (
+            workEnd.isBefore(today) &&
+            !((workerInfo as any).wagePaid ?? workerInfo.paid)
+          ) {
             count++;
           }
         });
@@ -413,6 +828,14 @@ export default function MainScreen() {
       color: "#F472B6", // 부드러운 로즈
       route: "/uncollected",
     },
+    {
+      id: "files",
+      title: "파일 관리",
+      description: "거래처 및 스케줄 문서를 관리하세요",
+      icon: "folder-outline",
+      color: "#8B5CF6", // 부드러운 바이올렛
+      route: "/files",
+    },
   ];
 
   const handleMenuPress = (route: string) => {
@@ -420,7 +843,7 @@ export default function MainScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isWeb && styles.webContainer]}>
       <ScrollView style={styles.scrollContainer}>
         {/* 헤더 */}
         <View
@@ -580,7 +1003,8 @@ export default function MainScreen() {
                           ]}
                         >
                           {formatTime(
-                            schedule.workers.flatMap((w) => w.periods)
+                            schedule.workers?.flatMap((w) => w.periods || []) ||
+                              []
                           )}
                         </Text>
 
@@ -686,7 +1110,13 @@ export default function MainScreen() {
               shadowColor: colors.primary,
             },
           ]}
-          onPress={() => setShowActivityModal(true)}
+          onPress={() => {
+            if (isWeb) {
+              setShowWebNotificationPanel(true);
+            } else {
+              setShowActivityModal(true);
+            }
+          }}
         >
           <Ionicons name="notifications" size={24} color="white" />
           {recentActivities.filter((a) => a.type === "payment").length > 0 && (
@@ -694,7 +1124,9 @@ export default function MainScreen() {
               style={[styles.activityBadge, { backgroundColor: colors.error }]}
             >
               <Text style={styles.activityBadgeText}>
-                {recentActivities.filter((a) => a.type === "payment").length}
+                {formatActivityCount(
+                  recentActivities.filter((a) => a.type === "payment").length
+                )}
               </Text>
             </View>
           )}
@@ -738,6 +1170,17 @@ export default function MainScreen() {
       />
 
       {/* 활동 알림 모달 */}
+      {/* 웹용 알림 패널 */}
+      {isWeb && showWebNotificationPanel && (
+        <WebNotificationPanel
+          activities={recentActivities}
+          onDelete={handleDeleteActivity}
+          onClose={() => setShowWebNotificationPanel(false)}
+          colors={colors}
+          formatActivityTime={formatActivityTime}
+        />
+      )}
+
       <Modal
         visible={showActivityModal}
         animationType="slide"
@@ -769,49 +1212,14 @@ export default function MainScreen() {
 
           <ScrollView style={styles.activityModalContent}>
             {recentActivities.map((activity) => (
-              <View
+              <SwipeableActivityItem
                 key={activity.id}
-                style={[
-                  styles.activityModalItem,
-                  { borderBottomColor: colors.border },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.activityModalIcon,
-                    { backgroundColor: `${activity.color}20` },
-                  ]}
-                >
-                  <Ionicons
-                    name={activity.icon as any}
-                    size={20}
-                    color={activity.color}
-                  />
-                </View>
-                <View style={styles.activityModalContent}>
-                  <Text
-                    style={[styles.activityModalTitle, { color: colors.text }]}
-                  >
-                    {activity.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.activityModalDescription,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    {activity.description}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.activityModalTime,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    {formatActivityTime(activity.timestamp)}
-                  </Text>
-                </View>
-              </View>
+                activity={activity}
+                onDelete={handleDeleteActivity}
+                onViewDetails={handleViewActivityDetails}
+                colors={colors}
+                formatActivityTime={formatActivityTime}
+              />
             ))}
           </ScrollView>
         </View>
@@ -957,6 +1365,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Theme.spacing.md,
+    // 웹 반응형 최적화
+    ...(Platform.OS === "web" && {
+      width: "clamp(40px, 6vw, 56px)",
+      height: "clamp(40px, 6vw, 56px)",
+      marginBottom: "clamp(8px, 1.5vh, 12px)",
+    }),
   },
   menuTitle: {
     fontSize: Theme.typography.sizes.md,
@@ -1032,43 +1446,72 @@ const styles = StyleSheet.create({
   // 웹 전용 스타일
   headerWeb: {
     paddingHorizontal: 0,
-    paddingTop: 80,
-    paddingBottom: 50,
+    // 화면 크기별로 다르게
+    paddingTop: "clamp(40px, 8vh, 80px)",
+    paddingBottom: "clamp(30px, 6vh, 50px)",
   },
   headerContentWeb: {
-    maxWidth: 1400,
+    // 화면 크기별로 다르게
+    maxWidth: "clamp(800px, 90vw, 1400px)",
     width: "100%",
     marginHorizontal: "auto",
-    paddingHorizontal: 40,
+    paddingHorizontal: "clamp(20px, 4vw, 60px)",
   },
   headerTitleWeb: {
-    fontSize: 42,
+    // 화면 크기별로 다르게
+    fontSize: "clamp(28px, 4vw, 42px)",
     fontFamily: "Inter_700Bold",
   },
   mainContentWeb: {
-    maxWidth: 1400,
+    // 화면 크기별로 다르게
+    maxWidth: "clamp(800px, 90vw, 1400px)",
     width: "100%",
     marginHorizontal: "auto",
-    paddingHorizontal: 40,
+    paddingHorizontal: "clamp(20px, 4vw, 60px)",
   },
   menuGridWeb: {
-    flexDirection: "row" as const,
-    flexWrap: "wrap" as const,
-    gap: 24,
-    justifyContent: "flex-start",
+    // 한 줄에 6개씩 두 줄로 정확히 배치
+    display: "flex",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignItems: "stretch",
+    gap: "20px",
+    paddingHorizontal: "20px",
+    width: "100%",
+    maxWidth: "1400px",
+    margin: "0 auto",
   },
   menuItemWeb: {
-    width: 280,
-    padding: 32,
+    // 한 줄에 6개씩 두 줄로 정확히 배치
+    width: "15%", // 6개 배치를 위해 15%씩
+    height: "120px",
+    padding: "16px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.lg,
+    ...Theme.shadows.sm,
+    transition: "all 0.2s ease",
+    cursor: "pointer",
+    // 호버 효과
+    ...(Platform.OS === "web" && {
+      "&:hover": {
+        transform: "translateY(-2px)",
+        ...Theme.shadows.md,
+      },
+    }),
   },
   menuTitleWeb: {
-    fontSize: 20,
+    fontSize: "clamp(14px, 2.5vw, 20px)",
     fontFamily: "Inter_600SemiBold",
   },
   menuDescriptionWeb: {
-    fontSize: 14,
+    fontSize: "clamp(12px, 1.8vw, 14px)",
     fontFamily: "Inter_400Regular",
-    lineHeight: 20,
+    lineHeight: "clamp(16px, 2.5vw, 20px)",
   },
   twoColumnWeb: {
     flexDirection: "row" as const,
@@ -1156,6 +1599,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     alignItems: "flex-start",
+    minHeight: 80, // 최소 높이 확보
   },
   activityModalIcon: {
     width: 40,
@@ -1177,5 +1621,142 @@ const styles = StyleSheet.create({
   },
   activityModalTime: {
     fontSize: 12,
+  },
+  unreadIndicator: {
+    position: "absolute",
+    right: 8,
+    top: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dragHint: {
+    position: "absolute",
+    right: -100,
+    top: 0,
+    bottom: 0,
+    width: 100,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  dragHintText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  actionButtons: {
+    position: "absolute",
+    right: -120,
+    top: 0,
+    bottom: 0,
+    width: 120,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    height: "80%",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 8,
+    flexDirection: "row",
+    gap: 4,
+  },
+  actionButtonText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  // 웹용 알림 패널 스타일
+  webNotificationPanel: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+    flexDirection: "row",
+  },
+  webNotificationOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  webNotificationContent: {
+    width: 400,
+    height: "100%",
+    backgroundColor: "white",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: -2,
+      height: 0,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  webNotificationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+  },
+  webNotificationTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  webNotificationClose: {
+    padding: 4,
+  },
+  webNotificationList: {
+    flex: 1,
+  },
+  webNotificationEmpty: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  webNotificationEmptyText: {
+    fontSize: 16,
+    textAlign: "center",
+  },
+  // 웹용 반응형 스타일
+  webContainer: {
+    width: "100%",
+    maxWidth: "none",
+    marginHorizontal: 0,
+    minHeight: "100vh",
+    paddingHorizontal: "clamp(16px, 5vw, 48px)",
+  },
+  headerWeb: {
+    borderRadius: 0,
+    marginHorizontal: 0,
+    paddingHorizontal: "clamp(16px, 5vw, 48px)",
+  },
+  headerContentWeb: {
+    maxWidth: 1400,
+    marginHorizontal: "auto",
+    paddingHorizontal: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerTitleWeb: {
+    fontSize: "clamp(20px, 4vw, 32px)",
+  },
+  menuItemWeb: {
+    width: "clamp(140px, 20vw, 200px)",
+    marginBottom: "clamp(12px, 2vh, 20px)",
+    marginHorizontal: "clamp(4px, 1vw, 8px)",
+  },
+  menuTitleWeb: {
+    fontSize: "clamp(12px, 2vw, 16px)",
+    fontWeight: "600",
   },
 });

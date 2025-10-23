@@ -1,6 +1,9 @@
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import PeriodSelector, { PeriodType } from "@/components/PeriodSelector";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +12,6 @@ import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -45,6 +47,8 @@ interface ScheduleStats {
 }
 
 export default function ScheduleReportsScreen() {
+  const { colors } = useTheme();
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [stats, setStats] = useState<ScheduleStats>({
     totalSchedules: 0,
     thisMonthSchedules: 0,
@@ -59,13 +63,13 @@ export default function ScheduleReportsScreen() {
   });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState<
-    "week" | "month" | "year"
-  >("month");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>("month");
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
 
   useEffect(() => {
     loadScheduleData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, customStartDate, customEndDate]);
 
   const loadScheduleData = async () => {
     try {
@@ -77,25 +81,41 @@ export default function ScheduleReportsScreen() {
       setSchedules(allSchedules);
 
       const today = dayjs();
-      const thisMonthStart = today.startOf("month");
-      const thisMonthEnd = today.endOf("month");
-      const thisWeekStart = today.startOf("week");
-      const thisWeekEnd = today.endOf("week");
+      let periodStart: dayjs.Dayjs;
+      let periodEnd: dayjs.Dayjs;
 
-      // 기본 통계
-      const thisMonthSchedules = allSchedules.filter((s) => {
+      switch (selectedPeriod) {
+        case "week":
+          periodStart = today.startOf("week");
+          periodEnd = today.endOf("week");
+          break;
+        case "month":
+          periodStart = today.startOf("month");
+          periodEnd = today.endOf("month");
+          break;
+        case "year":
+          periodStart = today.startOf("year");
+          periodEnd = today.endOf("year");
+          break;
+        case "custom":
+          periodStart = customStartDate
+            ? dayjs(customStartDate)
+            : today.startOf("month");
+          periodEnd = customEndDate
+            ? dayjs(customEndDate)
+            : today.endOf("month");
+          break;
+        default:
+          periodStart = today.startOf("month");
+          periodEnd = today.endOf("month");
+      }
+
+      // 기간 내 일정 필터링
+      const periodSchedules = allSchedules.filter((s) => {
         const scheduleDate = dayjs(s.startDate);
         return (
-          scheduleDate.isSameOrAfter(thisMonthStart) &&
-          scheduleDate.isSameOrBefore(thisMonthEnd)
-        );
-      });
-
-      const thisWeekSchedules = allSchedules.filter((s) => {
-        const scheduleDate = dayjs(s.startDate);
-        return (
-          scheduleDate.isSameOrAfter(thisWeekStart) &&
-          scheduleDate.isSameOrBefore(thisWeekEnd)
+          scheduleDate.isSameOrAfter(periodStart) &&
+          scheduleDate.isSameOrBefore(periodEnd)
         );
       });
 
@@ -198,8 +218,8 @@ export default function ScheduleReportsScreen() {
 
       setStats({
         totalSchedules: allSchedules.length,
-        thisMonthSchedules: thisMonthSchedules.length,
-        thisWeekSchedules: thisWeekSchedules.length,
+        thisMonthSchedules: periodSchedules.length,
+        thisWeekSchedules: periodSchedules.length,
         completedSchedules: completedSchedules.length,
         upcomingSchedules: upcomingSchedules.length,
         totalWorkers,
@@ -266,6 +286,15 @@ export default function ScheduleReportsScreen() {
 
   const periodSchedules = getPeriodSchedules();
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <CommonHeader title="일정 현황 리포트" />
+        <LoadingSpinner message="일정 데이터를 불러오는 중..." />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <CommonHeader title="일정 현황 리포트" />
@@ -275,62 +304,21 @@ export default function ScheduleReportsScreen() {
         contentContainerStyle={isWeb ? styles.contentContainerWeb : undefined}
       >
         {/* 기간 선택 */}
-        <View style={styles.periodSelector}>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "week" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("week")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "week" && styles.periodButtonTextActive,
-              ]}
-            >
-              주간
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "month" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("month")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "month" && styles.periodButtonTextActive,
-              ]}
-            >
-              월간
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "year" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("year")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "year" && styles.periodButtonTextActive,
-              ]}
-            >
-              연간
-            </Text>
-          </Pressable>
-        </View>
+        <PeriodSelector
+          selectedPeriod={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
+          startDate={customStartDate}
+          endDate={customEndDate}
+          onStartDateChange={setCustomStartDate}
+          onEndDateChange={setCustomEndDate}
+          showCustomRange={true}
+        />
 
         {/* 주요 통계 카드 */}
         <View style={[styles.statsGrid, isWeb && styles.statsGridWeb]}>
           <View style={[styles.statCard, isWeb && styles.statCardWeb]}>
             <View style={[styles.statIcon, { backgroundColor: "#dbeafe" }]}>
-              <Ionicons name="calendar" size={24} color="#3b82f6" />
+              <Ionicons name="calendar" size={24} color={colors.primary} />
             </View>
             <Text style={styles.statValue}>{stats.totalSchedules}</Text>
             <Text style={styles.statLabel}>총 일정</Text>
@@ -407,7 +395,10 @@ export default function ScheduleReportsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>카테고리별 분포</Text>
           <View style={styles.categoryCard}>
-            {stats.categoryStats.map((item, index) => (
+            {(showAllCategories
+              ? stats.categoryStats
+              : stats.categoryStats.slice(0, 3)
+            ).map((item, index) => (
               <View key={index} style={styles.categoryItem}>
                 <View style={styles.categoryInfo}>
                   <Text style={styles.categoryName}>{item.category}</Text>
@@ -429,6 +420,24 @@ export default function ScheduleReportsScreen() {
                 </Text>
               </View>
             ))}
+            {stats.categoryStats.length > 3 && !showAllCategories && (
+              <Pressable
+                style={styles.showMoreButton}
+                onPress={() => setShowAllCategories(true)}
+              >
+                <Text style={styles.showMoreText}>
+                  +{stats.categoryStats.length - 3}개 더 보기
+                </Text>
+              </Pressable>
+            )}
+            {stats.categoryStats.length > 3 && showAllCategories && (
+              <Pressable
+                style={styles.showLessButton}
+                onPress={() => setShowAllCategories(false)}
+              >
+                <Text style={styles.showLessText}>접기</Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
@@ -527,30 +536,6 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
     padding: Theme.spacing.xl,
-  },
-  periodSelector: {
-    flexDirection: "row",
-    margin: Theme.spacing.lg,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.lg,
-    padding: 4,
-  },
-  periodButton: {
-    flex: 1,
-    paddingVertical: Theme.spacing.sm,
-    alignItems: "center",
-    borderRadius: Theme.borderRadius.md,
-  },
-  periodButtonActive: {
-    backgroundColor: Theme.colors.primary,
-  },
-  periodButtonText: {
-    fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.medium,
-    color: Theme.colors.text.secondary,
-  },
-  periodButtonTextActive: {
-    color: "white",
   },
   statsGrid: {
     flexDirection: "row",
@@ -742,5 +727,31 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.sizes.sm,
     color: Theme.colors.text.tertiary,
     marginTop: Theme.spacing.sm,
+  },
+  showMoreButton: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  showMoreText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  showLessButton: {
+    backgroundColor: "#e5e7eb",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  showLessText: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: "500",
   },
 });

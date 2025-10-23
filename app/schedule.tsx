@@ -2,12 +2,14 @@ import CommonHeader from "@/components/CommonHeader";
 import PlannerCalendar from "@/components/PlannerCalendar";
 import ScheduleAddModal from "@/components/ScheduleAddModal";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 export default function ScheduleScreen() {
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
+  const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [showAddModal, setShowAddModal] = useState(false);
   const [initialStartDate, setInitialStartDate] = useState<string>();
   const [initialEndDate, setInitialEndDate] = useState<string>();
@@ -44,7 +46,7 @@ export default function ScheduleScreen() {
     <View style={styles.container}>
       {/* 헤더 */}
       <CommonHeader
-        title="스케줄 관리"
+        title={filter === "upcoming" ? "예정 일정" : "스케줄 관리"}
         rightButton={{
           icon: "add",
           onPress: handleAddSchedule,
@@ -56,6 +58,7 @@ export default function ScheduleScreen() {
         <PlannerCalendar
           key={refreshKey}
           onAddSchedulePress={handleAddSchedulePress}
+          filter={filter}
         />
       </View>
 

@@ -15,6 +15,8 @@ export interface ScheduleWorkerInfo {
   worker: Worker;
   periods: WorkPeriod[];
   paid: boolean;
+  taxWithheld?: boolean;
+  wagePaid?: boolean;
 }
 
 export interface IDatabase {
@@ -99,6 +101,34 @@ export interface IDatabase {
   updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<void>;
   deleteUserProfile(userId: string): Promise<void>;
 
+  // Activity operations
+  createActivity(activity: {
+    id: string;
+    type: string;
+    title: string;
+    description?: string;
+    relatedId?: string;
+    icon?: string;
+    color?: string;
+    isRead?: boolean;
+    isDeleted?: boolean;
+  }): Promise<string>;
+  getRecentActivities(limit?: number, offset?: number): Promise<Array<{
+    id: string;
+    type: string;
+    title: string;
+    description?: string;
+    relatedId?: string;
+    icon?: string;
+    color?: string;
+    isRead: boolean;
+    isDeleted: boolean;
+    timestamp: string;
+  }>>;
+  markActivityAsRead(activityId: string): Promise<void>;
+  markActivityAsDeleted(activityId: string): Promise<void>;
+  clearOldActivities(daysToKeep?: number): Promise<void>;
+
   // Notification operations
   createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>): Promise<string>;
   getNotification(id: string): Promise<Notification | null>;
@@ -138,6 +168,50 @@ export interface IDatabase {
     language?: 'ko' | 'en';
     notificationsEnabled?: boolean;
   }): Promise<void>;
+
+  // Client document operations
+  createClientDocument(document: {
+    id: string;
+    clientId: string;
+    fileName: string;
+    fileUrl: string;
+    filePath: string;
+    fileType: string;
+    fileSize?: number;
+  }): Promise<string>;
+  getClientDocuments(clientId: string): Promise<Array<{
+    id: string;
+    clientId: string;
+    fileName: string;
+    fileUrl: string;
+    filePath: string;
+    fileType: string;
+    fileSize?: number;
+    uploadedAt: string;
+  }>>;
+  deleteClientDocument(documentId: string): Promise<void>;
+
+  // Schedule document operations
+  createScheduleDocument(document: {
+    id: string;
+    scheduleId: string;
+    fileName: string;
+    fileUrl: string;
+    filePath: string;
+    fileType: string;
+    fileSize?: number;
+  }): Promise<string>;
+  getScheduleDocuments(scheduleId: string): Promise<Array<{
+    id: string;
+    scheduleId: string;
+    fileName: string;
+    fileUrl: string;
+    filePath: string;
+    fileType: string;
+    fileSize?: number;
+    uploadedAt: string;
+  }>>;
+  deleteScheduleDocument(documentId: string): Promise<void>;
 
   // Utility
   clearAllData(): Promise<void>;

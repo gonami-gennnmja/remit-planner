@@ -36,9 +36,11 @@ export const CREATE_TABLES = `
     all_wages_paid BOOLEAN DEFAULT false,
     revenue_status TEXT DEFAULT 'pending' CHECK (revenue_status IN ('received', 'pending', 'overdue')),
     revenue_due_date TEXT,
+    client_id TEXT,
     memo TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
   );
 
   -- Schedule times table (일별 시간 설정)
@@ -203,6 +205,8 @@ export const CREATE_TABLES = `
     related_id TEXT,
     icon TEXT,
     color TEXT,
+    is_read BOOLEAN DEFAULT false,
+    is_deleted BOOLEAN DEFAULT false,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 

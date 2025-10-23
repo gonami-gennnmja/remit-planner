@@ -117,14 +117,25 @@ function NavigationWrapper() {
         <Stack.Screen name="schedule" options={{ headerShown: false }} />
         <Stack.Screen name="schedule-list" options={{ headerShown: false }} />
         <Stack.Screen name="clients" options={{ headerShown: false }} />
+        <Stack.Screen name="clients-backup" options={{ headerShown: false }} />
+        <Stack.Screen name="clients-simple" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="workers" options={{ headerShown: false }} />
         <Stack.Screen name="payroll" options={{ headerShown: false }} />
         <Stack.Screen name="reports" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="schedule-reports"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="worker-reports" options={{ headerShown: false }} />
+        <Stack.Screen name="revenue-reports" options={{ headerShown: false }} />
         <Stack.Screen name="uncollected" options={{ headerShown: false }} />
+        <Stack.Screen name="unpaid-details" options={{ headerShown: false }} />
+        <Stack.Screen name="files" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-        <Stack.Screen name="schedule/[id]" options={{ title: "스케쥴 상세" }} />
+        <Stack.Screen name="schedule/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="client/[id]" options={{ headerShown: false }} />
       </Stack>
     </NavigationThemeProvider>
   );

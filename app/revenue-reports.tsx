@@ -1,6 +1,9 @@
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import PeriodSelector, { PeriodType } from "@/components/PeriodSelector";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +12,6 @@ import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -60,6 +62,8 @@ interface RevenueStats {
 }
 
 export default function RevenueReportsScreen() {
+  const { colors } = useTheme();
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [stats, setStats] = useState<RevenueStats>({
     totalRevenue: 0,
     monthlyRevenue: 0,
@@ -81,13 +85,13 @@ export default function RevenueReportsScreen() {
   });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState<
-    "week" | "month" | "year"
-  >("month");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>("month");
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
 
   useEffect(() => {
     loadRevenueData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, customStartDate, customEndDate]);
 
   const loadRevenueData = async () => {
     try {
@@ -99,10 +103,34 @@ export default function RevenueReportsScreen() {
       setSchedules(allSchedules);
 
       const today = dayjs();
-      const thisMonthStart = today.startOf("month");
-      const thisMonthEnd = today.endOf("month");
-      const thisYearStart = today.startOf("year");
-      const thisYearEnd = today.endOf("year");
+      let periodStart: dayjs.Dayjs;
+      let periodEnd: dayjs.Dayjs;
+
+      switch (selectedPeriod) {
+        case "week":
+          periodStart = today.startOf("week");
+          periodEnd = today.endOf("week");
+          break;
+        case "month":
+          periodStart = today.startOf("month");
+          periodEnd = today.endOf("month");
+          break;
+        case "year":
+          periodStart = today.startOf("year");
+          periodEnd = today.endOf("year");
+          break;
+        case "custom":
+          periodStart = customStartDate
+            ? dayjs(customStartDate)
+            : today.startOf("month");
+          periodEnd = customEndDate
+            ? dayjs(customEndDate)
+            : today.endOf("month");
+          break;
+        default:
+          periodStart = today.startOf("month");
+          periodEnd = today.endOf("month");
+      }
 
       // 전체 수익/지출 계산 (임시로 일정당 고정 수익 가정)
       const REVENUE_PER_SCHEDULE = 500000; // 일정당 50만원 수익 가정
@@ -123,17 +151,16 @@ export default function RevenueReportsScreen() {
       allSchedules.forEach((schedule) => {
         const scheduleDate = dayjs(schedule.startDate);
         const scheduleRevenue = REVENUE_PER_SCHEDULE;
-        const isThisMonth =
-          scheduleDate.isSameOrAfter(thisMonthStart) &&
-          scheduleDate.isSameOrBefore(thisMonthEnd);
-        const isThisYear =
-          scheduleDate.isSameOrAfter(thisYearStart) &&
-          scheduleDate.isSameOrBefore(thisYearEnd);
+        const isInPeriod =
+          scheduleDate.isSameOrAfter(periodStart) &&
+          scheduleDate.isSameOrBefore(periodEnd);
 
         // 수익 계산
         totalRevenue += scheduleRevenue;
-        if (isThisMonth) monthlyRevenue += scheduleRevenue;
-        if (isThisYear) yearlyRevenue += scheduleRevenue;
+        if (isInPeriod) {
+          monthlyRevenue += scheduleRevenue;
+          yearlyRevenue += scheduleRevenue;
+        }
 
         // 카테고리별 수익
         const category = schedule.category;
@@ -169,8 +196,10 @@ export default function RevenueReportsScreen() {
           const netPay = grossPay - tax;
 
           totalExpense += Math.round(netPay);
-          if (isThisMonth) monthlyExpense += Math.round(netPay);
-          if (isThisYear) yearlyExpense += Math.round(netPay);
+          if (isInPeriod) {
+            monthlyExpense += Math.round(netPay);
+            yearlyExpense += Math.round(netPay);
+          }
         });
       });
 
@@ -299,6 +328,15 @@ export default function RevenueReportsScreen() {
 
   const periodStats = getPeriodStats();
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <CommonHeader title="수익 리포트" />
+        <LoadingSpinner message="수익 데이터를 불러오는 중..." />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <CommonHeader title="수익 리포트" />
@@ -308,56 +346,15 @@ export default function RevenueReportsScreen() {
         contentContainerStyle={isWeb ? styles.contentContainerWeb : undefined}
       >
         {/* 기간 선택 */}
-        <View style={styles.periodSelector}>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "week" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("week")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "week" && styles.periodButtonTextActive,
-              ]}
-            >
-              주간
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "month" && styles.periodButtonActive,
-            ]}
-            onPress={() => setSelectedPeriod("month")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "month" && styles.periodButtonTextActive,
-              ]}
-            >
-              월간
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.periodButton,
-              selectedPeriod === "year" && styles.periodButtonTextActive,
-            ]}
-            onPress={() => setSelectedPeriod("year")}
-          >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === "year" && styles.periodButtonTextActive,
-              ]}
-            >
-              연간
-            </Text>
-          </Pressable>
-        </View>
+        <PeriodSelector
+          selectedPeriod={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
+          startDate={customStartDate}
+          endDate={customEndDate}
+          onStartDateChange={setCustomStartDate}
+          onEndDateChange={setCustomEndDate}
+          showCustomRange={true}
+        />
 
         {/* 주요 통계 카드 */}
         <View style={[styles.statsGrid, isWeb && styles.statsGridWeb]}>
@@ -486,7 +483,10 @@ export default function RevenueReportsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>카테고리별 수익</Text>
           <View style={styles.categoryCard}>
-            {stats.categoryRevenue.map((item, index) => (
+            {(showAllCategories
+              ? stats.categoryRevenue
+              : stats.categoryRevenue.slice(0, 3)
+            ).map((item, index) => (
               <View key={index} style={styles.categoryItem}>
                 <View style={styles.categoryInfo}>
                   <Text style={styles.categoryName}>{item.category}</Text>
@@ -510,6 +510,24 @@ export default function RevenueReportsScreen() {
                 </Text>
               </View>
             ))}
+            {stats.categoryRevenue.length > 3 && !showAllCategories && (
+              <Pressable
+                style={styles.showMoreButton}
+                onPress={() => setShowAllCategories(true)}
+              >
+                <Text style={styles.showMoreText}>
+                  +{stats.categoryRevenue.length - 3}개 더 보기
+                </Text>
+              </Pressable>
+            )}
+            {stats.categoryRevenue.length > 3 && showAllCategories && (
+              <Pressable
+                style={styles.showLessButton}
+                onPress={() => setShowAllCategories(false)}
+              >
+                <Text style={styles.showLessText}>접기</Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
@@ -651,30 +669,6 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
     padding: Theme.spacing.xl,
-  },
-  periodSelector: {
-    flexDirection: "row",
-    margin: Theme.spacing.lg,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.lg,
-    padding: 4,
-  },
-  periodButton: {
-    flex: 1,
-    paddingVertical: Theme.spacing.sm,
-    alignItems: "center",
-    borderRadius: Theme.borderRadius.md,
-  },
-  periodButtonActive: {
-    backgroundColor: Theme.colors.primary,
-  },
-  periodButtonText: {
-    fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.medium,
-    color: Theme.colors.text.secondary,
-  },
-  periodButtonTextActive: {
-    color: "white",
   },
   statsGrid: {
     flexDirection: "row",
@@ -938,5 +932,31 @@ const styles = StyleSheet.create({
     fontSize: Theme.typography.sizes.sm,
     color: Theme.colors.text.tertiary,
     marginTop: Theme.spacing.sm,
+  },
+  showMoreButton: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  showMoreText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  showLessButton: {
+    backgroundColor: "#e5e7eb",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  showLessText: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: "500",
   },
 });
