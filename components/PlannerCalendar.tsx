@@ -158,16 +158,26 @@ function WorkerCard({
         </Text>
         <View style={styles.actionButtons}>
           <Pressable
-            style={styles.actionButton}
             onPress={() => onCall(worker.phone)}
+            style={({ pressed }) => [
+              {
+                opacity: pressed ? 0.6 : 1,
+              },
+            ]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="call" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 16 }}>📞</Text>
           </Pressable>
           <Pressable
-            style={styles.actionButton}
             onPress={() => onSMS(worker.phone)}
+            style={({ pressed }) => [
+              {
+                opacity: pressed ? 0.6 : 1,
+              },
+            ]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="chatbubble" size={16} color="#10b981" />
+            <Text style={{ fontSize: 16 }}>💬</Text>
           </Pressable>
           {onDelete && (
             <Pressable

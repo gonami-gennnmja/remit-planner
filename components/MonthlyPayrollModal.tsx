@@ -198,7 +198,7 @@ export default function MonthlyPayrollModal({
                   style={styles.workerCard}
                   onPress={() => {
                     onClose();
-                    router.push("/workers");
+                    router.push("/worker");
                   }}
                 >
                   <View style={styles.workerHeader}>

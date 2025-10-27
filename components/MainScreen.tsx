@@ -4,12 +4,12 @@ import ScheduleAddModal from "@/components/ScheduleAddModal";
 import StaffWorkStatusModal from "@/components/StaffWorkStatusModal";
 import TodayScheduleModal from "@/components/TodayScheduleModal";
 import UnpaidScheduleModal from "@/components/UnpaidScheduleModal";
-import { Theme } from "@/constants/Theme";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { useResponsive } from "@/hooks/useResponsive";
 import { Schedule } from "@/models/types";
 import { getCurrentUser, User } from "@/utils/authUtils";
+import { formatPhoneNumber } from "@/utils/bankUtils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router, useFocusEffect } from "expo-router";
@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Animated,
   Dimensions,
+  Linking,
   Modal,
   PanResponder,
   Platform,
@@ -343,6 +344,8 @@ const WebNotificationPanel = ({
 export default function MainScreen() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState(
     dayjs().format("YYYY-MM-DD")
   );
@@ -356,6 +359,9 @@ export default function MainScreen() {
 
   // 모달 상태
   const [showTodaySchedule, setShowTodaySchedule] = useState(false);
+  const [showTodayWorkers, setShowTodayWorkers] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState<any>(null);
+  const [showWorkerDetail, setShowWorkerDetail] = useState(false);
   const [showMonthlyPayroll, setShowMonthlyPayroll] = useState(false);
   const [showStaffWorkStatus, setShowStaffWorkStatus] = useState(false);
   const [showUnpaidSchedule, setShowUnpaidSchedule] = useState(false);
@@ -370,6 +376,8 @@ export default function MainScreen() {
 
         loadCurrentUser();
         loadSchedules();
+        loadWorkers();
+        loadClients();
         await initializeActivities(); // 초기 활동 생성 및 로드
       } catch (error) {
         console.error("Failed to initialize app:", error);
@@ -383,6 +391,8 @@ export default function MainScreen() {
   useFocusEffect(
     useCallback(() => {
       loadSchedules();
+      loadWorkers();
+      loadClients();
       loadRecentActivitiesFromDB();
       loadCurrentUser(); // 사용자 정보 새로고침
     }, [])
@@ -407,11 +417,36 @@ export default function MainScreen() {
   const loadSchedules = async () => {
     try {
       const db = getDatabase();
-      const allSchedules = await db.getAllSchedules();
-      setSchedules(allSchedules);
+
+      // 오늘 일정만 최적화된 쿼리로 가져오기
+      const today = dayjs().format("YYYY-MM-DD");
+      const todaySchedules = await db.getTodaySchedules(today);
+      setSchedules(todaySchedules);
     } catch (error) {
       console.error("Failed to load schedules:", error);
       setSchedules([]);
+    }
+  };
+
+  const loadWorkers = async () => {
+    try {
+      const db = getDatabase();
+      const workerList = await db.getAllWorkers();
+      setWorkers(workerList);
+    } catch (error) {
+      console.error("Failed to load workers:", error);
+      setWorkers([]);
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      const db = getDatabase();
+      const clientList = await db.getAllClients();
+      setClients(clientList);
+    } catch (error) {
+      console.error("Failed to load clients:", error);
+      setClients([]);
     }
   };
 
@@ -466,6 +501,9 @@ export default function MainScreen() {
     }
   };
 
+  // 웹용 알림 애니메이션
+  const webNotificationAnimation = useState(new Animated.Value(1000))[0];
+
   // 활동 상세 보기 함수
   const handleViewActivityDetails = async (activity: Activity) => {
     // 최근 활동 모달 닫기
@@ -508,7 +546,7 @@ export default function MainScreen() {
             // 미수금 알림 - 거래처 존재 여부 확인
             const client = await db.getClient(activity.relatedId);
             if (client) {
-              router.push(`/client/${activity.relatedId}`);
+              router.push(`/clients/${activity.relatedId}`);
             } else {
               alert("존재하지 않는 거래처입니다.");
             }
@@ -557,6 +595,26 @@ export default function MainScreen() {
     }
   };
 
+  // 활동 프레스 핸들러
+  const handleActivityPress = (activity: Activity) => {
+    handleViewActivityDetails(activity);
+  };
+
+  // 상대 시간 포맷
+  const formatRelativeTime = (timestamp: string): string => {
+    const now = dayjs();
+    const time = dayjs(timestamp);
+    const diffMinutes = now.diff(time, "minute");
+
+    if (diffMinutes < 1) return "방금 전";
+    if (diffMinutes < 60) return `${diffMinutes}분 전`;
+    const diffHours = now.diff(time, "hour");
+    if (diffHours < 24) return `${diffHours}시간 전`;
+    const diffDays = now.diff(time, "day");
+    if (diffDays < 7) return `${diffDays}일 전`;
+    return time.format("YYYY-MM-DD");
+  };
+
   const loadRecentActivities = () => {
     // 더미 데이터 (DB에 활동이 없을 때 사용)
     const activities: Activity[] = [];
@@ -591,9 +649,11 @@ export default function MainScreen() {
           id: `worker-${worker.id}`,
           type: "worker",
           title: `${worker.name}님 추가`,
-          description: `${worker.phone} | ${new Intl.NumberFormat(
-            "ko-KR"
-          ).format(worker.hourlyWage)}원/시간`,
+          description: `${formatPhoneNumber(
+            worker.phone
+          )} | ${new Intl.NumberFormat("ko-KR").format(
+            worker.hourlyWage
+          )}원/시간`,
           timestamp: dayjs()
             .subtract(index + 1, "hour")
             .format("YYYY-MM-DD HH:mm"),
@@ -629,6 +689,46 @@ export default function MainScreen() {
   };
 
   // 오늘 일정 가져오기
+  // 오늘 근무하는 근로자 목록
+  const getTodayWorkers = () => {
+    const todayWorkersMap = new Map();
+
+    getTodaySchedules().forEach((schedule) => {
+      schedule.workers?.forEach((workerInfo) => {
+        const worker = workerInfo.worker;
+
+        // 근무 시간 정보 추출
+        const workTimes =
+          workerInfo.periods
+            ?.map((period) => {
+              if (period.startTime && period.endTime) {
+                return `${period.startTime} - ${period.endTime}`;
+              }
+              return null;
+            })
+            .filter(Boolean) || [];
+
+        if (!todayWorkersMap.has(worker.id)) {
+          todayWorkersMap.set(worker.id, {
+            ...worker,
+            schedules: [schedule.title],
+            scheduleIds: [schedule.id],
+            workTimes: workTimes.length > 0 ? workTimes : ["시간 미지정"],
+          });
+        } else {
+          const existing = todayWorkersMap.get(worker.id);
+          existing.schedules.push(schedule.title);
+          existing.scheduleIds.push(schedule.id);
+          if (workTimes.length > 0) {
+            existing.workTimes.push(...workTimes);
+          }
+        }
+      });
+    });
+
+    return Array.from(todayWorkersMap.values());
+  };
+
   const getTodaySchedules = () => {
     return schedules.filter((schedule) => {
       const scheduleStart = dayjs(schedule.startDate);
@@ -741,76 +841,52 @@ export default function MainScreen() {
 
   const menuItems = [
     {
-      id: "dashboard",
-      title: "대시보드",
-      description: "한눈에 보는 업무 현황",
-      icon: "analytics-outline",
-      color: "#A78BFA", // 부드러운 라벤더
-      route: "/dashboard",
-    },
-    {
-      id: "reports",
-      title: "리포트",
-      description: "상세한 통계 및 분석",
-      icon: "bar-chart-outline",
-      color: "#F59E0B", // 부드러운 앰버
-      route: "/reports",
-    },
-    {
       id: "schedule-management",
       title: "일정 관리",
       description: "모든 일정을 한눈에 관리하세요",
-      icon: "list-outline",
-      color: "#60A5FA", // 부드러운 스카이 블루
+      emoji: "📋",
+      color: "#60A5FA",
       route: "/schedule/list",
     },
     {
       id: "calendar",
-      title: "스케줄 관리",
+      title: "캘린더",
       description: "캘린더로 일정을 확인하세요",
-      icon: "calendar-outline",
-      color: "#22D3EE", // 부드러운 아쿠아
-      route: "/schedule/list",
+      emoji: "📅",
+      color: "#22D3EE",
+      route: "/schedule",
     },
     {
       id: "workers",
       title: "근로자 관리",
       description: "근로자 정보를 관리하세요",
-      icon: "people-outline",
-      color: "#34D399", // 부드러운 민트
-      route: "/worker/index",
+      emoji: "👥",
+      color: "#34D399",
+      route: "/worker",
     },
     {
       id: "clients",
       title: "거래처 관리",
       description: "거래처 정보를 관리하세요",
-      icon: "business-outline",
-      color: "#FBBF24", // 부드러운 골드
-      route: "/clients/index",
+      emoji: "🏢",
+      color: "#FBBF24",
+      route: "/clients",
     },
     {
       id: "payments",
       title: "급여 관리",
       description: "급여 계산 및 지급을 관리하세요",
-      icon: "card-outline",
-      color: "#F87171", // 부드러운 코랄
+      emoji: "💵",
+      color: "#F87171",
       route: "/worker/payroll",
     },
     {
       id: "uncollected",
       title: "수급 관리",
       description: "업체에서 받는 수입을 관리하세요",
-      icon: "cash-outline",
-      color: "#F472B6", // 부드러운 로즈
+      emoji: "💰",
+      color: "#F472B6",
       route: "/clients/uncollected",
-    },
-    {
-      id: "files",
-      title: "파일 관리",
-      description: "거래처 및 스케줄 문서를 관리하세요",
-      icon: "folder-outline",
-      color: "#8B5CF6", // 부드러운 바이올렛
-      route: "/files",
     },
   ];
 
@@ -820,258 +896,332 @@ export default function MainScreen() {
 
   return (
     <View style={[styles.container, isWeb && styles.webContainer]}>
-      <ScrollView style={styles.scrollContainer}>
-        {/* 헤더 */}
+      {/* Apple 스타일 헤더 */}
+      <View
+        style={{
+          paddingHorizontal: 20,
+          paddingTop: 60,
+          paddingBottom: 24,
+          backgroundColor: "transparent",
+        }}
+      >
         <View
-          style={[
-            styles.header,
-            isWeb && styles.headerWeb,
-            { backgroundColor: colors.primary },
-          ]}
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
         >
-          <View
-            style={[styles.headerContent, isWeb && styles.headerContentWeb]}
-          >
-            {/* 왼쪽: 제목과 부제목 */}
-            <View style={styles.headerLeft}>
-              <Text
-                style={[
-                  styles.headerTitle,
-                  isWeb && styles.headerTitleWeb,
-                  { color: colors.surface },
-                ]}
-              >
-                반반
-              </Text>
-              <Text style={[styles.headerSubtitle, { color: colors.surface }]}>
-                {currentUser
-                  ? `${currentUser.nickname || currentUser.name}님 환영합니다`
-                  : "Half&Half - 일도 반반, 여유도 반반"}
-              </Text>
-            </View>
-
-            {/* 오른쪽: 설정 버튼 */}
-            <Pressable
-              style={[
-                styles.settingsButton,
-                { backgroundColor: colors.surface },
-              ]}
-              onPress={() => router.push("/settings")}
+          <View>
+            <Text
+              style={{ fontSize: 32, fontWeight: "700", color: colors.text }}
             >
-              <Ionicons
-                name="settings-outline"
-                size={24}
-                color={colors.primary}
-              />
+              반반
+            </Text>
+            <Text
+              style={{
+                fontSize: 15,
+                color: colors.textSecondary,
+                marginTop: 2,
+              }}
+            >
+              {currentUser
+                ? `${currentUser.nickname || currentUser.name}님`
+                : "Half&Half"}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => router.push("/settings")}
+            style={{
+              padding: 10,
+              borderRadius: 50,
+            }}
+          >
+            <Ionicons name="settings-outline" size={22} color={colors.text} />
+          </Pressable>
+        </View>
+      </View>
+
+      <ScrollView
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ padding: 20 }}>
+          {/* Apple Compact 스타일 - 주요 기능 */}
+          <View style={{ gap: 10, marginBottom: 24 }}>
+            {/* 오늘 일정 카드 */}
+            <Pressable
+              style={{
+                backgroundColor: colors.surface,
+                padding: 16,
+                borderRadius: 14,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.04,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+              onPress={() => setShowTodaySchedule(true)}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      marginBottom: 4,
+                    }}
+                  >
+                    📅 오늘 일정
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 28,
+                      fontWeight: "700",
+                      color: colors.text,
+                    }}
+                  >
+                    {getTodaySchedules().length}건
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 12,
+                    backgroundColor: "#e8f0fe",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 28 }}>📅</Text>
+                </View>
+              </View>
+            </Pressable>
+
+            {/* 오늘 근무 근로자 카드 */}
+            <Pressable
+              style={{
+                backgroundColor: colors.surface,
+                padding: 16,
+                borderRadius: 14,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.04,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+              onPress={() => setShowTodayWorkers(true)}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      marginBottom: 4,
+                    }}
+                  >
+                    👥 오늘 근무 근로자
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 28,
+                      fontWeight: "700",
+                      color: colors.text,
+                    }}
+                  >
+                    {getTodayWorkers().length}명
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 12,
+                    backgroundColor: "#fef3e7",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 28 }}>👥</Text>
+                </View>
+              </View>
             </Pressable>
           </View>
-        </View>
 
-        {/* 메인 컨텐츠 컨테이너 (웹 전용) */}
-        <View style={isWeb && styles.mainContentWeb}>
-          {/* 메인 메뉴 */}
-          <View style={styles.menuContainer}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              주요 기능
-            </Text>
-            <View style={[styles.menuGrid, isWeb && styles.menuGridWeb]}>
-              {menuItems.map((item) => (
+          {/* 추가 기능 */}
+          <View style={{ marginTop: 24, gap: 10, marginBottom: 24 }}>
+            {/* 거래처 + 급여 + 수급 (3열) */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
                 <Pressable
-                  key={item.id}
-                  style={[
-                    styles.menuItem,
-                    isWeb && styles.menuItemWeb,
-                    { backgroundColor: colors.surface },
-                    {
-                      width: getResponsiveValue(
-                        (screenData.width - 56) / 2,
-                        (screenData.width - 80) / 3,
-                        (screenData.width - 120) / 4
-                      ),
-                    },
-                  ]}
-                  onPress={() => handleMenuPress(item.route)}
+                  style={{
+                    backgroundColor: colors.surface,
+                    padding: 16,
+                    borderRadius: 14,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.04,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                  onPress={() => router.push("/clients")}
                 >
-                  <View
-                    style={[styles.menuIcon, { backgroundColor: item.color }]}
-                  >
-                    <Ionicons
-                      name={item.icon as any}
-                      size={isWeb ? 40 : 32}
-                      color="white"
-                    />
-                  </View>
                   <Text
-                    style={[
-                      styles.menuTitle,
-                      isWeb && styles.menuTitleWeb,
-                      { color: colors.text },
-                    ]}
+                    style={{
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      marginBottom: 4,
+                    }}
+                  >
+                    🏢 거래처
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 32,
+                      fontWeight: "700",
+                      color: colors.text,
+                    }}
+                  >
+                    {clients.length}
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Pressable
+                  style={{
+                    backgroundColor: colors.surface,
+                    padding: 16,
+                    borderRadius: 14,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.04,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                  onPress={() => router.push("/worker/payroll")}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      marginBottom: 4,
+                    }}
+                  >
+                    💰 급여
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 28,
+                      fontWeight: "700",
+                      color: colors.text,
+                    }}
+                  >
+                    관리
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Pressable
+                  style={{
+                    backgroundColor: colors.surface,
+                    padding: 16,
+                    borderRadius: 14,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.04,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                  onPress={() => router.push("/clients/uncollected")}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      marginBottom: 4,
+                    }}
+                  >
+                    💵 수급
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 28,
+                      fontWeight: "700",
+                      color: colors.text,
+                    }}
+                  >
+                    관리
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          {/* 기존 메뉴 - Apple Compact 스타일 */}
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "700",
+              color: colors.text,
+              marginBottom: 16,
+            }}
+          >
+            빠른 접근
+          </Text>
+
+          <View style={{ gap: 10, paddingBottom: 40 }}>
+            {menuItems.map((item) => (
+              <Pressable
+                key={item.id}
+                style={{
+                  backgroundColor: colors.surface,
+                  padding: 16,
+                  borderRadius: 14,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.04,
+                  shadowRadius: 4,
+                  elevation: 2,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+                onPress={() => handleMenuPress(item.route)}
+              >
+                <View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: colors.border + "40",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 24 }}>{item.emoji}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "600",
+                      color: colors.text,
+                    }}
                   >
                     {item.title}
                   </Text>
-                  <Text
-                    style={[
-                      styles.menuDescription,
-                      isWeb && styles.menuDescriptionWeb,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
+                  <Text style={{ fontSize: 13, color: colors.textSecondary }}>
                     {item.description}
                   </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* 웹에서는 2열 레이아웃, 앱에서는 1열 */}
-          <View style={isWeb ? styles.twoColumnWeb : null}>
-            {/* 오늘 일정 */}
-            <View
-              style={[
-                styles.todayScheduleContainer,
-                isWeb && styles.columnItemWeb,
-              ]}
-            >
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  오늘 일정
-                </Text>
-                <Pressable
-                  style={[
-                    styles.addButton,
-                    { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => setShowAddScheduleModal(true)}
-                >
-                  <Ionicons name="add" size={20} color="white" />
-                </Pressable>
-              </View>
-              <View style={styles.scheduleList}>
-                {getTodaySchedules().length > 0 ? (
-                  getTodaySchedules().map((schedule) => (
-                    <Pressable
-                      key={schedule.id}
-                      style={[
-                        styles.scheduleCard,
-                        isWeb && styles.scheduleCardWeb,
-                        { backgroundColor: colors.surface },
-                      ]}
-                      onPress={() => setShowTodaySchedule(true)}
-                    >
-                      <View style={styles.scheduleIcon}>
-                        <Ionicons
-                          name="calendar"
-                          size={20}
-                          color={colors.primary}
-                        />
-                      </View>
-                      <View style={styles.scheduleContent}>
-                        <Text
-                          style={[styles.scheduleTitle, { color: colors.text }]}
-                        >
-                          {schedule.title}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.scheduleTime,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {formatTime(
-                            schedule.workers?.flatMap((w) => w.periods || []) ||
-                              []
-                          )}
-                        </Text>
-
-                        {/* 위치 정보 */}
-                        {schedule.location && (
-                          <View style={styles.scheduleInfoRow}>
-                            <Ionicons
-                              name="location-outline"
-                              size={12}
-                              color={colors.textSecondary}
-                            />
-                            <Text
-                              style={[
-                                styles.scheduleInfoText,
-                                { color: colors.textSecondary },
-                              ]}
-                            >
-                              {schedule.location}
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* 첨부파일 여부 */}
-                        {schedule.hasAttachments && (
-                          <View style={styles.scheduleInfoRow}>
-                            <Ionicons
-                              name="attach-outline"
-                              size={12}
-                              color={colors.primary}
-                            />
-                            <Text
-                              style={[
-                                styles.scheduleInfoText,
-                                { color: colors.primary },
-                              ]}
-                            >
-                              첨부파일
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* 일별 시간 설정 여부 */}
-                        {!schedule.uniformTime && (
-                          <View style={styles.scheduleInfoRow}>
-                            <Ionicons
-                              name="time-outline"
-                              size={12}
-                              color={colors.textSecondary}
-                            />
-                            <Text
-                              style={[
-                                styles.scheduleInfoText,
-                                { color: colors.textSecondary },
-                              ]}
-                            >
-                              일별 시간 설정
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={16}
-                        color={colors.textSecondary}
-                      />
-                    </Pressable>
-                  ))
-                ) : (
-                  <View
-                    style={[
-                      styles.emptyScheduleContainer,
-                      { backgroundColor: colors.surface },
-                    ]}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={48}
-                      color={colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.emptyScheduleText,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      오늘 일정이 없습니다
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
+                </View>
+              </Pressable>
+            ))}
           </View>
         </View>
       </ScrollView>
@@ -1117,6 +1267,478 @@ export default function MainScreen() {
         selectedDate={selectedDate}
       />
 
+      {/* 오늘 근무 근로자 모달 */}
+      <Modal
+        visible={showTodayWorkers}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTodayWorkers(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: Platform.OS === "web" ? "center" : "flex-end",
+            padding: Platform.OS === "web" ? 20 : 0,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: colors.surface,
+              borderRadius: Platform.OS === "web" ? 12 : 20,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              width: "100%",
+              maxWidth: Platform.OS === "web" ? 600 : undefined,
+              height: Platform.OS === "web" ? "80%" : "85%",
+              padding: 20,
+            }}
+          >
+            {/* 헤더 */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+                paddingBottom: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "700",
+                  color: colors.text,
+                }}
+              >
+                오늘 근무 근로자
+              </Text>
+              <Pressable
+                onPress={() => setShowTodayWorkers(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* 근로자 목록 */}
+            <ScrollView style={{ flex: 1 }}>
+              {getTodayWorkers().length > 0 ? (
+                <View style={{ gap: 12 }}>
+                  {getTodayWorkers().map((worker) => (
+                    <Pressable
+                      key={worker.id}
+                      style={{
+                        backgroundColor: colors.card,
+                        padding: 16,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                      onPress={() => {
+                        setShowTodayWorkers(false);
+                        setSelectedWorker(worker);
+                        setShowWorkerDetail(true);
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          backgroundColor: colors.primary + "20",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Text style={{ fontSize: 24 }}>👤</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: colors.text,
+                            marginBottom: 4,
+                          }}
+                        >
+                          {worker.name}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            color: colors.textSecondary,
+                            marginBottom: 2,
+                          }}
+                        >
+                          {worker.schedules.join(", ")}
+                        </Text>
+                        {worker.workTimes && worker.workTimes.length > 0 && (
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: colors.success,
+                              fontWeight: "600",
+                              marginBottom: 2,
+                            }}
+                          >
+                            ⏰ {worker.workTimes.join(", ")}
+                          </Text>
+                        )}
+                        {worker.phone && (
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                            }}
+                          >
+                            📱 {formatPhoneNumber(worker.phone)}
+                          </Text>
+                        )}
+                      </View>
+                      {/* 전화/문자 버튼 */}
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <Pressable
+                          onPress={() => {
+                            if (worker.phone) {
+                              Linking.openURL(`tel:${worker.phone}`);
+                            }
+                          }}
+                          style={({ pressed }) => [
+                            {
+                              opacity: pressed ? 0.6 : 1,
+                            },
+                          ]}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Text style={{ fontSize: 16 }}>📞</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            if (worker.phone) {
+                              Linking.openURL(`sms:${worker.phone}`);
+                            }
+                          }}
+                          style={({ pressed }) => [
+                            {
+                              opacity: pressed ? 0.6 : 1,
+                            },
+                          ]}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Text style={{ fontSize: 16 }}>💬</Text>
+                        </Pressable>
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color="#9ca3af"
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <View
+                  style={{
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 40,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, color: colors.textSecondary }}>
+                    오늘 근무하는 근로자가 없습니다
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 근로자 상세 모달 */}
+      {selectedWorker && (
+        <Modal
+          visible={showWorkerDetail}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowWorkerDetail(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: Platform.OS === "web" ? "center" : "flex-end",
+              padding: Platform.OS === "web" ? 20 : 0,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: Platform.OS === "web" ? 12 : 20,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                width: "100%",
+                maxWidth: Platform.OS === "web" ? 500 : undefined,
+                height: Platform.OS === "web" ? "70%" : "75%",
+                padding: 24,
+              }}
+            >
+              {/* 헤더 */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 24,
+                  paddingBottom: 16,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.border,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 22,
+                      fontWeight: "700",
+                      color: colors.text,
+                    }}
+                  >
+                    {selectedWorker.name}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: colors.textSecondary,
+                      marginTop: 4,
+                    }}
+                  >
+                    근로자 정보
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    setShowWorkerDetail(false);
+                    setSelectedWorker(null);
+                  }}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
+              </View>
+
+              {/* 내용 */}
+              <ScrollView style={{ flex: 1 }}>
+                {/* 연락처 */}
+                <View style={{ marginBottom: 20 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: colors.text,
+                      marginBottom: 12,
+                    }}
+                  >
+                    연락처
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: colors.card,
+                      borderRadius: 12,
+                      padding: 16,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, color: colors.text }}>
+                      {formatPhoneNumber(selectedWorker.phone)}
+                    </Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Pressable
+                        onPress={() => {
+                          if (selectedWorker.phone) {
+                            Linking.openURL(`tel:${selectedWorker.phone}`);
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={{ fontSize: 18 }}>📞</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          if (selectedWorker.phone) {
+                            Linking.openURL(`sms:${selectedWorker.phone}`);
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={{ fontSize: 18 }}>💬</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 시급 */}
+                <View style={{ marginBottom: 20 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: colors.text,
+                      marginBottom: 12,
+                    }}
+                  >
+                    시급
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: colors.card,
+                      borderRadius: 12,
+                      padding: 16,
+                    }}
+                  >
+                    <Text style={{ fontSize: 18, color: colors.text }}>
+                      {new Intl.NumberFormat("ko-KR").format(
+                        selectedWorker.hourlyWage || 0
+                      )}
+                      원
+                    </Text>
+                  </View>
+                </View>
+
+                {/* 오늘 참여 일정 */}
+                {selectedWorker.schedules &&
+                  selectedWorker.schedules.length > 0 && (
+                    <View style={{ marginBottom: 20 }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color: colors.text,
+                          marginBottom: 12,
+                        }}
+                      >
+                        참여 일정
+                      </Text>
+                      <View style={{ gap: 8 }}>
+                        {selectedWorker.schedules.map(
+                          (schedule: string, index: number) => (
+                            <View
+                              key={index}
+                              style={{
+                                backgroundColor: colors.primary + "20",
+                                borderRadius: 8,
+                                padding: 12,
+                              }}
+                            >
+                              <Text
+                                style={{ fontSize: 14, color: colors.primary }}
+                              >
+                                {schedule}
+                              </Text>
+                            </View>
+                          )
+                        )}
+                      </View>
+                    </View>
+                  )}
+
+                {/* 근무 시간 */}
+                {selectedWorker.workTimes &&
+                  selectedWorker.workTimes.length > 0 && (
+                    <View style={{ marginBottom: 20 }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color: colors.text,
+                          marginBottom: 12,
+                        }}
+                      >
+                        근무 시간
+                      </Text>
+                      <View style={{ gap: 8 }}>
+                        {selectedWorker.workTimes.map(
+                          (time: string, index: number) => (
+                            <View
+                              key={index}
+                              style={{
+                                backgroundColor: colors.success + "20",
+                                borderRadius: 8,
+                                padding: 12,
+                              }}
+                            >
+                              <Text
+                                style={{ fontSize: 14, color: colors.success }}
+                              >
+                                ⏰ {time}
+                              </Text>
+                            </View>
+                          )
+                        )}
+                      </View>
+                    </View>
+                  )}
+              </ScrollView>
+
+              {/* 하단 버튼 */}
+              <Pressable
+                onPress={() => {
+                  setShowWorkerDetail(false);
+                  router.push(`/worker` as any);
+                }}
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingVertical: 16,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  marginTop: 20,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "white",
+                    fontSize: 16,
+                    fontWeight: "700",
+                  }}
+                >
+                  전체 근로자 관리
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <MonthlyPayrollModal
         visible={showMonthlyPayroll}
         onClose={() => setShowMonthlyPayroll(false)}
@@ -1138,69 +1760,59 @@ export default function MainScreen() {
       <ScheduleAddModal
         visible={showAddScheduleModal}
         onClose={() => setShowAddScheduleModal(false)}
-        onSave={() => {
-          loadSchedules();
-          setShowAddScheduleModal(false);
-        }}
-        modalType="bottomSheet"
       />
 
-      {/* 활동 알림 모달 */}
-      {/* 웹용 알림 패널 */}
-      {isWeb && showWebNotificationPanel && (
-        <WebNotificationPanel
-          activities={recentActivities}
-          onDelete={handleDeleteActivity}
-          onClose={() => setShowWebNotificationPanel(false)}
-          onViewDetails={handleViewActivityDetails}
-          colors={colors}
-          formatActivityTime={formatActivityTime}
-        />
-      )}
-
-      <Modal
-        visible={showActivityModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowActivityModal(false)}
-      >
-        <View
-          style={[styles.activityModal, { backgroundColor: colors.background }]}
+      {/* 웹 전용 알림 패널 */}
+      {isWeb && (
+        <Animated.View
+          style={[
+            styles.webNotificationPanel,
+            {
+              transform: [{ translateY: webNotificationAnimation }],
+            },
+          ]}
         >
-          <View
-            style={[
-              styles.activityModalHeader,
-              { borderBottomColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.activityModalTitle, { color: colors.text }]}>
-              최근 활동
-            </Text>
-            <Pressable
-              style={[
-                styles.activityModalClose,
-                { backgroundColor: colors.surface },
-              ]}
-              onPress={() => setShowActivityModal(false)}
-            >
+          <View style={styles.webNotificationHeader}>
+            <Text style={styles.webNotificationTitle}>활동 알림</Text>
+            <Pressable onPress={() => setShowWebNotificationPanel(false)}>
               <Ionicons name="close" size={24} color={colors.text} />
             </Pressable>
           </View>
-
-          <ScrollView style={styles.activityModalContent}>
+          <ScrollView style={styles.webNotificationContent}>
             {recentActivities.map((activity) => (
-              <SwipeableActivityItem
+              <Pressable
                 key={activity.id}
-                activity={activity}
-                onDelete={handleDeleteActivity}
-                onViewDetails={handleViewActivityDetails}
-                colors={colors}
-                formatActivityTime={formatActivityTime}
-              />
+                style={styles.webNotificationItem}
+                onPress={() => handleActivityPress(activity)}
+              >
+                <View
+                  style={[
+                    styles.webNotificationIcon,
+                    { backgroundColor: activity.color },
+                  ]}
+                >
+                  <Ionicons
+                    name={activity.icon as any}
+                    size={20}
+                    color="white"
+                  />
+                </View>
+                <View style={styles.webNotificationText}>
+                  <Text style={styles.webNotificationTitle}>
+                    {activity.title}
+                  </Text>
+                  <Text style={styles.webNotificationDescription}>
+                    {activity.description}
+                  </Text>
+                  <Text style={styles.webNotificationTime}>
+                    {formatRelativeTime(activity.timestamp)}
+                  </Text>
+                </View>
+              </Pressable>
             ))}
           </ScrollView>
-        </View>
-      </Modal>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -1208,20 +1820,31 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+  },
+  webContainer: {
+    maxWidth: 1200,
+    marginHorizontal: "auto",
+    width: "100%",
   },
   scrollContainer: {
     flex: 1,
   },
   header: {
-    backgroundColor: Theme.colors.primary,
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: Theme.spacing.xl,
-    borderBottomLeftRadius: Theme.borderRadius.xl,
-    borderBottomRightRadius: Theme.borderRadius.xl,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  headerWeb: {
+    paddingHorizontal: "clamp(16px, 5vw, 48px)",
   },
   headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerContentWeb: {
+    maxWidth: 1400,
+    marginHorizontal: "auto",
+    paddingHorizontal: 0,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1229,298 +1852,157 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
   },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: Theme.borderRadius.full,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   headerTitle: {
-    fontSize: Theme.typography.sizes.xxl,
-    fontWeight: Theme.typography.weights.bold,
-    fontFamily: "Inter_700Bold",
-    color: Theme.colors.text.inverse,
-    marginBottom: Theme.spacing.xs,
+    fontSize: 28,
+    fontWeight: "700",
   },
   headerSubtitle: {
-    fontSize: Theme.typography.sizes.md,
-    fontFamily: "Inter_400Regular",
-    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 14,
+    marginTop: 4,
+  },
+  settingsButton: {
+    padding: 12,
+    borderRadius: 50,
+  },
+  mainContentWeb: {
+    flexDirection: "row",
+    gap: 24,
+    paddingHorizontal: "clamp(16px, 5vw, 48px)",
+  },
+  menuContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+  },
+  menuGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 12,
+  },
+  menuGridWeb: {
+    justifyContent: "flex-start",
+    gap: "clamp(12px, 2vw, 24px)",
+  },
+  menuItem: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+    width: "48%",
+  },
+  menuItemWeb: {
+    width: "clamp(140px, 20vw, 200px)",
+    marginBottom: "clamp(12px, 2vh, 20px)",
+    marginHorizontal: "clamp(4px, 1vw, 8px)",
+  },
+  menuIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  menuDescription: {
+    fontSize: 12,
+    textAlign: "center",
+  },
+  menuTitleWeb: {
+    fontSize: "clamp(12px, 2vw, 16px)",
+    fontWeight: "600",
+  },
+  menuDescriptionWeb: {
+    fontSize: "clamp(10px, 1.5vw, 14px)",
   },
   sectionTitle: {
-    fontSize: Theme.typography.sizes.xl,
-    fontWeight: Theme.typography.weights.semibold,
-    fontFamily: "Inter_600SemiBold",
-    color: Theme.colors.text.primary,
+    fontSize: 20,
+    fontWeight: "600",
   },
   sectionHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: Theme.spacing.sm,
-    marginBottom: Theme.spacing.lg,
+    marginBottom: 12,
   },
   addButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: "center",
     justifyContent: "center",
-    ...Theme.shadows.sm,
-  },
-  todayScheduleContainer: {
-    padding: Theme.spacing.xl,
-    paddingTop: 0,
+    alignItems: "center",
   },
   scheduleList: {
-    gap: Theme.spacing.sm,
+    gap: 12,
   },
   scheduleCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.lg,
     flexDirection: "row",
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: Theme.colors.border.light,
-    ...Theme.shadows.sm,
+    gap: 12,
+  },
+  scheduleCardWeb: {
+    cursor: "pointer",
   },
   scheduleIcon: {
     width: 40,
     height: 40,
-    borderRadius: Theme.borderRadius.full,
-    backgroundColor: "#6366f120", // 인디고 바이올렛 20% 투명도
-    alignItems: "center",
+    borderRadius: 10,
+    backgroundColor: "#f0f4ff",
     justifyContent: "center",
-    marginRight: Theme.spacing.md,
+    alignItems: "center",
   },
   scheduleContent: {
     flex: 1,
   },
   scheduleTitle: {
-    fontSize: Theme.typography.sizes.md,
-    fontWeight: Theme.typography.weights.semibold,
-    fontFamily: "Inter_600SemiBold",
-    color: Theme.colors.text.primary,
-    marginBottom: Theme.spacing.xs,
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
   },
   scheduleTime: {
-    fontSize: Theme.typography.sizes.sm,
-    fontFamily: "Inter_400Regular",
-    color: Theme.colors.text.secondary,
+    fontSize: 14,
   },
   scheduleInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 2,
+    marginTop: 4,
     gap: 4,
   },
   scheduleInfoText: {
-    fontSize: Theme.typography.sizes.xs,
-    fontFamily: "Inter_400Regular",
+    fontSize: 12,
   },
-  menuContainer: {
-    padding: Theme.spacing.xl,
-  },
-  menuGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Theme.spacing.lg,
-  },
-  menuItem: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.xl,
-    alignItems: "center",
-    ...Theme.shadows.sm,
-  },
-  menuIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: Theme.borderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Theme.spacing.md,
-    // 웹 반응형 최적화
-    ...(Platform.OS === "web" && {
-      width: "clamp(40px, 6vw, 56px)",
-      height: "clamp(40px, 6vw, 56px)",
-      marginBottom: "clamp(8px, 1.5vh, 12px)",
-    }),
-  },
-  menuTitle: {
-    fontSize: Theme.typography.sizes.md,
-    fontWeight: Theme.typography.weights.semibold,
-    fontFamily: "Inter_600SemiBold",
-    color: Theme.colors.text.primary,
-    marginBottom: Theme.spacing.xs,
-    textAlign: "center",
-  },
-  menuDescription: {
-    fontSize: Theme.typography.sizes.xs,
-    fontFamily: "Inter_400Regular",
-    color: Theme.colors.text.secondary,
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  activityContainer: {
-    padding: Theme.spacing.xl,
-    paddingBottom: 40,
-  },
-  activityList: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.lg,
-    ...Theme.shadows.sm,
-  },
-  activityItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
-  },
-  activityIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Theme.borderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Theme.spacing.md,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.medium,
-    fontFamily: "Inter_500Medium",
-    color: Theme.colors.text.primary,
-    marginBottom: 2,
-  },
-  activityDescription: {
-    fontSize: Theme.typography.sizes.xs,
-    fontFamily: "Inter_400Regular",
-    color: Theme.colors.text.tertiary,
-    marginBottom: 2,
-  },
-  activityTime: {
-    fontSize: Theme.typography.sizes.xs,
-    fontFamily: "Inter_400Regular",
-    color: Theme.colors.text.secondary,
-  },
-  noActivityContainer: {
-    alignItems: "center",
-    paddingVertical: Theme.spacing.xxl,
-  },
-  noActivityText: {
-    fontSize: Theme.typography.sizes.sm,
-    fontFamily: "Inter_400Regular",
-    color: Theme.colors.text.tertiary,
-    marginTop: Theme.spacing.md,
-  },
-  // 웹 전용 스타일
-  headerWeb: {
-    paddingHorizontal: 0,
-    // 화면 크기별로 다르게
-    paddingTop: "clamp(40px, 8vh, 80px)",
-    paddingBottom: "clamp(30px, 6vh, 50px)",
-  },
-  headerContentWeb: {
-    // 화면 크기별로 다르게
-    maxWidth: "clamp(800px, 90vw, 1400px)",
-    width: "100%",
-    marginHorizontal: "auto",
-    paddingHorizontal: "clamp(20px, 4vw, 60px)",
-  },
-  headerTitleWeb: {
-    // 화면 크기별로 다르게
-    fontSize: "clamp(28px, 4vw, 42px)",
-    fontFamily: "Inter_700Bold",
-  },
-  mainContentWeb: {
-    // 화면 크기별로 다르게
-    maxWidth: "clamp(800px, 90vw, 1400px)",
-    width: "100%",
-    marginHorizontal: "auto",
-    paddingHorizontal: "clamp(20px, 4vw, 60px)",
-  },
-  menuGridWeb: {
-    // 한 줄에 6개씩 두 줄로 정확히 배치
-    display: "flex",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "stretch",
-    gap: "20px",
-    paddingHorizontal: "20px",
-    width: "100%",
-    maxWidth: "1400px",
-    margin: "0 auto",
-  },
-  menuItemWeb: {
-    // 한 줄에 6개씩 두 줄로 정확히 배치
-    width: "15%", // 6개 배치를 위해 15%씩
-    height: "120px",
-    padding: "16px",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    ...Theme.shadows.sm,
-    transition: "all 0.2s ease",
-    cursor: "pointer",
-    // 호버 효과
-    ...(Platform.OS === "web" && {
-      "&:hover": {
-        transform: "translateY(-2px)",
-        ...Theme.shadows.md,
-      },
-    }),
-  },
-  menuTitleWeb: {
-    fontSize: "clamp(14px, 2.5vw, 20px)",
-    fontFamily: "Inter_600SemiBold",
-  },
-  menuDescriptionWeb: {
-    fontSize: "clamp(12px, 1.8vw, 14px)",
-    fontFamily: "Inter_400Regular",
-    lineHeight: "clamp(16px, 2.5vw, 20px)",
-  },
-  twoColumnWeb: {
-    flexDirection: "row" as const,
-    gap: 32,
-    flexWrap: "wrap" as const,
+  todayScheduleContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
   },
   columnItemWeb: {
     flex: 1,
-    minWidth: 400,
   },
-  scheduleCardWeb: {
-    // 웹 전용 스타일
+  twoColumnWeb: {
+    flexDirection: "row",
+    gap: 24,
   },
-  emptyScheduleContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Theme.spacing.xxl,
-    paddingHorizontal: Theme.spacing.xl,
-    borderRadius: Theme.borderRadius.lg,
-    minHeight: 150,
-  },
-  emptyScheduleText: {
-    fontSize: Theme.typography.sizes.md,
-    fontFamily: "Inter_400Regular",
-    marginTop: Theme.spacing.md,
-    textAlign: "center",
-  },
-  // FAB 스타일
   activityFab: {
     position: "absolute",
-    bottom: 30,
-    right: 30,
+    right: 16,
+    bottom: 16,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -1533,207 +2015,72 @@ const styles = StyleSheet.create({
   },
   activityBadge: {
     position: "absolute",
-    top: -8,
-    right: -8,
-    minWidth: 20,
+    top: 0,
+    right: 0,
+    width: 20,
     height: 20,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 6,
   },
   activityBadgeText: {
     color: "white",
-    fontSize: 12,
-    fontWeight: "bold",
+    fontSize: 11,
+    fontWeight: "700",
   },
-  // 모달 스타일
-  activityModal: {
-    flex: 1,
-    paddingTop: 50,
-  },
-  activityModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  activityModalClose: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  activityModalContent: {
-    flex: 1,
-  },
-  activityModalItem: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    alignItems: "flex-start",
-    minHeight: 80, // 최소 높이 확보
-  },
-  activityModalIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  activityModalTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  activityModalDescription: {
-    fontSize: 14,
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  activityModalTime: {
-    fontSize: 12,
-  },
-  unreadIndicator: {
-    position: "absolute",
-    right: 8,
-    top: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  dragHint: {
-    position: "absolute",
-    right: -100,
-    top: 0,
-    bottom: 0,
-    width: 100,
-    justifyContent: "center",
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 4,
-  },
-  dragHintText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  actionButtons: {
-    position: "absolute",
-    right: -120,
-    top: 0,
-    bottom: 0,
-    width: 120,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
-    height: "80%",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 8,
-    flexDirection: "row",
-    gap: 4,
-  },
-  actionButtonText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  // 웹용 알림 패널 스타일
   webNotificationPanel: {
     position: "absolute",
-    top: 0,
-    left: 0,
     right: 0,
+    top: 0,
     bottom: 0,
-    zIndex: 1000,
-    flexDirection: "row",
-  },
-  webNotificationOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  webNotificationContent: {
-    width: 400,
-    height: "100%",
-    backgroundColor: "white",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: -2,
-      height: 0,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    width: 380,
+    backgroundColor: "#ffffff",
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 5,
+    zIndex: 1000,
   },
   webNotificationHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+    borderBottomColor: "#e8eaed",
   },
   webNotificationTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  webNotificationClose: {
-    padding: 4,
-  },
-  webNotificationList: {
+  webNotificationContent: {
     flex: 1,
   },
-  webNotificationEmpty: {
-    flex: 1,
+  webNotificationItem: {
+    flexDirection: "row",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    gap: 12,
+  },
+  webNotificationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    padding: 32,
   },
-  webNotificationEmptyText: {
-    fontSize: 16,
-    textAlign: "center",
+  webNotificationText: {
+    flex: 1,
   },
-  // 웹용 반응형 스타일
-  webContainer: {
-    width: "100%",
-    maxWidth: "none",
-    marginHorizontal: 0,
-    minHeight: "100vh",
-    paddingHorizontal: "clamp(16px, 5vw, 48px)",
+  webNotificationDescription: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 4,
   },
-  headerWeb: {
-    borderRadius: 0,
-    marginHorizontal: 0,
-    paddingHorizontal: "clamp(16px, 5vw, 48px)",
-  },
-  headerContentWeb: {
-    maxWidth: 1400,
-    marginHorizontal: "auto",
-    paddingHorizontal: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerTitleWeb: {
-    fontSize: "clamp(20px, 4vw, 32px)",
-  },
-  menuItemWeb: {
-    width: "clamp(140px, 20vw, 200px)",
-    marginBottom: "clamp(12px, 2vh, 20px)",
-    marginHorizontal: "clamp(4px, 1vw, 8px)",
-  },
-  menuTitleWeb: {
-    fontSize: "clamp(12px, 2vw, 16px)",
-    fontWeight: "600",
+  webNotificationTime: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 4,
   },
 });

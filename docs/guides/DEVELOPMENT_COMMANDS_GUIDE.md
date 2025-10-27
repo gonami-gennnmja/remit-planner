@@ -150,9 +150,86 @@ npm install
 
 ### 포트가 이미 사용 중일 때
 
+#### Mac/Linux
+
+1. **포트를 사용하는 프로세스 찾기**
+
 ```bash
-# 다른 포트 사용
+lsof -ti:8081
+```
+
+2. **특정 포트의 모든 프로세스 종료**
+
+```bash
+lsof -ti:8081 | xargs kill -9
+```
+
+3. **또는 직접 PID 찾아서 종료**
+
+```bash
+# 1. 프로세스 찾기
+lsof -ti:8081
+
+# 2. 출력된 PID로 종료 (예: PID가 1234인 경우)
+kill -9 1234
+
+# 여러 개인 경우 모두 종료
+kill -9 1234 5678 9012
+```
+
+4. **모든 개발 서버 강제 종료 (큰 작업 시)**
+
+```bash
+# 모든 Node 프로세스 종료 (주의: 다른 Node 앱도 종료됨)
+pkill -f node
+
+# 또는 특정 포트들만 정리
+lsof -ti:8081,19000,19001,19002 | xargs kill -9
+```
+
+#### Windows
+
+1. **포트를 사용하는 프로세스 찾기**
+
+```cmd
+netstat -ano | findstr :8081
+```
+
+2. **PID 확인 후 프로세스 종료**
+
+```cmd
+# 1. PID 찾기 (예: 1234)
+netstat -ano | findstr :8081
+
+# 2. 프로세스 종료
+taskkill /PID 1234 /F
+```
+
+3. **또는 한 번에 처리**
+
+```powershell
+# PowerShell에서
+Get-NetTCPConnection -LocalPort 8081 | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }
+```
+
+4. **모든 Node 프로세스 종료**
+
+```cmd
+taskkill /F /IM node.exe
+```
+
+#### 공통 해결 방법
+
+1. **다른 포트 사용**
+
+```bash
 expo start --port 8082
+```
+
+2. **캐시 초기화 후 재시작**
+
+```bash
+npm start -- --clear
 ```
 
 ### 패키지 버전 경고 해결
@@ -238,6 +315,8 @@ npx expo run:android
 
 ## 📌 빠른 참조
 
+### 기본 명령어
+
 | 명령어      | 설명                |
 | ----------- | ------------------- |
 | `npm start` | 개발 서버 시작      |
@@ -247,6 +326,31 @@ npx expo run:android
 | `r`         | 앱 리로드           |
 | `m`         | 메뉴 토글           |
 | `Ctrl+C`    | 서버 중지           |
+
+### 포트 충돌 해결
+
+#### Mac/Linux
+
+| 명령어                           | 설명                           |
+| -------------------------------- | ------------------------------ |
+| `lsof -ti:8081`                  | 8081 포트 사용 프로세스 찾기   |
+| `lsof -ti:8081 \| xargs kill -9` | 해당 포트의 모든 프로세스 종료 |
+| `pkill -f node`                  | 모든 Node 프로세스 종료 (주의) |
+
+#### Windows
+
+| 명령어                          | 설명                         |
+| ------------------------------- | ---------------------------- |
+| `netstat -ano \| findstr :8081` | 8081 포트 사용 프로세스 찾기 |
+| `taskkill /PID [PID] /F`        | 특정 PID 프로세스 종료       |
+| `taskkill /F /IM node.exe`      | 모든 Node 프로세스 종료      |
+
+#### 공통
+
+| 명령어                   | 설명                |
+| ------------------------ | ------------------- |
+| `expo start --port 8082` | 다른 포트로 시작    |
+| `npm start -- --clear`   | 캐시 초기화 후 시작 |
 
 ## 🎯 주요 단축키
 

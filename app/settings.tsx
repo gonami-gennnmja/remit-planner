@@ -54,11 +54,17 @@ export default function SettingsScreen() {
     loadUserData();
   }, []);
 
+  // themeMode 변경 시 formData 동기화
+  useEffect(() => {
+    setFormData((prev) => ({ ...prev, theme: themeMode }));
+  }, [themeMode]);
+
   const loadUserData = async () => {
     try {
       const currentUser = await getCurrentUser();
       if (currentUser) {
         setUser(currentUser);
+        // themeMode를 사용하여 설정 화면에 표시 (DB에서 불러온 값 반영)
         setFormData({
           name: currentUser.name || "",
           nickname: currentUser.nickname || "",
@@ -69,7 +75,7 @@ export default function SettingsScreen() {
           businessPhone: currentUser.businessInfo?.businessPhone || "",
           businessEmail: currentUser.businessInfo?.businessEmail || "",
           notifications: currentUser.settings?.notifications ?? true,
-          theme: currentUser.settings?.theme || "light",
+          theme: themeMode, // ThemeContext에서 가져온 현재 테마 사용
           language: currentUser.settings?.language || "ko",
         });
       }

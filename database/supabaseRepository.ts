@@ -383,6 +383,36 @@ export class SupabaseRepository implements IDatabase {
 		return result
 	}
 
+	async getTodaySchedules(date: string): Promise<any[]> {
+		const user = await this.getCurrentUser()
+
+		// 특정 날짜가 포함되는 일정만 가져오기
+		// start_date <= date <= end_date 조건
+		const { data, error } = await supabase
+			.from('schedules')
+			.select('*')
+			.lte('start_date', date)
+			.gte('end_date', date)
+			.eq('user_id', user.id)
+			.order('start_date', { ascending: true })
+
+		if (error) {
+			console.error('Error getting today schedules:', error)
+			return []
+		}
+
+		const result = []
+		for (const schedule of data) {
+			const workers = await this.getScheduleWorkers(schedule.id)
+			result.push({
+				...this.transformScheduleFromDB(schedule),
+				workers
+			})
+		}
+
+		return result
+	}
+
 	async updateSchedule(id: string, schedule: any): Promise<void> {
 		const user = await this.getCurrentUser()
 
@@ -641,7 +671,13 @@ export class SupabaseRepository implements IDatabase {
 			.eq('user_id', user.id)
 			.single()
 
+		// PGRST116은 "결과가 없음" 에러이므로 정상적인 경우로 처리
 		if (clientError) {
+			if (clientError.code === 'PGRST116') {
+				// 결과가 없는 경우 null 반환 (에러 아님)
+				// 로그 출력하지 않음
+				return null
+			}
 			console.error('Error getting client:', clientError)
 			return null
 		}
@@ -693,17 +729,60 @@ export class SupabaseRepository implements IDatabase {
 			console.error('Error getting clients:', clientsError)
 			// 테이블이 존재하지 않는 경우 빈 배열 반환
 			if (clientsError.code === 'PGRST205') {
-				console.warn('Clients table does not exist in Supabase. Using empty array.');
 				return []
 			}
 			throw clientsError
 		}
 
-		const result = []
-		for (const client of clients) {
-			const clientWithContacts = await this.getClient(client.id)
-			result.push(clientWithContacts)
+		if (!clients || clients.length === 0) {
+			return []
 		}
+
+		// 모든 거래처의 담당자 정보를 한 번에 가져오기
+		const clientIds = clients.map(c => c.id)
+		const { data: allContacts, error: contactsError } = await supabase
+			.from('client_contacts')
+			.select('*')
+			.eq('user_id', user.id)
+			.in('client_id', clientIds)
+
+		if (contactsError) {
+			console.error('Error getting client contacts:', contactsError)
+		}
+
+		// 담당자 정보를 거래처별로 그룹화 (Map 대신 일반 객체 사용)
+		const contactsByClient: Record<string, any[]> = {};
+		(allContacts || []).forEach((contact: any) => {
+			const clientId = contact.client_id
+			if (!contactsByClient[clientId]) {
+				contactsByClient[clientId] = []
+			}
+			contactsByClient[clientId].push({
+				id: contact.id,
+				name: contact.name,
+				position: contact.position,
+				phone: contact.phone,
+				memo: contact.memo,
+				isPrimary: contact.is_primary === 1,
+			})
+		})
+
+		// 거래처 데이터와 담당자 정보를 합치기
+		const result = clients.map(client => ({
+			id: client.id,
+			name: client.name,
+			phone: client.phone,
+			email: client.email,
+			address: client.address,
+			businessNumber: client.business_number,
+			contactPerson: client.contact_person,
+			memo: client.memo,
+			totalRevenue: client.total_revenue || 0,
+			unpaidAmount: client.unpaid_amount || 0,
+			createdAt: client.created_at,
+			updatedAt: client.updated_at,
+			contacts: contactsByClient[client.id] || [],
+		}))
 
 		return result
 	}

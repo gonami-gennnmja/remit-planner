@@ -125,6 +125,7 @@ export default function AnimatedSplash() {
             styles.calendar,
             {
               opacity: calendarAnim,
+              backgroundColor: colors.surface,
               transform: [
                 {
                   translateY: calendarAnim.interpolate({
@@ -146,6 +147,7 @@ export default function AnimatedSplash() {
             styles.coin,
             {
               opacity: coinAnim,
+              backgroundColor: colors.surface,
               transform: [
                 {
                   translateY: coinAnim.interpolate({
@@ -167,6 +169,7 @@ export default function AnimatedSplash() {
             styles.chart,
             {
               opacity: chartAnim,
+              backgroundColor: colors.surface,
               transform: [
                 {
                   translateY: chartAnim.interpolate({
@@ -286,7 +289,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",

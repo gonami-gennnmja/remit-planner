@@ -4,6 +4,7 @@ import { Theme } from "@/constants/Theme";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { Client, ClientContact, Schedule } from "@/models/types";
+import { formatPhoneNumber } from "@/utils/bankUtils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
@@ -357,7 +358,9 @@ export default function ClientDetailScreen() {
               />
               <Text style={styles.infoLabel}>대표 연락처</Text>
               <Pressable onPress={() => handleCall(client.phone)}>
-                <Text style={styles.infoValue}>{client.phone}</Text>
+                <Text style={styles.infoValue}>
+                  {formatPhoneNumber(client.phone)}
+                </Text>
               </Pressable>
             </View>
 
@@ -487,7 +490,9 @@ export default function ClientDetailScreen() {
                       size={16}
                       color={Theme.colors.primary}
                     />
-                    <Text style={styles.contactPhoneText}>{contact.phone}</Text>
+                    <Text style={styles.contactPhoneText}>
+                      {formatPhoneNumber(contact.phone)}
+                    </Text>
                   </Pressable>
                   {contact.memo && (
                     <Text style={styles.contactMemo}>{contact.memo}</Text>

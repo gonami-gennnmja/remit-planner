@@ -1,7 +1,8 @@
-import { Theme } from "@/constants/Theme";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
+import { router } from "expo-router";
 import React from "react";
 import {
   Modal,
@@ -25,6 +26,8 @@ export default function TodayScheduleModal({
   schedules,
   selectedDate,
 }: TodayScheduleModalProps) {
+  const { colors } = useTheme();
+
   // 오늘 날짜의 스케줄들을 시작시간 순서대로 정렬
   const todaySchedules = schedules
     .filter((schedule) => {
@@ -76,18 +79,17 @@ export default function TodayScheduleModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* 헤더 */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
             {dayjs(selectedDate).format("M월 D일")} 일정
           </Text>
-          <Pressable style={styles.closeButton} onPress={onClose}>
-            <Ionicons
-              name="close"
-              size={24}
-              color={Theme.colors.text.primary}
-            />
+          <Pressable
+            style={[styles.closeButton, { backgroundColor: colors.surface }]}
+            onPress={onClose}
+          >
+            <Ionicons name="close" size={24} color={colors.text} />
           </Pressable>
         </View>
 
@@ -98,19 +100,48 @@ export default function TodayScheduleModal({
               <Ionicons
                 name="calendar-outline"
                 size={64}
-                color={Theme.colors.text.tertiary}
+                color={colors.textSecondary}
               />
-              <Text style={styles.emptyText}>오늘 일정이 없습니다</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                오늘 일정이 없습니다
+              </Text>
             </View>
           ) : (
             todaySchedules.map((schedule) => {
               const periods = getWorkPeriods(schedule);
               return (
-                <View key={schedule.id} style={styles.scheduleCard}>
+                <Pressable
+                  key={schedule.id}
+                  style={[
+                    styles.scheduleCard,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    onClose();
+                    router.push(`/schedule/${schedule.id}` as any);
+                  }}
+                >
                   <View style={styles.scheduleHeader}>
-                    <Text style={styles.scheduleTitle}>{schedule.title}</Text>
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryText}>
+                    <Text
+                      style={[styles.scheduleTitle, { color: colors.text }]}
+                    >
+                      {schedule.title}
+                    </Text>
+                    <View
+                      style={[
+                        styles.categoryBadge,
+                        { backgroundColor: colors.surface },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
                         {schedule.category === "education"
                           ? "교육"
                           : schedule.category === "event"
@@ -127,9 +158,11 @@ export default function TodayScheduleModal({
                       <Ionicons
                         name="location-outline"
                         size={16}
-                        color={Theme.colors.text.secondary}
+                        color={colors.textSecondary}
                       />
-                      <Text style={styles.infoText}>{schedule.location}</Text>
+                      <Text style={[styles.infoText, { color: colors.text }]}>
+                        {schedule.location}
+                      </Text>
                     </View>
                   )}
 
@@ -137,9 +170,9 @@ export default function TodayScheduleModal({
                     <Ionicons
                       name="time-outline"
                       size={16}
-                      color={Theme.colors.text.secondary}
+                      color={colors.textSecondary}
                     />
-                    <Text style={styles.timeText}>
+                    <Text style={[styles.timeText, { color: colors.text }]}>
                       {periods.start} - {periods.end}
                     </Text>
                   </View>
@@ -149,9 +182,16 @@ export default function TodayScheduleModal({
                       <Ionicons
                         name="document-text-outline"
                         size={16}
-                        color={Theme.colors.text.secondary}
+                        color={colors.textSecondary}
                       />
-                      <Text style={styles.memoText}>{schedule.memo}</Text>
+                      <Text
+                        style={[
+                          styles.memoText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {schedule.memo}
+                      </Text>
                     </View>
                   )}
 
@@ -159,13 +199,18 @@ export default function TodayScheduleModal({
                     <Ionicons
                       name="people-outline"
                       size={16}
-                      color={Theme.colors.text.secondary}
+                      color={colors.textSecondary}
                     />
-                    <Text style={styles.workersText}>
+                    <Text
+                      style={[
+                        styles.workersText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
                       {schedule.workers.length}명 참여
                     </Text>
                   </View>
-                </View>
+                </Pressable>
               );
             })
           )}
@@ -178,34 +223,30 @@ export default function TodayScheduleModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Theme.spacing.xl,
+    paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: Theme.spacing.lg,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
   },
   headerTitle: {
-    fontSize: Theme.typography.sizes.xl,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.primary,
+    fontSize: 20,
+    fontWeight: "700",
   },
   closeButton: {
     width: 40,
     height: 40,
-    borderRadius: Theme.borderRadius.full,
-    backgroundColor: Theme.colors.surface,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   content: {
     flex: 1,
-    padding: Theme.spacing.xl,
+    padding: 20,
   },
   emptyState: {
     alignItems: "center",
@@ -213,72 +254,67 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
-    fontSize: Theme.typography.sizes.md,
-    color: Theme.colors.text.secondary,
-    marginTop: Theme.spacing.lg,
+    fontSize: 16,
+    marginTop: 16,
   },
   scheduleCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.lg,
-    marginBottom: Theme.spacing.md,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: Theme.colors.border.light,
-    ...Theme.shadows.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   scheduleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Theme.spacing.md,
+    marginBottom: 12,
   },
   scheduleTitle: {
-    fontSize: Theme.typography.sizes.lg,
-    fontWeight: Theme.typography.weights.semibold,
-    color: Theme.colors.text.primary,
+    fontSize: 18,
+    fontWeight: "600",
     flex: 1,
   },
   categoryBadge: {
-    backgroundColor: Theme.colors.surface,
-    paddingHorizontal: Theme.spacing.sm,
-    paddingVertical: Theme.spacing.xs,
-    borderRadius: Theme.borderRadius.md,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   categoryText: {
-    fontSize: Theme.typography.sizes.xs,
-    color: Theme.colors.text.secondary,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 12,
+    fontWeight: "500",
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Theme.spacing.sm,
+    marginBottom: 8,
   },
   infoText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.primary,
-    marginLeft: Theme.spacing.sm,
+    fontSize: 14,
+    marginLeft: 8,
   },
   timeRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Theme.spacing.sm,
+    marginBottom: 8,
   },
   timeText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.primary,
-    marginLeft: Theme.spacing.sm,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 14,
+    marginLeft: 8,
+    fontWeight: "500",
   },
   memoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: Theme.spacing.sm,
+    marginBottom: 8,
   },
   memoText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
-    marginLeft: Theme.spacing.sm,
+    fontSize: 14,
+    marginLeft: 8,
     flex: 1,
     lineHeight: 20,
   },
@@ -287,8 +323,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   workersText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
-    marginLeft: Theme.spacing.sm,
+    fontSize: 14,
+    marginLeft: 8,
   },
 });

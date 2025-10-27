@@ -1,7 +1,65 @@
 // Simple in-memory database for both web and native
+import { Notification, NotificationSettings } from '@/models/types';
 import { IDatabase } from './interface';
 
 class SimpleDatabase implements IDatabase {
+	markActivityAsRead(activityId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	markActivityAsDeleted(activityId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getNotification(id: string): Promise<Notification | null> {
+		throw new Error('Method not implemented.');
+	}
+	getAllNotifications(): Promise<Notification[]> {
+		throw new Error('Method not implemented.');
+	}
+	getRecentNotifications(limit: number): Promise<Notification[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateNotification(id: string, notification: Partial<Notification>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteNotification(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	markAllNotificationsAsRead(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getUnreadNotificationCount(): Promise<number> {
+		throw new Error('Method not implemented.');
+	}
+	getNotificationByRelatedId(relatedId: string, type: string): Promise<Notification | null> {
+		throw new Error('Method not implemented.');
+	}
+	getNotificationSettings(): Promise<NotificationSettings | null> {
+		throw new Error('Method not implemented.');
+	}
+	updateNotificationSettings(settings: Partial<NotificationSettings>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createClientDocument(document: { id: string; clientId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; }): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getClientDocuments(clientId: string): Promise<Array<{ id: string; clientId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; uploadedAt: string; }>> {
+		throw new Error('Method not implemented.');
+	}
+	deleteClientDocument(documentId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createScheduleDocument(document: { id: string; scheduleId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; }): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getScheduleDocuments(scheduleId: string): Promise<Array<{ id: string; scheduleId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; uploadedAt: string; }>> {
+		throw new Error('Method not implemented.');
+	}
+	deleteScheduleDocument(documentId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	private workers: Map<string, any> = new Map();
 	private schedules: Map<string, any> = new Map();
 	private scheduleWorkers: Map<string, any> = new Map();
@@ -92,6 +150,28 @@ class SimpleDatabase implements IDatabase {
 
 	async getSchedulesByDateRange(startDate: string, endDate: string): Promise<any[]> {
 		const schedules = Array.from(this.schedules.values()).filter(s => s.date >= startDate && s.date <= endDate);
+		const result: any[] = [];
+
+		for (const schedule of schedules) {
+			const workers = await this.getScheduleWorkers(schedule.id);
+			result.push({
+				...schedule,
+				workers
+			});
+		}
+
+		return result;
+	}
+
+	async getTodaySchedules(date: string): Promise<any[]> {
+		// 특정 날짜가 포함되는 일정만 가져오기
+		// startDate <= date <= endDate 조건
+		const schedules = Array.from(this.schedules.values()).filter(s => {
+			const scheduleStartDate = s.date || s.startDate;
+			const scheduleEndDate = s.endDate || s.date;
+			return scheduleStartDate <= date && scheduleEndDate >= date;
+		});
+
 		const result: any[] = [];
 
 		for (const schedule of schedules) {

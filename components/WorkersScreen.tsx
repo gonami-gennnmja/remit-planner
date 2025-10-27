@@ -6,6 +6,7 @@ import {
   BankInfo,
   detectBankFromAccount,
   formatAccountNumber,
+  formatPhoneNumber,
   KOREAN_BANKS,
 } from "@/utils/bankUtils";
 import { Ionicons } from "@expo/vector-icons";
@@ -725,19 +726,31 @@ export default function WorkersScreen({
                     </View>
                   </View>
                   <View style={styles.phoneContainer}>
-                    <Text style={styles.workerPhone}>📞 {worker.phone}</Text>
+                    <Text style={styles.workerPhone}>
+                      📞 {formatPhoneNumber(worker.phone)}
+                    </Text>
                     <View style={styles.phoneActionButtons}>
                       <Pressable
-                        style={styles.phoneActionButton}
                         onPress={() => makeCall(worker.phone)}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
-                        <Ionicons name="call" size={14} color="#000000" />
+                        <Text style={{ fontSize: 16 }}>📞</Text>
                       </Pressable>
                       <Pressable
-                        style={styles.phoneActionButton}
                         onPress={() => sendSMS(worker.phone)}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
-                        <Ionicons name="chatbubble" size={14} color="#000000" />
+                        <Text style={{ fontSize: 16 }}>💬</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -2536,9 +2549,12 @@ const styles = StyleSheet.create({
     gap: Theme.spacing.sm,
   },
   phoneActionButton: {
-    padding: Theme.spacing.sm,
-    borderRadius: Theme.borderRadius.sm,
-    backgroundColor: Theme.colors.background.light,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#e8f0fe",
+    justifyContent: "center",
+    alignItems: "center",
   },
   workPeriodInfo: {
     marginBottom: Theme.spacing.sm,

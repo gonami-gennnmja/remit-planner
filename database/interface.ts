@@ -38,6 +38,7 @@ export interface IDatabase {
   getAllSchedules(): Promise<Schedule[]>;
   getSchedulesByDate(date: string): Promise<Schedule[]>;
   getSchedulesByDateRange(startDate: string, endDate: string): Promise<Schedule[]>;
+  getTodaySchedules(date: string): Promise<Schedule[]>;
   updateSchedule(id: string, schedule: Partial<Schedule>): Promise<void>;
   deleteSchedule(id: string): Promise<void>;
 

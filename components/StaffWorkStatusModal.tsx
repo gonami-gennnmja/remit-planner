@@ -65,11 +65,14 @@ export default function StaffWorkStatusModal({
 
           if (existingStaff) {
             // 기존 스태프 정보 업데이트
-            existingStaff.totalHours += workerInfo.periods.reduce((sum, period) => {
-              const start = dayjs(period.start);
-              const end = dayjs(period.end);
-              return sum + end.diff(start, "hour", true);
-            }, 0);
+            existingStaff.totalHours += workerInfo.periods.reduce(
+              (sum, period) => {
+                const start = dayjs(period.start);
+                const end = dayjs(period.end);
+                return sum + end.diff(start, "hour", true);
+              },
+              0
+            );
             existingStaff.schedules.push(schedule.title);
             existingStaff.paidCount += workerInfo.paid ? 1 : 0;
             existingStaff.totalCount += 1;
@@ -109,9 +112,13 @@ export default function StaffWorkStatusModal({
 
   const getWorkStatus = (periods: any[]) => {
     const now = dayjs();
-    const hasCompletedWork = periods.some(period => dayjs(period.end).isBefore(now));
-    const hasUpcomingWork = periods.some(period => dayjs(period.start).isAfter(now));
-    
+    const hasCompletedWork = periods.some((period) =>
+      dayjs(period.end).isBefore(now)
+    );
+    const hasUpcomingWork = periods.some((period) =>
+      dayjs(period.start).isAfter(now)
+    );
+
     if (hasCompletedWork && hasUpcomingWork) return "mixed";
     if (hasCompletedWork) return "completed";
     if (hasUpcomingWork) return "upcoming";
@@ -191,7 +198,7 @@ export default function StaffWorkStatusModal({
                 style={styles.staffCard}
                 onPress={() => {
                   onClose();
-                  router.push("/workers");
+                  router.push("/worker");
                 }}
               >
                 <View style={styles.staffHeader}>

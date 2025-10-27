@@ -243,6 +243,31 @@ export class SQLiteRepository implements IDatabase {
     return schedules;
   }
 
+  async getTodaySchedules(date: string): Promise<Schedule[]> {
+    // 특정 날짜가 포함되는 일정만 가져오기
+    // start_date <= date <= end_date 조건
+    const results = await sqliteDb.executeQuery<any>(
+      'SELECT * FROM schedules WHERE date = ? ORDER BY title',
+      [date]
+    );
+
+    const schedules: Schedule[] = [];
+    for (const row of results) {
+      const workers = await this.getScheduleWorkers(row.id);
+      schedules.push({
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        startDate: row.date,
+        endDate: row.date,
+        category: row.category as ScheduleCategory,
+        workers
+      });
+    }
+
+    return schedules;
+  }
+
   async updateSchedule(id: string, schedule: Partial<Schedule>): Promise<void> {
     const updates: string[] = [];
     const params: any[] = [];

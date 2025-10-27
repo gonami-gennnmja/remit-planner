@@ -4,8 +4,14 @@ import { Theme } from "@/constants/Theme";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { Client, Schedule, ScheduleTime } from "@/models/types";
-import { listFiles } from "@/utils/fileUpload";
+import {
+  formatAccountNumber,
+  formatPhoneNumber,
+  KOREAN_BANKS,
+} from "@/utils/bankUtils";
+import { listFiles, pickAndUploadImage } from "@/utils/fileUpload";
 import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
 import dayjs from "dayjs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -69,6 +75,22 @@ export default function ScheduleDetailScreen() {
     taxWithheld: false,
     nightShiftEnabled: false,
   });
+  const [showAddWorkerModal, setShowAddWorkerModal] = useState(false);
+  const [availableWorkers, setAvailableWorkers] = useState<any[]>([]);
+  const [workerSearchQuery, setWorkerSearchQuery] = useState("");
+  const [showNewWorkerModal, setShowNewWorkerModal] = useState(false);
+  const [newWorkerData, setNewWorkerData] = useState({
+    name: "",
+    phone: "",
+    hourlyWage: "15,000",
+    bankAccount: "",
+    selectedBank: "",
+    idCardImageUrl: "",
+    memo: "",
+  });
+  const [detectedBank, setDetectedBank] = useState<any>(null);
+  const [showBankSelection, setShowBankSelection] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string>("");
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -470,7 +492,54 @@ export default function ScheduleDetailScreen() {
 
         {/* 근로자 목록 */}
         <View style={styles.workersSection}>
-          <Text style={styles.sectionTitle}>참여 근로자</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <Text style={styles.sectionTitle}>참여 근로자</Text>
+            <Pressable
+              onPress={async () => {
+                try {
+                  const db = getDatabase();
+                  await db.init();
+
+                  // 전체 근로자 목록 가져오기
+                  const allWorkers = await db.getAllWorkers();
+
+                  // 이미 참여 중인 근로자 ID 목록
+                  const participatingWorkerIds = new Set(
+                    schedule.workers?.map((w) => w.worker.id) || []
+                  );
+
+                  // 참여하지 않은 근로자만 필터링
+                  const filteredWorkers = allWorkers.filter(
+                    (worker) => !participatingWorkerIds.has(worker.id)
+                  );
+
+                  setAvailableWorkers(filteredWorkers);
+                  setWorkerSearchQuery("");
+                  setShowAddWorkerModal(true);
+                } catch (error) {
+                  console.error("Failed to load workers:", error);
+                  Alert.alert("오류", "근로자 목록을 불러오는데 실패했습니다");
+                }
+              }}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.primary,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Ionicons name="add" size={20} color="white" />
+            </Pressable>
+          </View>
           {schedule.workers?.map((workerInfo, index) => (
             <Pressable
               key={index}
@@ -528,7 +597,7 @@ export default function ScheduleDetailScreen() {
 
               <View style={styles.workerDetails}>
                 <Text style={styles.workerPhone}>
-                  {workerInfo.worker.phone}
+                  {formatPhoneNumber(workerInfo.worker.phone)}
                 </Text>
                 <Text style={styles.workerWage}>
                   {new Intl.NumberFormat("ko-KR").format(
@@ -1781,7 +1850,9 @@ export default function ScheduleDetailScreen() {
                         }}
                       >
                         <Text style={{ fontSize: 14, color: "#6b7280" }}>
-                          {schedule.workers[selectedWorkerIndex].worker.phone}
+                          {formatPhoneNumber(
+                            schedule.workers[selectedWorkerIndex].worker.phone
+                          )}
                         </Text>
                         <Pressable
                           onPress={() => {
@@ -1791,16 +1862,14 @@ export default function ScheduleDetailScreen() {
                               );
                             }
                           }}
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            backgroundColor: "#10b981",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
+                          style={({ pressed }) => [
+                            {
+                              opacity: pressed ? 0.6 : 1,
+                            },
+                          ]}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
-                          <Ionicons name="call" size={16} color="white" />
+                          <Text style={{ fontSize: 18 }}>📞</Text>
                         </Pressable>
                         <Pressable
                           onPress={() => {
@@ -1810,16 +1879,14 @@ export default function ScheduleDetailScreen() {
                               );
                             }
                           }}
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            backgroundColor: "#3b82f6",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
+                          style={({ pressed }) => [
+                            {
+                              opacity: pressed ? 0.6 : 1,
+                            },
+                          ]}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
-                          <Ionicons name="chatbubble" size={16} color="white" />
+                          <Text style={{ fontSize: 18 }}>💬</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -3134,6 +3201,774 @@ export default function ScheduleDetailScreen() {
                   </View>
                 </>
               )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 근로자 추가 모달 */}
+      <Modal
+        visible={showAddWorkerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAddWorkerModal(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: Platform.OS === "web" ? "center" : "flex-end",
+            alignItems: "center",
+            padding: Platform.OS === "web" ? 20 : 0,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "white",
+              borderRadius: Platform.OS === "web" ? 12 : 0,
+              borderTopLeftRadius: Platform.OS === "web" ? 12 : 20,
+              borderTopRightRadius: Platform.OS === "web" ? 12 : 20,
+              width: "100%",
+              maxWidth: Platform.OS === "web" ? 600 : undefined,
+              height: Platform.OS === "web" ? "80%" : "85%",
+              padding: 20,
+            }}
+          >
+            {/* 헤더 */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+                paddingBottom: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: "#e5e7eb",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "700",
+                  color: "#1d1d1f",
+                }}
+              >
+                근로자 추가
+              </Text>
+              <Pressable
+                onPress={() => setShowAddWorkerModal(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </Pressable>
+            </View>
+
+            {/* 검색 입력 및 신규 추가 버튼 */}
+            <View style={{ marginBottom: 20, gap: 12 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#f3f4f6",
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  height: 48,
+                }}
+              >
+                <Ionicons name="search" size={20} color="#9ca3af" />
+                <TextInput
+                  value={workerSearchQuery}
+                  onChangeText={setWorkerSearchQuery}
+                  placeholder="근로자 검색..."
+                  style={{
+                    flex: 1,
+                    marginLeft: 12,
+                    fontSize: 16,
+                    color: "#1d1d1f",
+                  }}
+                  placeholderTextColor="#9ca3af"
+                />
+                {workerSearchQuery.length > 0 && (
+                  <Pressable
+                    onPress={() => setWorkerSearchQuery("")}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#9ca3af" />
+                  </Pressable>
+                )}
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  setShowAddWorkerModal(false);
+                  setShowNewWorkerModal(true);
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.primary,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  gap: 8,
+                }}
+              >
+                <Ionicons name="person-add" size={20} color="white" />
+                <Text
+                  style={{
+                    color: "white",
+                    fontSize: 16,
+                    fontWeight: "700",
+                  }}
+                >
+                  신규 근로자 추가
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* 근로자 목록 */}
+            <ScrollView style={{ flex: 1 }}>
+              {availableWorkers
+                .filter((worker) =>
+                  worker.name
+                    .toLowerCase()
+                    .includes(workerSearchQuery.toLowerCase())
+                )
+                .map((worker) => (
+                  <Pressable
+                    key={worker.id}
+                    onPress={async () => {
+                      try {
+                        const db = getDatabase();
+                        await db.init();
+
+                        // 스케줄 근로자 추가
+                        const scheduleWorkerId = await db.createScheduleWorker({
+                          id: `sw_${Date.now()}_${Math.random()
+                            .toString(36)
+                            .substr(2, 9)}`,
+                          scheduleId: schedule.id,
+                          workerId: worker.id,
+                          workStartDate: schedule.startDate,
+                          workEndDate: schedule.endDate,
+                          uniformTime: schedule.uniformTime ?? true,
+                          hourlyWage: worker.hourlyWage || 0,
+                          fuelAllowance: 0,
+                          otherAllowance: 0,
+                          overtimeEnabled: true,
+                          nightShiftEnabled: false,
+                          taxWithheld: true,
+                          wagePaid: false,
+                          fuelPaid: false,
+                          otherPaid: false,
+                        });
+
+                        // 근무 기간 추가 (기본값)
+                        await db.createWorkPeriod({
+                          id: `wp_${Date.now()}_${Math.random()
+                            .toString(36)
+                            .substr(2, 9)}`,
+                          scheduleWorkerId: scheduleWorkerId,
+                          workDate: schedule.startDate,
+                          startTime: "09:00",
+                          endTime: "18:00",
+                          breakDuration: 60,
+                        });
+
+                        // 스케줄 새로고침
+                        const updatedSchedule = await db.getSchedule(
+                          schedule.id
+                        );
+                        setSchedule(updatedSchedule);
+                        setShowAddWorkerModal(false);
+                        Alert.alert("완료", "근로자가 추가되었습니다");
+                      } catch (error) {
+                        console.error("Failed to add worker:", error);
+                        Alert.alert("오류", "근로자 추가에 실패했습니다");
+                      }
+                    }}
+                    style={{
+                      backgroundColor: "#fff",
+                      padding: 16,
+                      borderRadius: 12,
+                      marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                    }}
+                  >
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <View
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          backgroundColor: "#f3f4f6",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          marginRight: 12,
+                        }}
+                      >
+                        <Text style={{ fontSize: 24 }}>👤</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: "#1d1d1f",
+                          }}
+                        >
+                          {worker.name}
+                        </Text>
+                        <Text style={{ fontSize: 13, color: "#6b7280" }}>
+                          {worker.phone || "전화번호 미등록"}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={24}
+                        color={colors.primary}
+                      />
+                    </View>
+                  </Pressable>
+                ))}
+
+              {availableWorkers.filter((worker) =>
+                worker.name
+                  .toLowerCase()
+                  .includes(workerSearchQuery.toLowerCase())
+              ).length === 0 && (
+                <View
+                  style={{
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 40,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, color: "#6b7280" }}>
+                    추가할 수 있는 근로자가 없습니다
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 신규 근로자 추가 모달 */}
+      <Modal
+        visible={showNewWorkerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowNewWorkerModal(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: Platform.OS === "web" ? "center" : "flex-end",
+            alignItems: "center",
+            padding: Platform.OS === "web" ? 20 : 0,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "white",
+              borderRadius: Platform.OS === "web" ? 12 : 0,
+              borderTopLeftRadius: Platform.OS === "web" ? 12 : 20,
+              borderTopRightRadius: Platform.OS === "web" ? 12 : 20,
+              width: "100%",
+              maxWidth: Platform.OS === "web" ? 600 : undefined,
+              height: Platform.OS === "web" ? "90%" : "90%",
+              padding: 20,
+            }}
+          >
+            {/* 헤더 */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+                paddingBottom: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: "#e5e7eb",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "700",
+                  color: "#1d1d1f",
+                }}
+              >
+                신규 근로자 추가
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setShowNewWorkerModal(false);
+                  setNewWorkerData({
+                    name: "",
+                    phone: "",
+                    hourlyWage: "15,000",
+                    bankAccount: "",
+                    selectedBank: "",
+                    idCardImageUrl: "",
+                    memo: "",
+                  });
+                  setDetectedBank(null);
+                  setUploadedFileName("");
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ flex: 1 }}>
+              {/* 이름 */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  이름 *
+                </Text>
+                <TextInput
+                  value={newWorkerData.name}
+                  onChangeText={(text) =>
+                    setNewWorkerData({ ...newWorkerData, name: text })
+                  }
+                  placeholder="이름 입력"
+                  style={{
+                    backgroundColor: "#f3f4f6",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 16,
+                    color: "#1d1d1f",
+                  }}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+
+              {/* 전화번호 */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  전화번호 *
+                </Text>
+                <TextInput
+                  value={newWorkerData.phone}
+                  onChangeText={(text) => {
+                    // 숫자만 추출
+                    const numbers = text.replace(/[^0-9]/g, "");
+                    // 최대 11자리
+                    const limited = numbers.slice(0, 11);
+                    // 자동 포맷팅
+                    const formatted = formatPhoneNumber(limited);
+                    setNewWorkerData({ ...newWorkerData, phone: formatted });
+                  }}
+                  placeholder="010-1234-5678"
+                  keyboardType="phone-pad"
+                  maxLength={13}
+                  style={{
+                    backgroundColor: "#f3f4f6",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 16,
+                    color: "#1d1d1f",
+                  }}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+
+              {/* 시급 */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  시급 (원) *
+                </Text>
+                <TextInput
+                  value={newWorkerData.hourlyWage}
+                  onChangeText={(text) => {
+                    // 숫자만 추출
+                    const numbers = text.replace(/[^0-9]/g, "");
+                    // 천 단위 콤마 추가하여 표시
+                    const formatted = numbers.replace(
+                      /\B(?=(\d{3})+(?!\d))/g,
+                      ","
+                    );
+                    setNewWorkerData({
+                      ...newWorkerData,
+                      hourlyWage: formatted,
+                    });
+                  }}
+                  placeholder="15,000"
+                  keyboardType="number-pad"
+                  style={{
+                    backgroundColor: "#f3f4f6",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 16,
+                    color: "#1d1d1f",
+                  }}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+
+              {/* 사진 업로드 */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  신분증 사진
+                </Text>
+                <Pressable
+                  onPress={async () => {
+                    try {
+                      const result = await pickAndUploadImage({
+                        bucket: "files",
+                        folder: "workers",
+                        fileType: "image",
+                        maxSize: 5,
+                      });
+
+                      if (result.success && result.url) {
+                        // 파일명 추출 (경로에서 마지막 부분만)
+                        const fileName =
+                          result.path?.split("/").pop() || "uploaded.jpg";
+                        setUploadedFileName(fileName);
+                        setNewWorkerData({
+                          ...newWorkerData,
+                          idCardImageUrl: result.url,
+                        });
+                      } else if (result.error) {
+                        Alert.alert("오류", result.error);
+                      }
+                    } catch (error) {
+                      console.error("Failed to upload image:", error);
+                      Alert.alert("오류", "사진 업로드에 실패했습니다");
+                    }
+                  }}
+                  style={{
+                    backgroundColor: "#f3f4f6",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <Ionicons name="camera-outline" size={24} color="#6b7280" />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#1d1d1f",
+                      flex: 1,
+                    }}
+                  >
+                    {uploadedFileName || "사진 선택"}
+                  </Text>
+                  {newWorkerData.idCardImageUrl && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#10b981"
+                    />
+                  )}
+                </Pressable>
+              </View>
+
+              {/* 계좌번호 */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  계좌번호 (선택)
+                </Text>
+
+                {/* 은행 선택 */}
+                <View
+                  style={{
+                    backgroundColor: "#f3f4f6",
+                    borderRadius: 12,
+                    marginBottom: 8,
+                    paddingHorizontal: 16,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Picker
+                    selectedValue={newWorkerData.selectedBank}
+                    onValueChange={(value) => {
+                      setNewWorkerData({
+                        ...newWorkerData,
+                        selectedBank: value,
+                      });
+                      const selectedBank = KOREAN_BANKS.find(
+                        (b) => b.code === value
+                      );
+                      setDetectedBank(selectedBank || null);
+                    }}
+                    style={{ height: 48, color: "#1d1d1f" }}
+                  >
+                    <Picker.Item label="은행 선택" value="" />
+                    {KOREAN_BANKS.map((bank) => (
+                      <Picker.Item
+                        key={bank.code}
+                        label={bank.name}
+                        value={bank.code}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+
+                {/* 계좌번호 입력 */}
+                <TextInput
+                  value={newWorkerData.bankAccount}
+                  onChangeText={(text) => {
+                    // 숫자만 추출
+                    const numbers = text.replace(/[^0-9]/g, "");
+                    // 선택된 은행의 포맷 적용
+                    let formatted = numbers;
+                    if (newWorkerData.selectedBank) {
+                      formatted = formatAccountNumber(
+                        numbers,
+                        newWorkerData.selectedBank
+                      );
+                    } else if (detectedBank) {
+                      formatted = formatAccountNumber(
+                        numbers,
+                        detectedBank.code
+                      );
+                    } else {
+                      formatted = formatAccountNumber(numbers);
+                    }
+                    setNewWorkerData({
+                      ...newWorkerData,
+                      bankAccount: formatted,
+                    });
+                  }}
+                  placeholder={
+                    detectedBank
+                      ? `계좌번호 입력 (예: ${detectedBank.example})`
+                      : "은행 선택 후 계좌번호 입력"
+                  }
+                  keyboardType="number-pad"
+                  style={{
+                    backgroundColor: "#f3f4f6",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 16,
+                    color: "#1d1d1f",
+                  }}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+
+              {/* 메모 */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  메모
+                </Text>
+                <TextInput
+                  value={newWorkerData.memo}
+                  onChangeText={(text) =>
+                    setNewWorkerData({ ...newWorkerData, memo: text })
+                  }
+                  placeholder="메모 입력 (선택)"
+                  multiline
+                  numberOfLines={3}
+                  style={{
+                    backgroundColor: "#f3f4f6",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    fontSize: 16,
+                    color: "#1d1d1f",
+                    minHeight: 80,
+                  }}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+            </ScrollView>
+
+            {/* 저장 버튼 */}
+            <Pressable
+              onPress={async () => {
+                if (!newWorkerData.name || !newWorkerData.phone) {
+                  Alert.alert("입력 오류", "이름과 전화번호는 필수 항목입니다");
+                  return;
+                }
+
+                try {
+                  const db = getDatabase();
+                  await db.init();
+
+                  // 현재 사용자 정보 가져오기
+                  const { getCurrentUser } = await import("@/utils/authUtils");
+                  const user = await getCurrentUser();
+                  if (!user) {
+                    Alert.alert("오류", "로그인 정보를 찾을 수 없습니다");
+                    return;
+                  }
+
+                  // 전화번호에서 숫자만 추출
+                  const cleanPhone = newWorkerData.phone.replace(/[^0-9]/g, "");
+                  const cleanBankAccount = newWorkerData.bankAccount
+                    ? newWorkerData.bankAccount.replace(/[^0-9]/g, "")
+                    : "";
+
+                  // 신규 근로자 생성
+                  const newWorkerId = await db.createWorker({
+                    id: `worker_${Date.now()}_${Math.random()
+                      .toString(36)
+                      .substr(2, 9)}`,
+                    userId: user.id,
+                    name: newWorkerData.name,
+                    phone: cleanPhone,
+                    bankAccount: cleanBankAccount || undefined,
+                    hourlyWage:
+                      parseInt(newWorkerData.hourlyWage.replace(/,/g, "")) || 0,
+                    fuelAllowance: 0, // 스케줄별 설정
+                    otherAllowance: 0, // 스케줄별 설정
+                    idCardImageUrl: newWorkerData.idCardImageUrl || undefined,
+                    idCardImagePath: newWorkerData.idCardImageUrl || undefined,
+                    memo: newWorkerData.memo || undefined,
+                  });
+
+                  // 시급에서 콤마 제거하여 저장
+                  const hourlyWageValue =
+                    parseInt(newWorkerData.hourlyWage.replace(/,/g, "")) || 0;
+
+                  // 스케줄 근로자 추가
+                  const scheduleWorkerId = await db.createScheduleWorker({
+                    id: `sw_${Date.now()}_${Math.random()
+                      .toString(36)
+                      .substr(2, 9)}`,
+                    scheduleId: schedule.id,
+                    workerId: newWorkerId,
+                    workStartDate: schedule.startDate,
+                    workEndDate: schedule.endDate,
+                    uniformTime: schedule.uniformTime ?? true,
+                    hourlyWage: hourlyWageValue,
+                    fuelAllowance: 0,
+                    otherAllowance: 0,
+                    overtimeEnabled: true,
+                    nightShiftEnabled: false,
+                    taxWithheld: true,
+                    wagePaid: false,
+                    fuelPaid: false,
+                    otherPaid: false,
+                  });
+
+                  // 근무 기간 추가 (기본값)
+                  await db.createWorkPeriod({
+                    id: `wp_${Date.now()}_${Math.random()
+                      .toString(36)
+                      .substr(2, 9)}`,
+                    scheduleWorkerId: scheduleWorkerId,
+                    workDate: schedule.startDate,
+                    startTime: "09:00",
+                    endTime: "18:00",
+                    breakDuration: 60,
+                  });
+
+                  // 스케줄 새로고침
+                  const updatedSchedule = await db.getSchedule(schedule.id);
+                  setSchedule(updatedSchedule);
+
+                  // 모달 닫기 및 데이터 초기화
+                  setShowNewWorkerModal(false);
+                  setNewWorkerData({
+                    name: "",
+                    phone: "",
+                    hourlyWage: "15,000",
+                    bankAccount: "",
+                    selectedBank: "",
+                    idCardImageUrl: "",
+                    memo: "",
+                  });
+                  setDetectedBank(null);
+                  setUploadedFileName("");
+
+                  Alert.alert("완료", "근로자가 추가되었습니다");
+                } catch (error) {
+                  console.error("Failed to add new worker:", error);
+                  Alert.alert("오류", "근로자 추가에 실패했습니다");
+                }
+              }}
+              style={{
+                backgroundColor: colors.primary,
+                paddingVertical: 16,
+                borderRadius: 12,
+                alignItems: "center",
+                marginTop: 20,
+              }}
+            >
+              <Text
+                style={{
+                  color: "white",
+                  fontSize: 16,
+                  fontWeight: "700",
+                }}
+              >
+                저장
+              </Text>
+            </Pressable>
           </View>
         </View>
       </Modal>

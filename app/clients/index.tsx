@@ -2,6 +2,7 @@ import CommonHeader from "@/components/CommonHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { getDatabase } from "@/database/platformDatabase";
 import { Client } from "@/models/types";
+import { formatPhoneNumber } from "@/utils/bankUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -38,13 +39,11 @@ export default function ClientsScreen() {
 
   const loadClients = async () => {
     try {
-      console.log("🔄 Loading clients...");
       setLoading(true);
       const db = getDatabase();
       await db.init();
 
       const allClients = await db.getAllClients();
-      console.log("📊 Raw clients data:", allClients);
 
       // 기본값 설정
       const clientsWithDefaults = allClients.map((client) => ({
@@ -58,7 +57,6 @@ export default function ClientsScreen() {
         contacts: client.contacts || [],
       }));
 
-      console.log("✅ Processed clients:", clientsWithDefaults);
       setClients(clientsWithDefaults);
     } catch (error) {
       console.error("❌ Failed to load clients:", error);
@@ -124,11 +122,6 @@ export default function ClientsScreen() {
       console.error("Failed to add client:", error);
       Alert.alert("오류", "거래처 추가에 실패했습니다.");
     }
-  };
-
-  const formatPhoneNumber = (phone: string) => {
-    if (!phone) return "";
-    return phone.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
   };
 
   if (loading) {
@@ -208,7 +201,7 @@ export default function ClientsScreen() {
                   shadowRadius: 4,
                   elevation: 3,
                 }}
-                onPress={() => router.push(`/client/${client.id}` as any)}
+                onPress={() => router.push(`/clients/${client.id}` as any)}
               >
                 <View
                   style={{
@@ -369,33 +362,30 @@ export default function ClientsScreen() {
                       </View>
                     )}
 
-                    <View style={{ flexDirection: "row", marginTop: 8 }}>
+                    <View
+                      style={{ flexDirection: "row", gap: 8, marginTop: 8 }}
+                    >
                       <Pressable
-                        style={{
-                          backgroundColor: "#007AFF",
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          borderRadius: 6,
-                          marginRight: 8,
-                        }}
                         onPress={() => handleCall(client.phone || "")}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
-                        <Text style={{ color: "#fff", fontSize: 12 }}>
-                          전화
-                        </Text>
+                        <Text style={{ fontSize: 16 }}>📞</Text>
                       </Pressable>
                       <Pressable
-                        style={{
-                          backgroundColor: "#34C759",
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          borderRadius: 6,
-                        }}
                         onPress={() => handleSMS(client.phone || "")}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
-                        <Text style={{ color: "#fff", fontSize: 12 }}>
-                          문자
-                        </Text>
+                        <Text style={{ fontSize: 16 }}>💬</Text>
                       </Pressable>
                     </View>
                   </View>
