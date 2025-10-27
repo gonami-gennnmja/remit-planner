@@ -103,39 +103,67 @@ function NavigationWrapper() {
   return (
     <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
       <Stack>
+        {/* 인증 관련 */}
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="signup" options={{ headerShown: false }} />
-        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/signup" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="auth/forgot-password"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="auth/reset-password"
+          options={{ headerShown: false }}
+        />
+
+        {/* 약관 및 정책 */}
         <Stack.Screen
           name="terms-of-service"
           options={{ headerShown: false }}
         />
         <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
+
+        {/* 메인 화면 */}
         <Stack.Screen name="main" options={{ headerShown: false }} />
         <Stack.Screen name="dashboard" options={{ headerShown: false }} />
-        <Stack.Screen name="schedule" options={{ headerShown: false }} />
-        <Stack.Screen name="schedule-list" options={{ headerShown: false }} />
-        <Stack.Screen name="clients" options={{ headerShown: false }} />
-        <Stack.Screen name="clients-backup" options={{ headerShown: false }} />
-        <Stack.Screen name="clients-simple" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
-        <Stack.Screen name="workers" options={{ headerShown: false }} />
-        <Stack.Screen name="payroll" options={{ headerShown: false }} />
-        <Stack.Screen name="reports" options={{ headerShown: false }} />
+
+        {/* 스케줄 관리 */}
+        <Stack.Screen name="schedule/index" options={{ headerShown: false }} />
+        <Stack.Screen name="schedule/list" options={{ headerShown: false }} />
+        <Stack.Screen name="schedule/[id]" options={{ headerShown: false }} />
         <Stack.Screen
-          name="schedule-reports"
+          name="schedule/reports"
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="worker-reports" options={{ headerShown: false }} />
-        <Stack.Screen name="revenue-reports" options={{ headerShown: false }} />
-        <Stack.Screen name="uncollected" options={{ headerShown: false }} />
-        <Stack.Screen name="unpaid-details" options={{ headerShown: false }} />
+
+        {/* 거래처 관리 */}
+        <Stack.Screen name="clients/index" options={{ headerShown: false }} />
+        <Stack.Screen name="clients/[id]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="clients/uncollected"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="clients/unpaid-details"
+          options={{ headerShown: false }}
+        />
+
+        {/* 근로자 관리 */}
+        <Stack.Screen name="worker/index" options={{ headerShown: false }} />
+        <Stack.Screen name="worker/reports" options={{ headerShown: false }} />
+        <Stack.Screen name="worker/payroll" options={{ headerShown: false }} />
+
+        {/* 리포트 */}
+        <Stack.Screen name="reports/index" options={{ headerShown: false }} />
+        <Stack.Screen name="reports/revenue" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="reports/performance"
+          options={{ headerShown: false }}
+        />
+
+        {/* 기타 */}
         <Stack.Screen name="files" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-        <Stack.Screen name="schedule/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="client/[id]" options={{ headerShown: false }} />
       </Stack>
     </NavigationThemeProvider>
   );

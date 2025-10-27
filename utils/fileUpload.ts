@@ -99,10 +99,12 @@ export const pickAndUploadImage = async (
 			};
 		}
 
-		// 파일명 생성
+		// 파일명 생성 (원본 파일명 사용)
+		const originalFileName = asset.fileName || 'image.jpg';
+		const extension = getFileExtension(originalFileName);
+		// 원본 파일명 사용, 중복 시 타임스탬프 추가
 		const timestamp = Date.now();
-		const extension = getFileExtension(asset.fileName || 'image.jpg');
-		const fileName = options.fileName || `image_${timestamp}.${extension}`;
+		const fileName = originalFileName || `image_${timestamp}.${extension}`;
 		const filePath = `${options.folder}/${fileName}`;
 
 		// 파일을 ArrayBuffer로 변환
@@ -178,10 +180,12 @@ export const pickAndUploadDocument = async (
 			};
 		}
 
-		// 파일명 생성
+		// 파일명 생성 (원본 파일명 사용)
+		const originalFileName = asset.name;
+		const extension = getFileExtension(originalFileName);
+		// 원본 파일명 사용
 		const timestamp = Date.now();
-		const extension = getFileExtension(asset.name);
-		const fileName = options.fileName || `document_${timestamp}.${extension}`;
+		const fileName = originalFileName || `document_${timestamp}.${extension}`;
 		const filePath = `${options.folder}/${fileName}`;
 
 		// 파일을 ArrayBuffer로 변환

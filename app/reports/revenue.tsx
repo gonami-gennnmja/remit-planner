@@ -12,6 +12,7 @@ import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -186,13 +187,15 @@ export default function RevenueReportsScreen() {
         schedule.workers?.forEach((workerInfo) => {
           const periods = workerInfo.periods || [];
           const totalHours = periods.reduce((sum, period) => {
-            const start = dayjs(period.start);
-            const end = dayjs(period.end);
-            return sum + end.diff(start, "hour", true);
+            const start = dayjs(`${period.workDate}T${period.startTime}`);
+            const end = dayjs(`${period.workDate}T${period.endTime}`);
+            const hours =
+              end.diff(start, "hour", true) - period.breakDuration / 60;
+            return sum + Math.max(0, hours);
           }, 0);
 
           const grossPay = workerInfo.worker.hourlyWage * totalHours;
-          const tax = workerInfo.worker.taxWithheld ? grossPay * 0.033 : 0;
+          const tax = workerInfo.taxWithheld ? grossPay * 0.033 : 0;
           const netPay = grossPay - tax;
 
           totalExpense += Math.round(netPay);
@@ -245,13 +248,15 @@ export default function RevenueReportsScreen() {
           schedule.workers?.forEach((workerInfo) => {
             const periods = workerInfo.periods || [];
             const totalHours = periods.reduce((sum, period) => {
-              const start = dayjs(period.start);
-              const end = dayjs(period.end);
-              return sum + end.diff(start, "hour", true);
+              const start = dayjs(`${period.workDate}T${period.startTime}`);
+              const end = dayjs(`${period.workDate}T${period.endTime}`);
+              const hours =
+                end.diff(start, "hour", true) - period.breakDuration / 60;
+              return sum + Math.max(0, hours);
             }, 0);
 
             const grossPay = workerInfo.worker.hourlyWage * totalHours;
-            const tax = workerInfo.worker.taxWithheld ? grossPay * 0.033 : 0;
+            const tax = workerInfo.taxWithheld ? grossPay * 0.033 : 0;
             const netPay = grossPay - tax;
             monthExpense += Math.round(netPay);
           });
@@ -261,6 +266,7 @@ export default function RevenueReportsScreen() {
           month: month.format("YYYY-MM"),
           revenue: monthRevenue,
           expense: monthExpense,
+          payroll: monthExpense,
           profit: monthRevenue - monthExpense,
         });
       }
@@ -272,12 +278,17 @@ export default function RevenueReportsScreen() {
         totalExpense,
         monthlyExpense,
         yearlyExpense,
+        totalPayroll: totalExpense,
+        totalFuelAllowance: 0,
+        totalOtherAllowance: 0,
+        totalTaxWithheld: 0,
         netProfit: totalRevenue - totalExpense,
         monthlyNetProfit: monthlyRevenue - monthlyExpense,
         yearlyNetProfit: yearlyRevenue - yearlyExpense,
         categoryRevenue,
         monthlyTrend,
         clientRevenue,
+        payrollBreakdown: [],
       });
     } catch (error) {
       console.error("Failed to load revenue data:", error);
@@ -693,8 +704,7 @@ const styles = StyleSheet.create({
   },
   statCardWeb: {
     minWidth: 200,
-    flex: 0,
-    flexBasis: "calc(25% - 12px)",
+    width: "25%",
   },
   statIcon: {
     width: 56,
@@ -872,7 +882,7 @@ const styles = StyleSheet.create({
   },
   trendItem: {
     flexDirection: "row",
-    alignItems: "end",
+    alignItems: "flex-end",
     marginBottom: Theme.spacing.md,
     height: 80,
   },
@@ -901,7 +911,7 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: Theme.colors.surface,
     borderRadius: 4,
-    justifyContent: "end",
+    justifyContent: "flex-end",
     width: "100%",
   },
   trendBarFill: {

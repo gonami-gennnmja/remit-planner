@@ -173,6 +173,9 @@ export type Schedule = {
     paid: boolean;
     taxWithheld?: boolean;
     wagePaid?: boolean;
+    fuelPaid?: boolean;
+    otherPaid?: boolean;
+    nightShiftEnabled?: boolean; // 야간수당 적용 여부
   }>;
 };
 

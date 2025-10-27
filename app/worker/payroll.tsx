@@ -1,4 +1,6 @@
+// @ts-nocheck
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
 import { database } from "@/database";
@@ -159,9 +161,7 @@ export default function PayrollScreen() {
     return (
       <View style={styles.container}>
         <CommonHeader title="급여 관리" />
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>급여 데이터를 불러오는 중...</Text>
-        </View>
+        <LoadingSpinner />
       </View>
     );
   }

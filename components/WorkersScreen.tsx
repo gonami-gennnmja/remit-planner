@@ -216,12 +216,6 @@ export default function WorkersScreen({
 
   // 모든 근로자들을 처리 (allWorkers 우선, 없으면 schedules에서 추출)
   const processedWorkers = useMemo(() => {
-    console.log("=== processedWorkers 계산 시작 ===");
-    console.log("allWorkers 길이:", allWorkers?.length || 0);
-    console.log("allWorkers:", allWorkers);
-    console.log("schedules 길이:", schedules?.length || 0);
-    console.log("schedules:", schedules);
-
     if (allWorkers && allWorkers.length > 0) {
       // allWorkers가 있으면 그것을 사용하고, schedules에서 참여 일정 정보 추가
       const result = allWorkers.map((worker: any) => {
@@ -244,11 +238,6 @@ export default function WorkersScreen({
             category: schedule.category,
           }));
 
-        console.log(
-          `근로자 ${worker.name}의 참여 스케줄:`,
-          participatedSchedules
-        );
-
         return {
           id: worker.id,
           name: worker.name,
@@ -264,7 +253,6 @@ export default function WorkersScreen({
           memo: worker.memo || "",
         };
       });
-      console.log("=== processedWorkers 결과:", result);
       return result;
     } else {
       // allWorkers가 없으면 기존 로직 사용
@@ -418,7 +406,6 @@ export default function WorkersScreen({
   };
 
   const openWorkerDetail = (worker: Worker) => {
-    console.log("근로자 상세 모달 열기:", worker);
     setSelectedWorker(worker);
     setIsEditMode(true);
 
@@ -539,12 +526,6 @@ export default function WorkersScreen({
   };
 
   const handleSaveWorker = async () => {
-    console.log("근로자 저장 시작:", {
-      isEditMode,
-      selectedWorker: selectedWorker?.id,
-      workerForm,
-    });
-
     if (
       !workerForm.name ||
       !workerForm.phone ||
@@ -620,13 +601,8 @@ export default function WorkersScreen({
         dailyWorkTimes: workerForm.dailyWorkTimes,
       };
 
-      console.log("onAddWorker 존재 여부:", !!onAddWorker);
       if (onAddWorker) {
-        console.log("onAddWorker 호출 시작...");
         await onAddWorker(newWorker);
-        console.log("onAddWorker 호출 완료");
-      } else {
-        console.log("onAddWorker가 없음!");
       }
 
       // Alert는 부모에서 처리
@@ -635,27 +611,16 @@ export default function WorkersScreen({
   };
 
   const handleDeleteWorker = async (workerId?: string) => {
-    console.log("handleDeleteWorker 호출됨:", workerId);
-    console.log("onDeleteWorker 존재 여부:", !!onDeleteWorker);
-
     const targetWorker = workerId
       ? filteredWorkers.find((w) => w.id === workerId)
       : selectedWorker;
 
-    console.log("targetWorker:", targetWorker);
-
     if (!targetWorker) {
-      console.log("targetWorker가 없음");
       return;
     }
 
-    console.log("삭제 실행 중...");
     if (onDeleteWorker) {
-      console.log("onDeleteWorker 실행 중...");
       await onDeleteWorker(targetWorker.id);
-      console.log("onDeleteWorker 완료");
-    } else {
-      console.log("onDeleteWorker가 없음!");
     }
     setShowWorkerModal(false);
   };
@@ -723,7 +688,6 @@ export default function WorkersScreen({
                         style={styles.iconButton}
                         onPress={(e) => {
                           e.stopPropagation();
-                          console.log("삭제 버튼 클릭됨:", worker.id);
 
                           if (Platform.OS === "web") {
                             if (
@@ -731,10 +695,7 @@ export default function WorkersScreen({
                                 `${worker.name}님을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`
                               )
                             ) {
-                              console.log("웹 confirm 확인됨:", worker.id);
                               handleDeleteWorker(worker.id);
-                            } else {
-                              console.log("웹 confirm 취소됨");
                             }
                           } else {
                             Alert.alert(
@@ -746,7 +707,6 @@ export default function WorkersScreen({
                                   text: "삭제",
                                   style: "destructive",
                                   onPress: () => {
-                                    console.log("삭제 확인됨:", worker.id);
                                     handleDeleteWorker(worker.id);
                                   },
                                 },

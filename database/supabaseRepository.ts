@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { PayrollCalculation, ScheduleTime, WorkPeriod } from '@/models/types'
+import { Notification, NotificationSettings, PayrollCalculation, ScheduleTime, WorkPeriod } from '@/models/types'
 import { IDatabase } from './interface'
 
 // React Native용 UUID 생성 함수
@@ -12,17 +12,88 @@ function generateUUID(): string {
 }
 
 export class SupabaseRepository implements IDatabase {
-	createScheduleTime(scheduleTime: ScheduleTime): Promise<string> {
-		throw new Error('Method not implemented.')
+	async createScheduleTime(scheduleTime: ScheduleTime): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_times')
+			.insert([{
+				id: scheduleTime.id,
+				user_id: user.id,
+				schedule_id: scheduleTime.scheduleId,
+				work_date: scheduleTime.workDate,
+				start_time: scheduleTime.startTime,
+				end_time: scheduleTime.endTime,
+				break_duration: scheduleTime.breakDuration || 0,
+			}])
+			.select()
+
+		if (error) {
+			console.error('Error creating schedule time:', error)
+			throw error
+		}
+
+		return data[0].id
 	}
-	getScheduleTimes(scheduleId: string): Promise<ScheduleTime[]> {
-		throw new Error('Method not implemented.')
+
+	async getScheduleTimes(scheduleId: string): Promise<ScheduleTime[]> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_times')
+			.select('*')
+			.eq('schedule_id', scheduleId)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error getting schedule times:', error)
+			throw error
+		}
+
+		return data.map((row: any) => ({
+			id: row.id,
+			scheduleId: row.schedule_id,
+			workDate: row.work_date,
+			startTime: row.start_time,
+			endTime: row.end_time,
+			breakDuration: row.break_duration || 0,
+		}))
 	}
-	updateScheduleTime(id: string, scheduleTime: Partial<ScheduleTime>): Promise<void> {
-		throw new Error('Method not implemented.')
+
+	async updateScheduleTime(id: string, scheduleTime: Partial<ScheduleTime>): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const updateData: any = {}
+		if (scheduleTime.workDate !== undefined) updateData.work_date = scheduleTime.workDate
+		if (scheduleTime.startTime !== undefined) updateData.start_time = scheduleTime.startTime
+		if (scheduleTime.endTime !== undefined) updateData.end_time = scheduleTime.endTime
+		if (scheduleTime.breakDuration !== undefined) updateData.break_duration = scheduleTime.breakDuration
+
+		const { error } = await supabase
+			.from('schedule_times')
+			.update(updateData)
+			.eq('id', id)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error updating schedule time:', error)
+			throw error
+		}
 	}
-	deleteScheduleTime(id: string): Promise<void> {
-		throw new Error('Method not implemented.')
+
+	async deleteScheduleTime(id: string): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const { error } = await supabase
+			.from('schedule_times')
+			.delete()
+			.eq('id', id)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error deleting schedule time:', error)
+			throw error
+		}
 	}
 	updateWorkPeriod(id: string, workPeriod: Partial<WorkPeriod>): Promise<void> {
 		throw new Error('Method not implemented.')
@@ -58,7 +129,6 @@ export class SupabaseRepository implements IDatabase {
 	private async getCurrentUser() {
 		const { data: { user }, error } = await supabase.auth.getUser()
 		if (!user) {
-			console.error('❌ User not authenticated')
 			throw new Error('User not authenticated')
 		}
 		return user
@@ -217,6 +287,10 @@ export class SupabaseRepository implements IDatabase {
 			.single()
 
 		if (scheduleError) {
+			// PGRST116은 "결과가 없음" 에러이므로 정상적인 경우로 처리
+			if (scheduleError.code === 'PGRST116') {
+				return null
+			}
 			console.error('Error getting schedule:', scheduleError)
 			return null
 		}
@@ -416,13 +490,22 @@ export class SupabaseRepository implements IDatabase {
 				.eq('schedule_worker_id', sw.id)
 
 			result.push({
+				scheduleWorkerId: sw.id, // schedule_workers 테이블의 ID
 				worker: this.transformWorkerFromDB(sw.workers),
 				periods: periods?.map(p => ({
 					id: p.id,
 					start: `${p.work_date}T${p.start_time}+09:00`,
 					end: `${p.work_date}T${p.end_time}+09:00`
 				})) || [],
-				paid: sw.wage_paid || false
+				paid: sw.wage_paid || false,
+				taxWithheld: sw.tax_withheld,
+				wagePaid: sw.wage_paid,
+				fuelPaid: sw.fuel_paid,
+				otherPaid: sw.other_paid,
+				nightShiftEnabled: sw.night_shift_enabled,
+				hourlyWage: sw.hourly_wage,
+				fuelAllowance: sw.fuel_allowance,
+				otherAllowance: sw.other_allowance,
 			})
 		}
 
@@ -494,56 +577,6 @@ export class SupabaseRepository implements IDatabase {
 		await supabase.from('schedules').delete().neq('id', '')
 		await supabase.from('workers').delete().neq('id', '')
 		await supabase.from('activities').delete().neq('id', '')
-	}
-
-	// Activity operations
-	async createActivity(activity: {
-		id: string;
-		type: string;
-		title: string;
-		description?: string;
-		related_id?: string;
-		icon?: string;
-		color?: string;
-	}): Promise<string> {
-		const user = await this.getCurrentUser()
-
-		const { data, error } = await supabase
-			.from('activities')
-			.insert([{
-				id: activity.id,
-				user_id: user.id,
-				type: activity.type,
-				title: activity.title,
-				description: activity.description,
-				related_id: activity.related_id,
-				icon: activity.icon,
-				color: activity.color,
-			}])
-			.select()
-
-		if (error) {
-			console.error('Error creating activity:', error)
-			throw error
-		}
-
-		return data[0].id
-	}
-
-
-	async clearOldActivities(daysToKeep: number = 30): Promise<void> {
-		const cutoffDate = new Date()
-		cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
-
-		const { error } = await supabase
-			.from('activities')
-			.delete()
-			.lt('created_at', cutoffDate.toISOString())
-
-		if (error) {
-			console.error('Error clearing old activities:', error)
-			throw error
-		}
 	}
 
 	// ==================== Client Operations ====================
@@ -999,22 +1032,29 @@ export class SupabaseRepository implements IDatabase {
 	async updateScheduleWorker(id: string, scheduleWorker: any): Promise<void> {
 		const user = await this.getCurrentUser()
 
+		// partial update만 처리
+		const updateData: any = {}
+
+		if (scheduleWorker.workStartDate !== undefined) updateData.work_start_date = scheduleWorker.workStartDate
+		if (scheduleWorker.workEndDate !== undefined) updateData.work_end_date = scheduleWorker.workEndDate
+		if (scheduleWorker.uniformTime !== undefined) updateData.uniform_time = scheduleWorker.uniformTime
+		if (scheduleWorker.hourlyWage !== undefined) updateData.hourly_wage = scheduleWorker.hourlyWage
+		if (scheduleWorker.fuelAllowance !== undefined) updateData.fuel_allowance = scheduleWorker.fuelAllowance
+		if (scheduleWorker.otherAllowance !== undefined) updateData.other_allowance = scheduleWorker.otherAllowance
+		if (scheduleWorker.overtimeEnabled !== undefined) updateData.overtime_enabled = scheduleWorker.overtimeEnabled
+		if (scheduleWorker.nightShiftEnabled !== undefined) updateData.night_shift_enabled = scheduleWorker.nightShiftEnabled
+		if (scheduleWorker.taxWithheld !== undefined) updateData.tax_withheld = scheduleWorker.taxWithheld
+		if (scheduleWorker.wagePaid !== undefined) updateData.wage_paid = scheduleWorker.wagePaid
+		if (scheduleWorker.fuelPaid !== undefined) updateData.fuel_paid = scheduleWorker.fuelPaid
+		if (scheduleWorker.otherPaid !== undefined) updateData.other_paid = scheduleWorker.otherPaid
+
+		if (Object.keys(updateData).length === 0) {
+			return // 업데이트할 데이터가 없으면 early return
+		}
+
 		const { error } = await supabase
 			.from('schedule_workers')
-			.update({
-				work_start_date: scheduleWorker.workStartDate,
-				work_end_date: scheduleWorker.workEndDate,
-				uniform_time: scheduleWorker.uniformTime,
-				hourly_wage: scheduleWorker.hourlyWage,
-				fuel_allowance: scheduleWorker.fuelAllowance,
-				other_allowance: scheduleWorker.otherAllowance,
-				overtime_enabled: scheduleWorker.overtimeEnabled,
-				night_shift_enabled: scheduleWorker.nightShiftEnabled,
-				tax_withheld: scheduleWorker.taxWithheld,
-				wage_paid: scheduleWorker.wagePaid,
-				fuel_paid: scheduleWorker.fuelPaid,
-				other_paid: scheduleWorker.otherPaid,
-			})
+			.update(updateData)
 			.eq('id', id)
 			.eq('user_id', user.id)
 
@@ -1214,7 +1254,7 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	// Notification operations
-	async createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+	async createNotification(notification: Partial<Notification> & { type: 'wage_overdue' | 'revenue_overdue' | 'schedule_reminder'; title: string }): Promise<string> {
 		const user = await this.getCurrentUser()
 
 		// 클라이언트에서 UUID 생성
@@ -1227,11 +1267,11 @@ export class SupabaseRepository implements IDatabase {
 				user_id: user.id,
 				type: notification.type,
 				title: notification.title,
-				message: notification.message,
-				is_read: notification.isRead,
-				priority: notification.priority,
-				related_id: notification.relatedId,
-				scheduled_at: notification.scheduledAt,
+				message: notification.message || '',
+				is_read: notification.isRead || false,
+				priority: notification.priority || 2,
+				related_id: notification.relatedId || null,
+				scheduled_at: notification.scheduledAt || null,
 			})
 			.select()
 			.single()
@@ -1300,17 +1340,20 @@ export class SupabaseRepository implements IDatabase {
 	async updateNotification(id: string, notification: Partial<Notification>): Promise<void> {
 		const user = await this.getCurrentUser()
 
+		const updateData: any = {
+			updated_at: new Date().toISOString(),
+		};
+
+		if (notification.title !== undefined) updateData.title = notification.title;
+		if (notification.message !== undefined) updateData.message = notification.message;
+		if (notification.isRead !== undefined) updateData.is_read = notification.isRead;
+		if (notification.priority !== undefined) updateData.priority = notification.priority;
+		if (notification.relatedId !== undefined) updateData.related_id = notification.relatedId;
+		if (notification.scheduledAt !== undefined) updateData.scheduled_at = notification.scheduledAt;
+
 		const { error } = await supabase
 			.from('notifications')
-			.update({
-				title: notification.title,
-				message: notification.message,
-				is_read: notification.isRead,
-				priority: notification.priority,
-				related_id: notification.relatedId,
-				scheduled_at: notification.scheduledAt,
-				updated_at: new Date().toISOString(),
-			})
+			.update(updateData)
 			.eq('id', id)
 			.eq('user_id', user.id)
 
@@ -1430,13 +1473,13 @@ export class SupabaseRepository implements IDatabase {
 
 	private transformNotificationFromDB(dbNotification: any): Notification {
 		return {
-			id: dbNotification.id,
-			userId: dbNotification.user_id,
+			id: dbNotification.id || '',
+			userId: dbNotification.user_id || '',
 			type: dbNotification.type,
 			title: dbNotification.title,
-			message: dbNotification.message,
-			isRead: dbNotification.is_read,
-			priority: dbNotification.priority,
+			message: dbNotification.message || '',
+			isRead: dbNotification.is_read || false,
+			priority: dbNotification.priority || 2,
 			relatedId: dbNotification.related_id,
 			scheduledAt: dbNotification.scheduled_at,
 			createdAt: dbNotification.created_at,
@@ -1520,8 +1563,6 @@ export class SupabaseRepository implements IDatabase {
 			throw new Error('User not authenticated')
 		}
 
-		console.log('📋 Loading recent activities for user:', user.id);
-
 		const { data, error } = await supabase
 			.from('activities')
 			.select('*')
@@ -1536,9 +1577,6 @@ export class SupabaseRepository implements IDatabase {
 			throw error
 		}
 
-		console.log('📋 Raw activities from Supabase:', data);
-		console.log('📋 Activities count:', data.length);
-
 		const result = data.map(activity => ({
 			id: activity.id,
 			type: activity.type,
@@ -1551,8 +1589,6 @@ export class SupabaseRepository implements IDatabase {
 			isDeleted: activity.is_deleted,
 			timestamp: activity.created_at,
 		}));
-
-		console.log('📋 Processed activities:', result);
 		return result;
 	}
 
@@ -1562,8 +1598,6 @@ export class SupabaseRepository implements IDatabase {
 		if (!user) {
 			throw new Error('User not authenticated')
 		}
-
-		console.log('👁️ Marking activity as read:', activityId, 'for user:', user.id);
 
 		const { data, error } = await supabase
 			.from('activities')
@@ -1576,8 +1610,6 @@ export class SupabaseRepository implements IDatabase {
 			console.error('❌ Error marking activity as read:', error)
 			throw error
 		}
-
-		console.log('✅ Activity marked as read successfully:', data);
 	}
 
 	async markActivityAsDeleted(activityId: string): Promise<void> {
@@ -1586,8 +1618,6 @@ export class SupabaseRepository implements IDatabase {
 		if (!user) {
 			throw new Error('User not authenticated')
 		}
-
-		console.log('🗑️ Marking activity as deleted:', activityId, 'for user:', user.id);
 
 		const { data, error } = await supabase
 			.from('activities')
@@ -1600,8 +1630,6 @@ export class SupabaseRepository implements IDatabase {
 			console.error('❌ Error marking activity as deleted:', error)
 			throw error
 		}
-
-		console.log('✅ Activity marked as deleted successfully:', data);
 	}
 
 	async clearOldActivities(daysToKeep: number = 30): Promise<void> {

@@ -17,7 +17,6 @@ async function sendActivityNotification(activityId: string, title: string, descr
 			},
 			trigger: null, // 즉시 전송
 		});
-		console.log('📱 Push notification sent for activity:', activityId);
 	} catch (error) {
 		console.error('❌ Failed to send push notification:', error);
 	}

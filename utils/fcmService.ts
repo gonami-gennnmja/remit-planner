@@ -9,20 +9,17 @@ export class FCMService {
 	static async getToken(): Promise<string | null> {
 		try {
 			if (!Device.isDevice) {
-				console.log('실제 기기에서만 푸시 알림을 사용할 수 있습니다.');
 				return null;
 			}
 
 			const projectId = Constants.expoConfig?.extra?.eas?.projectId;
 			if (!projectId) {
-				console.log('projectId가 설정되지 않았습니다. 로컬 알림만 사용합니다.');
 				return null;
 			}
 
 			const token = await Notifications.getExpoPushTokenAsync({
 				projectId: projectId,
 			});
-			console.log('Expo Push Token:', token.data);
 			return token.data;
 		} catch (error) {
 			console.error('Expo Push Token Error:', error);
@@ -42,11 +39,9 @@ export class FCMService {
 			}
 
 			if (finalStatus !== 'granted') {
-				console.log('알림 권한이 거부되었습니다.');
 				return false;
 			}
 
-			console.log('알림 권한이 허용되었습니다.');
 			return true;
 		} catch (error) {
 			console.error('알림 권한 요청 오류:', error);

@@ -9,7 +9,7 @@ import {
 } from "@/utils/activityLogger";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 export default function WorkersScreenPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -21,7 +21,6 @@ export default function WorkersScreenPage() {
     try {
       const db = getDatabase();
       const workers = await db.getAllWorkers();
-      console.log(`Loaded ${workers.length} workers from DB:`, workers);
       setAllWorkers(workers);
     } catch (error) {
       console.error("Failed to load workers from DB:", error);
@@ -34,7 +33,6 @@ export default function WorkersScreenPage() {
   // 근로자 추가 함수 (DB 연동)
   const handleAddWorker = async (newWorker: any) => {
     try {
-      console.log("새 근로자 추가:", newWorker);
       const db = getDatabase();
 
       // DB에 저장 (모든 필드 포함)
@@ -81,7 +79,6 @@ export default function WorkersScreenPage() {
   // 근로자 수정 함수 (DB 연동)
   const handleUpdateWorker = async (workerId: string, updates: any) => {
     try {
-      console.log("근로자 수정:", workerId, updates);
       const db = getDatabase();
 
       // DB에 저장 (모든 필드 포함)
@@ -122,48 +119,29 @@ export default function WorkersScreenPage() {
   // 근로자 삭제 함수 (DB 연동)
   const handleDeleteWorker = async (workerId: string) => {
     try {
-      console.log("=== handleDeleteWorker 시작 ===");
-      console.log("근로자 삭제:", workerId);
-      console.log("현재 allWorkers:", allWorkers);
-
       const db = getDatabase();
-      console.log("DB 인스턴스:", db);
 
       // 삭제할 근로자 정보 가져오기
       const worker = allWorkers.find((w) => w.id === workerId);
-      console.log("찾은 worker:", worker);
 
       if (!worker) {
-        console.log("근로자를 찾을 수 없음");
         Alert.alert("오류", "근로자를 찾을 수 없습니다.");
         return;
       }
 
-      console.log("DB에서 삭제 시작...");
       // DB에서 삭제
       await db.deleteWorker(workerId);
-      console.log("DB에서 삭제 완료");
 
-      console.log("활동 기록 시작...");
       // 활동 기록
       await logWorkerDeleted(worker.name);
-      console.log("활동 기록 완료");
 
-      console.log("State 업데이트 시작...");
       // State 업데이트
       setAllWorkers((prev) => {
-        const filtered = prev.filter((w) => w.id !== workerId);
-        console.log("필터링된 workers:", filtered);
-        return filtered;
+        return prev.filter((w) => w.id !== workerId);
       });
-      console.log("State 업데이트 완료");
 
       // DB에서 최신 데이터 다시 로드하여 UI 동기화
-      console.log("DB에서 최신 데이터 다시 로드...");
       await loadWorkersFromDB();
-      console.log("DB에서 최신 데이터 로드 완료");
-
-      console.log(`Worker ${workerId} deleted successfully`);
       Alert.alert("성공", "근로자가 삭제되었습니다.");
     } catch (error) {
       console.error("Failed to delete worker:", error);
@@ -175,6 +153,16 @@ export default function WorkersScreenPage() {
     // DB에서 근로자 로드
     loadWorkersFromDB();
   }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>근로자 데이터를 불러오는 중...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -195,5 +183,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: Theme.colors.text.secondary,
   },
 });

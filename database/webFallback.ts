@@ -1,6 +1,6 @@
 // Web fallback database - simple in-memory storage
-import { Category, Schedule, ScheduleCategory, Worker } from '@/models/types';
-import { IDatabase, ScheduleWorkerInfo, WorkPeriod } from './interface';
+import { Category, Schedule, ScheduleCategory, WorkPeriod, Worker } from '@/models/types';
+import { IDatabase, ScheduleWorkerInfo } from './interface';
 
 class WebFallbackRepository implements IDatabase {
   private workers: Map<string, Worker> = new Map();
@@ -138,11 +138,16 @@ class WebFallbackRepository implements IDatabase {
     const workers = await this.getScheduleWorkers(id);
     return {
       id: schedule.id,
+      userId: schedule.userId || '',
       title: schedule.title,
       description: schedule.description,
       startDate: schedule.startDate,
       endDate: schedule.endDate,
       category: schedule.category,
+      uniformTime: schedule.uniformTime !== undefined ? schedule.uniformTime : true,
+      hasAttachments: schedule.hasAttachments || false,
+      allWagesPaid: schedule.allWagesPaid || false,
+      revenueStatus: schedule.revenueStatus || 'pending',
       workers
     };
   }

@@ -233,7 +233,7 @@ export default function FilesScreen() {
             <View key={doc.id} style={styles.documentItem}>
               <View style={styles.documentInfo}>
                 <Ionicons
-                  name={getFileIcon(doc.fileType)}
+                  name={getFileIcon(doc.fileType) as any}
                   size={24}
                   color={colors.primary}
                 />
@@ -293,7 +293,7 @@ export default function FilesScreen() {
             <View key={doc.id} style={styles.documentItem}>
               <View style={styles.documentInfo}>
                 <Ionicons
-                  name={getFileIcon(doc.fileType)}
+                  name={getFileIcon(doc.fileType) as any}
                   size={24}
                   color={colors.primary}
                 />

@@ -137,7 +137,6 @@ class WebDatabase implements IDatabase {
 	private categories: Map<string, any> = new Map();
 
 	async init(): Promise<void> {
-		console.log('🌐 Using web database (in-memory + localStorage)');
 		this.loadFromLocalStorage();
 	}
 
@@ -596,19 +595,11 @@ let database: IDatabase;
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig?.extra?.supabaseUrl;
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig?.extra?.supabaseAnonKey;
 
-console.log('🔍 Supabase 설정 확인:');
-console.log('supabaseUrl:', supabaseUrl);
-console.log('supabaseKey:', supabaseKey ? `${supabaseKey.substring(0, 20)}...` : 'NOT_SET');
-console.log('URL !== YOUR_SUPABASE_URL:', supabaseUrl !== 'YOUR_SUPABASE_URL');
-
 if (supabaseUrl && supabaseKey && supabaseUrl !== 'YOUR_SUPABASE_URL') {
 	// Supabase 설정이 완료된 경우
-	console.log('🗄️ Using Supabase database');
 	database = new SupabaseRepository();
 } else {
 	// Supabase 설정이 안된 경우 로컬 데이터베이스 사용
-	console.log('💾 Using local database (Supabase not configured)');
-	console.log('Reason: supabaseUrl=', supabaseUrl, 'supabaseKey=', supabaseKey ? 'SET' : 'NOT_SET');
 	database = new WebDatabase();
 }
 
@@ -617,6 +608,5 @@ export { database };
 
 // Export a function to get the database instance
 export const getDatabase = (): IDatabase => {
-	console.log('getDatabase called, using:', database.constructor.name);
 	return database;
 };

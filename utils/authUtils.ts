@@ -39,22 +39,14 @@ const CURRENT_USER_KEY = '@remit-planner:current_user';
 // 사용자 데이터베이스 초기화 (Supabase Auth로 마이그레이션)
 export async function initializeAuthDB(): Promise<void> {
   try {
-    console.log('🔧 Auth DB 초기화 (Supabase Auth)');
-
     // 기존 AsyncStorage 데이터가 있으면 백업
     const usersData = await AsyncStorage.getItem(USERS_STORAGE_KEY);
     if (usersData) {
-      console.log('📦 기존 사용자 데이터 발견, 백업 중...');
       await AsyncStorage.setItem(
         '@remit-planner:users_backup',
         usersData
       );
     }
-
-    // Admin 계정 자동 생성 비활성화 (이미 존재하므로)
-    console.log('ℹ️ Admin 계정 자동 생성 건너뛰기 (이미 존재)');
-
-    console.log('✅ Supabase Auth 초기화 완료');
   } catch (error) {
     console.error('❌ Auth DB 초기화 실패:', error);
   }
@@ -66,8 +58,6 @@ export async function login(
   password: string
 ): Promise<{ success: boolean; user?: User; message?: string }> {
   try {
-    console.log('🔐 로그인 시도 (Supabase Auth):', { id });
-
     // 입력값 검증
     if (!id || !password) {
       return { success: false, message: '아이디와 비밀번호를 입력해주세요.' };
@@ -80,10 +70,8 @@ export async function login(
     const result = await loginWithSupabase(email, password);
 
     if (result.success && result.user) {
-      console.log('✅ 로그인 성공:', result.user.name);
       return { success: true, user: result.user };
     } else {
-      console.log('❌ 로그인 실패:', result.message);
       return { success: false, message: result.message || '아이디 또는 비밀번호가 올바르지 않습니다.' };
     }
   } catch (error) {
@@ -96,7 +84,6 @@ export async function login(
 export async function logout(): Promise<void> {
   try {
     await logoutFromSupabase();
-    console.log('✅ 로그아웃 완료');
   } catch (error) {
     console.error('❌ 로그아웃 실패:', error);
   }
@@ -130,8 +117,6 @@ export async function registerUser(
   email?: string
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    console.log('📝 회원가입 시도 (Supabase Auth):', { id, name });
-
     // id가 이메일 형태인지 확인하고, 아니면 이메일로 변환
     const userEmail = email || (id.includes('@') ? id : `${id}@remit-planner.com`);
 
@@ -139,10 +124,8 @@ export async function registerUser(
     const result = await registerWithSupabase(userEmail, password, name, name);
 
     if (result.success) {
-      console.log('✅ 회원가입 성공');
       return { success: true, message: result.message || '회원가입이 완료되었습니다.' };
     } else {
-      console.log('❌ 회원가입 실패:', result.message);
       return { success: false, message: result.message || '회원가입 중 오류가 발생했습니다.' };
     }
   } catch (error) {
@@ -154,16 +137,12 @@ export async function registerUser(
 // 사용자 정보 업데이트 (Supabase Auth로 마이그레이션)
 export async function updateUser(updatedUser: User): Promise<{ success: boolean; message?: string }> {
   try {
-    console.log('👤 사용자 정보 업데이트 (Supabase Auth):', { id: updatedUser.id });
-
     // Supabase Auth로 사용자 정보 업데이트
     const result = await updateSupabaseUser(updatedUser);
 
     if (result.success) {
-      console.log('✅ 사용자 정보 업데이트 성공');
       return { success: true, message: result.message || '사용자 정보가 업데이트되었습니다.' };
     } else {
-      console.log('❌ 사용자 정보 업데이트 실패:', result.message);
       return { success: false, message: result.message || '사용자 정보 업데이트 중 오류가 발생했습니다.' };
     }
   } catch (error) {

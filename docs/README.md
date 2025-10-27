@@ -8,8 +8,10 @@
 docs/
 ├── auth/           # 인증 및 사용자 관리 관련 문서
 ├── database/       # 데이터베이스 설정 및 마이그레이션 문서
+├── guides/         # 일반 설정 및 가이드 문서
 ├── security/       # 보안 및 사용자 격리 관련 문서
 ├── setup/          # 초기 설정 및 구성 관련 문서
+├── sql-scripts/    # SQL 스크립트 파일들
 └── updates/        # 업데이트 및 패치 내역 문서
 ```
 
@@ -22,7 +24,9 @@ docs/
 1. **[setup/DEVELOPMENT_ENVIRONMENT_SETUP.md](./setup/DEVELOPMENT_ENVIRONMENT_SETUP.md)** - 개발 환경 설정 (macOS/Windows)
 2. **[setup/QUICK_SETUP_GUIDE.md](./setup/QUICK_SETUP_GUIDE.md)** - 프로젝트 빠른 시작 가이드
 3. **[database/SUPABASE_SETUP.md](./database/SUPABASE_SETUP.md)** - Supabase 초기 설정
-4. **[setup/APP_ICON_SETUP_GUIDE.md](./setup/APP_ICON_SETUP_GUIDE.md)** - 앱 아이콘 설정
+4. **[guides/SUPABASE_SETUP_INSTRUCTIONS.md](./guides/SUPABASE_SETUP_INSTRUCTIONS.md)** - Supabase 상세 설정
+5. **[guides/DEVELOPMENT_COMMANDS_GUIDE.md](./guides/DEVELOPMENT_COMMANDS_GUIDE.md)** - 앱 실행 및 개발 명령어
+6. **[setup/APP_ICON_SETUP_GUIDE.md](./setup/APP_ICON_SETUP_GUIDE.md)** - 앱 아이콘 설정
 
 ### 💻 **macOS/Windows 환경 설정 문제가 있는 경우**
 
@@ -115,6 +119,19 @@ docs/
 - **QUICK_SETUP_GUIDE.md** - 빠른 시작 가이드
 - **APP_ICON_SETUP_GUIDE.md** - 앱 아이콘 설정
 - **TERMS_AND_PRIVACY_GUIDE.md** - 약관 및 개인정보 페이지
+
+### 📂 guides/ (가이드 및 설명)
+
+- **CATEGORY_SETUP_GUIDE.md** - 카테고리 설정 가이드
+- **SUPABASE_SETUP_INSTRUCTIONS.md** - Supabase 설치 지침
+- **SUPABASE_STORAGE_SETUP.md** - Supabase Storage 설정
+- **TEST_DATA_GUIDE.md** - 테스트 데이터 가이드
+- **PROJECT_STRUCTURE.md** - 프로젝트 구조 문서
+- **DEVELOPMENT_COMMANDS_GUIDE.md** - 개발 명령어 및 실행 가이드
+
+### 📂 sql-scripts/ (SQL 스크립트)
+
+- 여러 테스트 데이터 및 마이그레이션 SQL 파일들
 
 ### 📂 updates/ (업데이트 내역)
 

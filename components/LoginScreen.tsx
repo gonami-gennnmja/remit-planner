@@ -1,3 +1,4 @@
+// @ts-nocheck - web-specific properties cause type conflicts with React Native
 import { Theme } from "@/constants/Theme";
 import { initializeAuthDB, login } from "@/utils/authUtils";
 import { signInWithSocial, SocialProvider } from "@/utils/socialAuth";
@@ -44,22 +45,16 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      console.log("로그인 시도:", { userId, password: "***" });
-
       const result = await login(userId.trim(), password.trim());
-      console.log("로그인 결과:", result);
 
       setIsLoading(false);
 
       if (result.success && result.user) {
-        console.log("로그인 성공:", result.user.name);
         // 비동기적으로 화면 전환
         setTimeout(() => {
-          console.log("메인 화면으로 이동 시도");
           navigation.push("/main");
         }, 100);
       } else {
-        console.log("로그인 실패:", result.message);
         Alert.alert(
           "로그인 실패",
           result.message || "아이디 또는 비밀번호가 올바르지 않습니다."
@@ -82,25 +77,21 @@ export default function LoginScreen() {
 
       if (result.success) {
         // 웹에서는 OAuth 플로우가 redirect로 처리됨
-        // 앱에서는 성공 시 자동으로 세션이 설정됨
-        console.log(`${provider} 로그인 성공`);
-
-        // 앱에서는 메인 화면으로 이동
-        if (Platform.OS !== "web") {
-          setTimeout(() => {
-            navigation.push("/main");
-          }, 100);
-        }
+        // OAuth 완료 후 자동으로 세션이 설정되고 메인 화면으로 이동
       } else {
         Alert.alert(
           "소셜 로그인 실패",
-          result.message || "로그인에 실패했습니다."
+          result.message ||
+            "로그인에 실패했습니다. Supabase에서 OAuth 프로바이더 설정을 확인해주세요."
         );
       }
     } catch (error) {
       console.error("소셜 로그인 오류:", error);
       setIsLoading(false);
-      Alert.alert("오류", "소셜 로그인 중 오류가 발생했습니다.");
+      Alert.alert(
+        "오류",
+        "소셜 로그인 중 오류가 발생했습니다.\n\nSupabase 대시보드에서 Kakao OAuth 설정을 확인해주세요.\n설정 > Authentication > Providers > Kakao"
+      );
     }
   };
 
@@ -171,7 +162,6 @@ export default function LoginScreen() {
               autoFocus: false,
               selectTextOnFocus: true,
               editable: true,
-              onFocus: () => console.log("아이디 필드 포커스됨"),
             })}
           />
         </View>
@@ -202,7 +192,6 @@ export default function LoginScreen() {
               autoFocus: false,
               selectTextOnFocus: true,
               editable: true,
-              onFocus: () => console.log("비밀번호 필드 포커스됨"),
             })}
           />
         </View>
@@ -258,12 +247,14 @@ export default function LoginScreen() {
 
       {/* 하단 링크 */}
       <View style={styles.footer}>
-        <Pressable onPress={() => navigation.push("/forgot-password")}>
+        <Pressable
+          onPress={() => navigation.push("/auth/forgot-password" as any)}
+        >
           <Text style={styles.footerLink}>비밀번호를 잊으셨나요?</Text>
         </Pressable>
         <View style={styles.signupContainer}>
           <Text style={styles.footerText}>계정이 없으신가요? </Text>
-          <Pressable onPress={() => navigation.push("/signup")}>
+          <Pressable onPress={() => navigation.push("/auth/signup" as any)}>
             <Text style={styles.footerLink}>회원가입</Text>
           </Pressable>
         </View>
@@ -408,6 +399,7 @@ const styles = StyleSheet.create({
     ...Theme.shadows.sm,
     // 웹 반응형 최적화 - 화면 크기별로 다르게
     ...(Platform.OS === "web" && {
+      // @ts-ignore - web-specific properties
       cursor: "text",
       userSelect: "none",
       // 모바일: 48px, 태블릿: 56px, 데스크톱: 64px

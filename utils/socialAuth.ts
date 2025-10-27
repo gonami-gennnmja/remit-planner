@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import { Platform } from "react-native";
+import Constants from "expo-constants";
+import { Linking, Platform } from "react-native";
 
 // 소셜 로그인 에러 메시지 번역
 function translateSocialAuthError(errorMessage: string): string {
@@ -23,14 +24,23 @@ function translateSocialAuthError(errorMessage: string): string {
 // Redirect URL 생성
 function getRedirectUrl(): string {
 	if (Platform.OS === "web") {
-		// 웹에서는 현재 origin 사용
+		// 웹에서는 현재 origin 사용 (인덱스 경로)
 		if (typeof window !== "undefined") {
-			return `${window.location.origin}/main`;
+			return `${window.location.origin}/`;
 		}
-		return "http://localhost:8081/main";
+		return "http://localhost:8081/";
 	}
-	// 앱에서는 Deep Link 사용
-	return "banbanhalf://main";
+
+	// Expo Go나 개발 환경에서는 실제 서버 URL 사용
+	const hostUri = Constants.expoConfig?.hostUri;
+	if (hostUri) {
+		// 예: exp://192.168.1.100:8081 -> http://192.168.1.100:8081
+		const url = hostUri.replace(/^exp:\/\//, "http://");
+		return url;
+	}
+
+	// 프로덕션 빌드에서는 Deep Link 사용
+	return "banbanhalf://";
 }
 
 /**
@@ -41,12 +51,12 @@ export async function signInWithGoogle(): Promise<{
 	message?: string;
 }> {
 	try {
-		console.log("🔐 Google 로그인 시도");
+		const redirectUrl = getRedirectUrl();
 
 		const { data, error } = await supabase.auth.signInWithOAuth({
 			provider: "google",
 			options: {
-				redirectTo: getRedirectUrl(),
+				redirectTo: redirectUrl,
 				queryParams: {
 					access_type: "offline",
 					prompt: "consent",
@@ -55,12 +65,23 @@ export async function signInWithGoogle(): Promise<{
 		});
 
 		if (error) {
-			console.error("❌ Google 로그인 실패:", error.message);
 			const translatedMessage = translateSocialAuthError(error.message);
 			return { success: false, message: translatedMessage };
 		}
 
-		console.log("✅ Google 로그인 성공");
+		// URL을 열어야 함
+		if (data?.url) {
+			if (Platform.OS === "web") {
+				window.location.href = data.url;
+			} else {
+				// 모바일에서는 Linking으로 열기
+				const canOpen = await Linking.canOpenURL(data.url);
+				if (canOpen) {
+					await Linking.openURL(data.url);
+				}
+			}
+		}
+
 		return { success: true };
 	} catch (error) {
 		console.error("❌ Google 로그인 오류:", error);
@@ -79,28 +100,39 @@ export async function signInWithKakao(): Promise<{
 	message?: string;
 }> {
 	try {
-		console.log("🔐 Kakao 로그인 시도");
+		const redirectUrl = getRedirectUrl();
 
 		const { data, error } = await supabase.auth.signInWithOAuth({
 			provider: "kakao",
 			options: {
-				redirectTo: getRedirectUrl(),
+				redirectTo: redirectUrl,
 			},
 		});
 
 		if (error) {
-			console.error("❌ Kakao 로그인 실패:", error.message);
 			const translatedMessage = translateSocialAuthError(error.message);
 			return { success: false, message: translatedMessage };
 		}
 
-		console.log("✅ Kakao 로그인 성공");
+		// URL을 열어야 함
+		if (data?.url) {
+			if (Platform.OS === "web") {
+				window.location.href = data.url;
+			} else {
+				// 모바일에서는 Linking으로 열기
+				const canOpen = await Linking.canOpenURL(data.url);
+				if (canOpen) {
+					await Linking.openURL(data.url);
+				}
+			}
+		}
+
 		return { success: true };
 	} catch (error) {
 		console.error("❌ Kakao 로그인 오류:", error);
 		return {
 			success: false,
-			message: "Kakao 로그인 중 오류가 발생했습니다.",
+			message: `Kakao 로그인 중 오류가 발생했습니다: ${error}`,
 		};
 	}
 }
@@ -113,22 +145,33 @@ export async function signInWithApple(): Promise<{
 	message?: string;
 }> {
 	try {
-		console.log("🔐 Apple 로그인 시도");
+		const redirectUrl = getRedirectUrl();
 
 		const { data, error } = await supabase.auth.signInWithOAuth({
 			provider: "apple",
 			options: {
-				redirectTo: getRedirectUrl(),
+				redirectTo: redirectUrl,
 			},
 		});
 
 		if (error) {
-			console.error("❌ Apple 로그인 실패:", error.message);
 			const translatedMessage = translateSocialAuthError(error.message);
 			return { success: false, message: translatedMessage };
 		}
 
-		console.log("✅ Apple 로그인 성공");
+		// URL을 열어야 함
+		if (data?.url) {
+			if (Platform.OS === "web") {
+				window.location.href = data.url;
+			} else {
+				// 모바일에서는 Linking으로 열기
+				const canOpen = await Linking.canOpenURL(data.url);
+				if (canOpen) {
+					await Linking.openURL(data.url);
+				}
+			}
+		}
+
 		return { success: true };
 	} catch (error) {
 		console.error("❌ Apple 로그인 오류:", error);

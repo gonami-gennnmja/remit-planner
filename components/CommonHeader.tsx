@@ -7,6 +7,11 @@ import { Platform, Pressable, Text, View } from "react-native";
 interface CommonHeaderProps {
   title: string;
   showBackButton?: boolean;
+  leftButton?: {
+    icon: keyof typeof Ionicons.glyphMap;
+    onPress: () => void;
+    label?: string;
+  };
   rightButton?: {
     icon: keyof typeof Ionicons.glyphMap;
     onPress: () => void;
@@ -17,6 +22,7 @@ interface CommonHeaderProps {
 export default function CommonHeader({
   title,
   showBackButton = true,
+  leftButton,
   rightButton,
 }: CommonHeaderProps) {
   const { colors } = useTheme();
@@ -32,20 +38,25 @@ export default function CommonHeader({
       ]}
     >
       <View style={styles.headerContent}>
-        {/* 뒤로가기 버튼 */}
-        {showBackButton && (
+        {/* 왼쪽 버튼 */}
+        {leftButton ? (
+          <Pressable
+            style={[styles.backButton, { backgroundColor: colors.surface }]}
+            onPress={leftButton.onPress}
+          >
+            <Ionicons name={leftButton.icon} size={24} color={colors.text} />
+          </Pressable>
+        ) : showBackButton ? (
           <Pressable
             style={[styles.backButton, { backgroundColor: colors.surface }]}
             onPress={() => router.back()}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </Pressable>
-        )}
+        ) : null}
 
         {/* 제목 */}
-        <Text style={[styles.headerTitle, { color: colors.textInverse }]}>
-          {title}
-        </Text>
+        <Text style={[styles.headerTitle, { color: "#fff" }]}>{title}</Text>
 
         {/* 오른쪽 버튼 또는 빈 공간 */}
         {rightButton ? (

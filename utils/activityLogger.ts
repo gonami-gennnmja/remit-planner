@@ -24,8 +24,6 @@ export async function logActivity(config: ActivityConfig): Promise<void> {
 			isRead: false,
 			isDeleted: false,
 		});
-
-		console.log(`Activity logged: ${config.type} - ${config.title}`);
 	} catch (error) {
 		console.error("Failed to log activity:", error);
 	}
@@ -130,7 +128,6 @@ export async function cleanupOldActivities(daysToKeep: number = 30): Promise<voi
 	try {
 		const db = getDatabase();
 		await db.clearOldActivities(daysToKeep);
-		console.log(`Old activities cleared (kept last ${daysToKeep} days)`);
 	} catch (error) {
 		console.error("Failed to cleanup old activities:", error);
 	}

@@ -52,10 +52,11 @@ export default function FileUpload({
       if (result.success && result.url && result.path) {
         onUpload(result.url, result.path);
       } else {
-        Alert.alert(
-          "업로드 실패",
-          result.error || "파일 업로드에 실패했습니다."
-        );
+        const errorMessage = result.error?.includes("row-level security policy")
+          ? "파일 업로드 권한이 없습니다. Supabase Storage의 RLS 정책을 확인해주세요."
+          : result.error || "파일 업로드에 실패했습니다.";
+
+        Alert.alert("업로드 실패", errorMessage);
       }
     } catch (error) {
       console.error("Upload error:", error);

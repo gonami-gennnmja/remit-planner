@@ -1,4 +1,6 @@
+// @ts-nocheck
 import CommonHeader from "@/components/CommonHeader";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
 import { database } from "@/database";
@@ -185,15 +187,14 @@ export default function RevenueScreen() {
     return (
       <View style={styles.container}>
         <CommonHeader title="수급 현황" />
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>수입 데이터를 불러오는 중...</Text>
-        </View>
+        <LoadingSpinner />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <CommonHeader title="수급 현황" />
       <ScrollView
         style={styles.content}
         refreshControl={

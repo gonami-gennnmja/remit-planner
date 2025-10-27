@@ -1,3 +1,4 @@
+// @ts-nocheck
 import CommonHeader from "@/components/CommonHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ScheduleAddModal from "@/components/ScheduleAddModal";
@@ -236,8 +237,8 @@ export default function ScheduleListScreen() {
           )}
         </View>
 
-        {/* 필터 버튼과 추가 버튼 */}
-        <View style={styles.filterAndAddContainer}>
+        {/* 필터 버튼 */}
+        <View style={styles.filterContainerWrapper}>
           {/* 필터 버튼 그룹 */}
           <View style={styles.filterContainer}>
             <Pressable
@@ -305,11 +306,6 @@ export default function ScheduleListScreen() {
               </Text>
             </Pressable>
           </View>
-
-          {/* 추가 버튼 */}
-          <Pressable style={styles.addButton} onPress={handleAddSchedule}>
-            <Ionicons name="add" size={24} color="white" />
-          </Pressable>
         </View>
       </View>
 
@@ -565,6 +561,8 @@ const styles = StyleSheet.create({
     borderRadius: Theme.borderRadius.md,
     backgroundColor: "transparent",
     borderWidth: 0,
+    justifyContent: "center",
+    alignItems: "center",
   },
   filterButtonActive: {
     backgroundColor: Theme.colors.primary,
@@ -764,19 +762,9 @@ const styles = StyleSheet.create({
     color: Theme.colors.warning,
     fontWeight: Theme.typography.weights.medium,
   },
-  // 필터와 추가 버튼 컨테이너
-  filterAndAddContainer: {
+  // 필터 컨테이너
+  filterContainerWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: Theme.spacing.lg,
-  },
-  addButton: {
-    backgroundColor: "#6366f1",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

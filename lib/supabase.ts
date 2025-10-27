@@ -5,11 +5,6 @@ import Constants from 'expo-constants'
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig?.extra?.supabaseUrl || 'YOUR_SUPABASE_URL'
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig?.extra?.supabaseAnonKey || 'YOUR_SUPABASE_ANON_KEY'
 
-// 디버깅용 로그
-console.log('🔧 Supabase 설정 확인:')
-console.log('URL:', supabaseUrl)
-console.log('Key:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'NOT_SET')
-
 // Supabase 클라이언트 생성
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 

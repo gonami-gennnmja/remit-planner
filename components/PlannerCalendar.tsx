@@ -584,9 +584,9 @@ export default function PlannerCalendar({
   };
 
   const onSchedulePress = (scheduleId: string) => {
-    setSelectedScheduleId(scheduleId);
-    setModalType("detail");
-    showModal();
+    // 상세 화면으로 이동
+    const { router } = require("expo-router");
+    router.push(`/schedule/${scheduleId}`);
   };
 
   const makePhoneCall = (phoneNumber: string) => {

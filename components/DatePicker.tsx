@@ -2,8 +2,8 @@ import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import React, { useState } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 
 interface DatePickerProps {
   label: string;
@@ -31,6 +31,9 @@ export default function DatePicker({
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
     const date = new Date(dateString);
+    // Invalid Date 체크
+    if (isNaN(date.getTime())) return "";
+
     if (mode === "time") {
       return date.toLocaleTimeString("ko-KR", {
         hour: "2-digit",
@@ -40,21 +43,54 @@ export default function DatePicker({
     return date.toLocaleDateString("ko-KR");
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowPicker(false);
-    if (selectedDate) {
-      let formattedDate = "";
-      if (mode === "time") {
-        const hours = selectedDate.getHours().toString().padStart(2, "0");
-        const minutes = selectedDate.getMinutes().toString().padStart(2, "0");
-        formattedDate = `${hours}:${minutes}`;
-      } else {
-        const year = selectedDate.getFullYear();
-        const month = (selectedDate.getMonth() + 1).toString().padStart(2, "0");
-        const day = selectedDate.getDate().toString().padStart(2, "0");
-        formattedDate = `${year}-${month}-${day}`;
+  const [tempDate, setTempDate] = useState<Date>(() => {
+    if (value) {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? new Date() : date;
+    }
+    return new Date();
+  });
+
+  // value prop이 변경되면 tempDate도 업데이트
+  useEffect(() => {
+    if (value) {
+      const date = new Date(value);
+      if (!isNaN(date.getTime())) {
+        setTempDate(date);
       }
-      onDateChange(formattedDate);
+    }
+  }, [value]);
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    // 모든 플랫폼에서 임시 날짜만 업데이트
+    if (selectedDate) {
+      setTempDate(selectedDate);
+    }
+  };
+
+  const handleConfirm = () => {
+    setShowPicker(false);
+    let formattedDate = "";
+    if (mode === "time") {
+      const hours = tempDate.getHours().toString().padStart(2, "0");
+      const minutes = tempDate.getMinutes().toString().padStart(2, "0");
+      formattedDate = `${hours}:${minutes}`;
+    } else {
+      const year = tempDate.getFullYear();
+      const month = (tempDate.getMonth() + 1).toString().padStart(2, "0");
+      const day = tempDate.getDate().toString().padStart(2, "0");
+      formattedDate = `${year}-${month}-${day}`;
+    }
+    onDateChange(formattedDate);
+  };
+
+  const handleCancel = () => {
+    setShowPicker(false);
+    if (value) {
+      const date = new Date(value);
+      setTempDate(isNaN(date.getTime()) ? new Date() : date);
+    } else {
+      setTempDate(new Date());
     }
   };
 
@@ -93,7 +129,15 @@ export default function DatePicker({
         <>
           <Pressable
             style={styles.dateButton}
-            onPress={() => setShowPicker(true)}
+            onPress={() => {
+              if (value) {
+                const date = new Date(value);
+                setTempDate(isNaN(date.getTime()) ? new Date() : date);
+              } else {
+                setTempDate(new Date());
+              }
+              setShowPicker(true);
+            }}
           >
             <Text style={[styles.dateText, !value && styles.placeholderText]}>
               {value ? formatDate(value) : placeholder}
@@ -105,14 +149,39 @@ export default function DatePicker({
             />
           </Pressable>
           {showPicker && (
-            <DateTimePicker
-              value={value ? new Date(value) : new Date()}
-              mode={mode}
-              display="default"
-              onChange={handleDateChange}
-              minimumDate={minDate ? new Date(minDate) : undefined}
-              maximumDate={maxDate ? new Date(maxDate) : undefined}
-            />
+            <Modal
+              visible={showPicker}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={handleCancel}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Pressable onPress={handleCancel}>
+                      <Text style={styles.modalButton}>취소</Text>
+                    </Pressable>
+                    <Text style={styles.modalTitle}>
+                      {mode === "time" ? "시간 선택" : "날짜 선택"}
+                    </Text>
+                    <Pressable onPress={handleConfirm}>
+                      <Text style={[styles.modalButton, styles.modalConfirm]}>
+                        완료
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={tempDate || new Date()}
+                    mode={mode}
+                    display={Platform.OS === "ios" ? "spinner" : "spinner"}
+                    onChange={handleDateChange}
+                    minimumDate={minDate ? new Date(minDate) : undefined}
+                    maximumDate={maxDate ? new Date(maxDate) : undefined}
+                    style={styles.picker}
+                  />
+                </View>
+              </View>
+            </Modal>
           )}
         </>
       )}
@@ -164,10 +233,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
   },
-  placeholderText: {
-    color: "#9ca3af",
-  },
   datePickerStyle: {
     width: "100%",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  modalButton: {
+    fontSize: 16,
+    color: "#666",
+  },
+  modalConfirm: {
+    color: Theme.colors.primary || "#3b82f6",
+    fontWeight: "600",
+  },
+  picker: {
+    height: 200,
   },
 });
