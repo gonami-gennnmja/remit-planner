@@ -129,7 +129,7 @@ export default function ClientsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+    <View style={{ flex: 1, backgroundColor: "#f5f5f7" }}>
       {/* 헤더 */}
       <CommonHeader
         title="거래처 관리"
@@ -144,27 +144,45 @@ export default function ClientsScreen() {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          padding: 16,
-          backgroundColor: "#f5f5f5",
+          padding: 20,
+          backgroundColor: "transparent",
         }}
       >
-        <Ionicons name="search" size={20} color="#666" />
-        <TextInput
+        <View
           style={{
+            flexDirection: "row",
+            alignItems: "center",
             flex: 1,
-            marginLeft: 8,
-            fontSize: 16,
-            paddingVertical: 8,
+            backgroundColor: "#ffffff",
+            borderRadius: 14,
+            paddingHorizontal: 16,
+            height: 44,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.04,
+            shadowRadius: 4,
+            elevation: 2,
           }}
-          placeholder="거래처명 또는 연락처로 검색"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={20} color="#666" />
-          </Pressable>
-        )}
+        >
+          <Ionicons name="search" size={20} color="#86868b" />
+          <TextInput
+            style={{
+              flex: 1,
+              marginLeft: 12,
+              fontSize: 16,
+              color: "#1d1d1f",
+            }}
+            placeholder="거래처명 또는 연락처로 검색"
+            placeholderTextColor="#86868b"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={20} color="#86868b" />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* 거래처 리스트 */}
@@ -178,28 +196,27 @@ export default function ClientsScreen() {
               padding: 32,
             }}
           >
-            <Ionicons name="business-outline" size={64} color="#ccc" />
-            <Text style={{ marginTop: 16, fontSize: 16, color: "#666" }}>
+            <Ionicons name="business-outline" size={64} color="#86868b" />
+            <Text style={{ marginTop: 16, fontSize: 16, color: "#86868b" }}>
               {searchQuery
                 ? "검색 결과가 없습니다"
                 : "등록된 거래처가 없습니다"}
             </Text>
           </View>
         ) : (
-          <View style={{ padding: 16 }}>
+          <View style={{ padding: 20, gap: 10 }}>
             {filteredClients.map((client) => (
               <Pressable
                 key={client.id}
                 style={{
-                  backgroundColor: "#fff",
-                  borderRadius: 12,
+                  backgroundColor: "#ffffff",
+                  borderRadius: 14,
                   padding: 16,
-                  marginBottom: 12,
                   shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.04,
                   shadowRadius: 4,
-                  elevation: 3,
+                  elevation: 2,
                 }}
                 onPress={() => router.push(`/clients/${client.id}` as any)}
               >
@@ -218,12 +235,13 @@ export default function ClientsScreen() {
                         marginBottom: 8,
                       }}
                     >
-                      <Ionicons name="business" size={20} color="#007AFF" />
+                      <Ionicons name="business" size={20} color="#86868b" />
                       <Text
                         style={{
                           fontSize: 16,
                           fontWeight: "600",
                           marginLeft: 8,
+                          color: "#1d1d1f",
                         }}
                       >
                         {client.name || "이름 없음"}
@@ -240,11 +258,11 @@ export default function ClientsScreen() {
                             marginBottom: 4,
                           }}
                         >
-                          <Ionicons name="person" size={16} color="#666" />
+                          <Ionicons name="person" size={16} color="#86868b" />
                           <Text
                             style={{
                               fontSize: 14,
-                              color: "#666",
+                              color: "#86868b",
                               marginLeft: 6,
                             }}
                           >
@@ -264,11 +282,11 @@ export default function ClientsScreen() {
                             marginBottom: 4,
                           }}
                         >
-                          <Ionicons name="attach" size={16} color="#007AFF" />
+                          <Ionicons name="attach" size={16} color="#1d1d1f" />
                           <Text
                             style={{
                               fontSize: 14,
-                              color: "#007AFF",
+                              color: "#1d1d1f",
                               marginLeft: 6,
                             }}
                           >
@@ -341,8 +359,14 @@ export default function ClientsScreen() {
                         marginBottom: 8,
                       }}
                     >
-                      <Ionicons name="call-outline" size={16} color="#666" />
-                      <Text style={{ fontSize: 14, marginLeft: 8 }}>
+                      <Ionicons name="call-outline" size={16} color="#86868b" />
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          marginLeft: 8,
+                          color: "#86868b",
+                        }}
+                      >
                         {formatPhoneNumber(client.phone || "")}
                       </Text>
                     </View>
@@ -355,8 +379,18 @@ export default function ClientsScreen() {
                           marginBottom: 8,
                         }}
                       >
-                        <Ionicons name="mail-outline" size={16} color="#666" />
-                        <Text style={{ fontSize: 14, marginLeft: 8 }}>
+                        <Ionicons
+                          name="mail-outline"
+                          size={16}
+                          color="#86868b"
+                        />
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            marginLeft: 8,
+                            color: "#86868b",
+                          }}
+                        >
                           {client.email}
                         </Text>
                       </View>

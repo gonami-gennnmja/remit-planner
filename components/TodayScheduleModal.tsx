@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import React from "react";
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -229,8 +230,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
+    paddingTop: Platform.OS === "ios" ? 40 : 20,
+    paddingBottom: 20,
     borderBottomWidth: 1,
   },
   headerTitle: {

@@ -27,7 +27,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { PanGestureHandler, State } from "react-native-gesture-handler";
 
 const isWeb = Platform.OS === "web";
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
@@ -65,204 +64,187 @@ const SwipeableActivityItem = ({
   formatActivityTime: (timestamp: string) => string;
 }) => {
   const translateX = new Animated.Value(0);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showActions, setShowActions] = useState(false);
+  const [showDeleteButton, setShowDeleteButton] = useState(false);
 
-  // 웹에서는 PanGestureHandler 사용, 네이티브에서는 PanResponder 사용
+  // 스와이프 제스처 (푸시 알림처럼)
   const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => false, // 터치 이벤트 우선
+    onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, gestureState) => {
-      return Math.abs(gestureState.dx) > 10; // 드래그 감도 증가
+      return Math.abs(gestureState.dx) > 10;
     },
     onPanResponderGrant: () => {},
     onPanResponderMove: (_, gestureState) => {
       if (gestureState.dx < 0) {
-        // 드래그 거리를 제한하여 부드럽게
-        const maxDrag = -screenWidth * 0.6;
+        const maxDrag = -80; // 삭제 버튼 너비
         const dragValue = Math.max(gestureState.dx, maxDrag);
         translateX.setValue(dragValue);
       }
     },
     onPanResponderRelease: (_, gestureState) => {
-      const deleteThreshold = -screenWidth * 0.4; // 화면 너비의 40%로 설정
-      const actionThreshold = -screenWidth * 0.15; // 화면 너비의 15%로 설정
+      const deleteThreshold = -65; // 많이 드래그하면 바로 삭제
 
       if (gestureState.dx < deleteThreshold) {
-        // 화면 너비의 40% 이상 드래그 - 바로 삭제
+        // 많이 드래그 → 바로 삭제
         Animated.timing(translateX, {
           toValue: -screenWidth,
-          duration: 200,
+          duration: 300,
           useNativeDriver: true,
         }).start(() => {
-          setIsDeleting(true);
           onDelete(activity.id);
         });
-      } else if (gestureState.dx < actionThreshold) {
-        // 화면 너비의 15%~40% 드래그 - 액션 버튼 표시
-        setShowActions(true);
+      } else if (gestureState.dx < -30) {
+        // 조금 드래그 → 삭제 버튼 표시 (완전히 보이도록)
+        setShowDeleteButton(true);
         Animated.spring(translateX, {
-          toValue: -120, // 액션 버튼 공간만큼 이동
+          toValue: -80,
+          friction: 8,
+          tension: 40,
           useNativeDriver: true,
         }).start();
       } else {
-        // 화면 너비의 15% 미만 드래그 - 원래 위치로 복귀
-        setShowActions(false);
+        // 원래 위치로 복귀
+        setShowDeleteButton(false);
         Animated.spring(translateX, {
           toValue: 0,
+          friction: 8,
+          tension: 40,
           useNativeDriver: true,
         }).start();
       }
     },
   });
 
-  // 웹용 PanGestureHandler 핸들러
-  const onGestureEvent = Animated.event(
-    [{ nativeEvent: { translationX: translateX } }],
-    { useNativeDriver: true }
-  );
-
-  const onHandlerStateChange = (event: any) => {
-    if (event.nativeEvent.state === State.END) {
-      const { translationX } = event.nativeEvent;
-      const deleteThreshold = -screenWidth * 0.4; // 화면 너비의 40%로 설정
-      const actionThreshold = -screenWidth * 0.15; // 화면 너비의 15%로 설정
-
-      if (translationX < deleteThreshold) {
-        // 화면 너비의 40% 이상 드래그 - 바로 삭제
-        Animated.timing(translateX, {
-          toValue: -screenWidth,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          setIsDeleting(true);
-          onDelete(activity.id);
-        });
-      } else if (translationX < actionThreshold) {
-        // 화면 너비의 15%~40% 드래그 - 액션 버튼 표시
-        setShowActions(true);
-        Animated.spring(translateX, {
-          toValue: -120, // 액션 버튼 공간만큼 이동
-          useNativeDriver: true,
-        }).start();
-      } else {
-        // 화면 너비의 15% 미만 드래그 - 원래 위치로 복귀
-        setShowActions(false);
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: true,
-        }).start();
-      }
-    }
-  };
-
-  if (isDeleting) {
-    return null;
-  }
-
   const content = (
     <Pressable
-      style={[
-        styles.activityModalItem,
-        {
-          borderBottomColor: colors.border,
-          backgroundColor: colors.surface,
-        },
-      ]}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#ffffff",
+        padding: 16,
+        borderRadius: 14,
+        marginBottom: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 2,
+        gap: 12,
+      }}
       onPress={() => onViewDetails(activity)}
     >
       <View
-        style={[
-          styles.activityModalIcon,
-          { backgroundColor: `${activity.color}20` },
-        ]}
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 12,
+          backgroundColor: `${activity.color}20`,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
       >
         <Ionicons
           name={activity.icon as any}
-          size={20}
+          size={24}
           color={activity.color}
         />
       </View>
-      <View style={styles.activityModalContent}>
-        <Text style={[styles.activityModalTitle, { color: colors.text }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 16, fontWeight: "600", color: "#1d1d1f" }}>
           {activity.title}
         </Text>
-        <Text
-          style={[
-            styles.activityModalDescription,
-            { color: colors.textSecondary },
-          ]}
-        >
+        <Text style={{ fontSize: 14, color: "#86868b", marginTop: 2 }}>
           {activity.description}
         </Text>
-        <Text
-          style={[styles.activityModalTime, { color: colors.textSecondary }]}
-        >
+        <Text style={{ fontSize: 12, color: "#86868b", marginTop: 4 }}>
           {formatActivityTime(activity.timestamp)}
         </Text>
       </View>
       {!activity.isRead && (
         <View
-          style={[styles.unreadIndicator, { backgroundColor: colors.primary }]}
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: colors.primary,
+          }}
         />
-      )}
-
-      {/* 액션 버튼들 */}
-      {showActions ? (
-        <View style={styles.actionButtons}>
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              setShowActions(false);
-              onViewDetails(activity);
-            }}
-          >
-            <Ionicons name="eye" size={16} color="white" />
-            <Text style={styles.actionButtonText}>더보기</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: colors.error }]}
-            onPress={() => {
-              setShowActions(false);
-              onDelete(activity.id);
-            }}
-          >
-            <Ionicons name="trash" size={16} color="white" />
-            <Text style={styles.actionButtonText}>삭제</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={[styles.dragHint, { backgroundColor: colors.error }]}>
-          <Ionicons name="trash" size={16} color="white" />
-          <Text style={styles.dragHintText}>삭제</Text>
-        </View>
       )}
     </Pressable>
   );
 
-  // 웹에서는 PanGestureHandler 사용, 네이티브에서는 PanResponder 사용
-  if (isWeb) {
-    return (
-      <PanGestureHandler
-        onGestureEvent={onGestureEvent}
-        onHandlerStateChange={onHandlerStateChange}
+  // 삭제 버튼 (드래그했을 때 보이는 버튼) - Apple Compact 스타일
+  const deleteButton = (
+    <Pressable
+      style={{
+        position: "absolute",
+        right: -80,
+        width: 80,
+        height: "100%",
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#f5f5f7", // Apple Compact 배경색
+      }}
+      onPress={() => {
+        setShowDeleteButton(false);
+        translateX.setValue(0);
+        Animated.spring(translateX, {
+          toValue: 0,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }).start();
+        onDelete(activity.id);
+      }}
+    >
+      <View
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 12,
+          backgroundColor: "#ffffff",
+          justifyContent: "center",
+          alignItems: "center",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.04,
+          shadowRadius: 4,
+          elevation: 2,
+        }}
       >
-        <Animated.View style={{ transform: [{ translateX }] }}>
-          {content}
-        </Animated.View>
-      </PanGestureHandler>
-    );
+        <Ionicons name="trash" size={24} color="#86868b" />
+      </View>
+      <Text
+        style={{
+          color: "#86868b",
+          fontSize: 12,
+          marginTop: 4,
+          fontWeight: "500",
+        }}
+      >
+        삭제
+      </Text>
+    </Pressable>
+  );
+
+  const wrappedContent = (
+    <View style={{ position: "relative" }}>
+      {content}
+      {showDeleteButton && deleteButton}
+    </View>
+  );
+
+  if (isWeb) {
+    return content;
   }
 
   return (
     <Animated.View
-      style={[
-        {
-          transform: [{ translateX }],
-        },
-      ]}
+      style={{
+        transform: [{ translateX }],
+      }}
       {...panResponder.panHandlers}
     >
-      {content}
+      {wrappedContent}
     </Animated.View>
   );
 };
@@ -366,6 +348,10 @@ export default function MainScreen() {
   const [showStaffWorkStatus, setShowStaffWorkStatus] = useState(false);
   const [showUnpaidSchedule, setShowUnpaidSchedule] = useState(false);
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
+
+  // 월 급여/미수금 카드 토글 상태
+  const [showPayrollAmount, setShowPayrollAmount] = useState(false);
+  const [showUncollectedAmount, setShowUncollectedAmount] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -839,54 +825,135 @@ export default function MainScreen() {
     return count;
   };
 
-  const menuItems = [
+  // 미수금 계산: 스케줄 종료일로부터 2주 이상 지났는데 거래처에서 돈을 받지 못한 경우
+  const getUncollectedAmount = () => {
+    const today = dayjs();
+    let total = 0;
+
+    schedules.forEach((schedule) => {
+      const scheduleEnd = dayjs(schedule.endDate);
+      const daysSinceEnd = today.diff(scheduleEnd, "day");
+
+      // 스케줄 종료일로부터 2주(14일) 이상 지난 경우
+      if (daysSinceEnd >= 14) {
+        // 미수금 상태 확인 (거래처가 돈을 받지 않은 상태)
+        const isUncollected = schedule.clientId && !schedule.collected;
+
+        if (isUncollected) {
+          // 스케줄의 총 금액 계산
+          schedule.workers?.forEach((workerInfo) => {
+            const hourlyWage = workerInfo.worker.hourlyWage;
+            const taxWithheld = (workerInfo as any).taxWithheld ?? false;
+            const taxRate = 0.033;
+
+            const totalHours =
+              workerInfo.periods?.reduce((sum, period) => {
+                const start = dayjs(period.startTime);
+                const end = dayjs(period.endTime);
+                return sum + end.diff(start, "hour", true);
+              }, 0) || 0;
+
+            let grossPay = hourlyWage * totalHours;
+            let netPay = grossPay;
+
+            if (taxWithheld) {
+              netPay = grossPay * (1 - taxRate);
+            }
+
+            total += Math.round(netPay);
+          });
+        }
+      }
+    });
+
+    return total;
+  };
+
+  // 메뉴를 카테고리별로 분류
+  const menuCategories = [
     {
-      id: "schedule-management",
+      title: "주요 기능",
+      items: [
+        {
+          id: "dashboard",
+          title: "대시보드",
+          description: "전체 현황을 한눈에 확인",
+          emoji: "📊",
+          color: "#60A5FA",
+          route: "/dashboard",
+        },
+        {
+          id: "reports",
+          title: "리포트",
+          description: "상세한 보고서 확인",
+          emoji: "📈",
+          color: "#22D3EE",
+          route: "/reports",
+        },
+      ],
+    },
+    {
       title: "일정 관리",
-      description: "모든 일정을 한눈에 관리하세요",
-      emoji: "📋",
-      color: "#60A5FA",
-      route: "/schedule/list",
+      items: [
+        {
+          id: "calendar",
+          title: "캘린더",
+          description: "캘린더로 일정 확인",
+          emoji: "📅",
+          color: "#22D3EE",
+          route: "/schedule",
+        },
+        {
+          id: "schedule-management",
+          title: "일정 목록",
+          description: "모든 일정 관리",
+          emoji: "📋",
+          color: "#60A5FA",
+          route: "/schedule/list",
+        },
+      ],
     },
     {
-      id: "calendar",
-      title: "캘린더",
-      description: "캘린더로 일정을 확인하세요",
-      emoji: "📅",
-      color: "#22D3EE",
-      route: "/schedule",
+      title: "인원 관리",
+      items: [
+        {
+          id: "workers",
+          title: "근로자",
+          description: "근로자 정보 관리",
+          emoji: "👥",
+          color: "#34D399",
+          route: "/worker",
+        },
+        {
+          id: "clients",
+          title: "거래처",
+          description: "거래처 정보 관리",
+          emoji: "🏢",
+          color: "#FBBF24",
+          route: "/clients",
+        },
+      ],
     },
     {
-      id: "workers",
-      title: "근로자 관리",
-      description: "근로자 정보를 관리하세요",
-      emoji: "👥",
-      color: "#34D399",
-      route: "/worker",
-    },
-    {
-      id: "clients",
-      title: "거래처 관리",
-      description: "거래처 정보를 관리하세요",
-      emoji: "🏢",
-      color: "#FBBF24",
-      route: "/clients",
-    },
-    {
-      id: "payments",
-      title: "급여 관리",
-      description: "급여 계산 및 지급을 관리하세요",
-      emoji: "💵",
-      color: "#F87171",
-      route: "/worker/payroll",
-    },
-    {
-      id: "uncollected",
-      title: "수급 관리",
-      description: "업체에서 받는 수입을 관리하세요",
-      emoji: "💰",
-      color: "#F472B6",
-      route: "/clients/uncollected",
+      title: "급여/수익",
+      items: [
+        {
+          id: "payments",
+          title: "급여",
+          description: "급여 계산 및 지급",
+          emoji: "💵",
+          color: "#F87171",
+          route: "/worker/payroll",
+        },
+        {
+          id: "revenue-management",
+          title: "수입 관리",
+          description: "거래처 수입 관리",
+          emoji: "💰",
+          color: "#F472B6",
+          route: "/clients/revenue-management",
+        },
+      ],
     },
   ];
 
@@ -895,7 +962,7 @@ export default function MainScreen() {
   };
 
   return (
-    <View style={[styles.container, isWeb && styles.webContainer]}>
+    <View style={styles.container}>
       {/* Apple 스타일 헤더 */}
       <View
         style={{
@@ -1056,7 +1123,7 @@ export default function MainScreen() {
 
           {/* 추가 기능 */}
           <View style={{ marginTop: 24, gap: 10, marginBottom: 24 }}>
-            {/* 거래처 + 급여 + 수급 (3열) */}
+            {/* 급여 + 수급 (2열) */}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 1 }}>
                 <Pressable
@@ -1070,7 +1137,14 @@ export default function MainScreen() {
                     shadowRadius: 4,
                     elevation: 2,
                   }}
-                  onPress={() => router.push("/clients")}
+                  onPress={() => {
+                    if (!showPayrollAmount) {
+                      setShowPayrollAmount(true);
+                    } else {
+                      // 금액 상태 유지하면서 이동
+                      router.push("/worker/payroll");
+                    }
+                  }}
                 >
                   <Text
                     style={{
@@ -1079,16 +1153,23 @@ export default function MainScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    🏢 거래처
+                    💰 월 급여
                   </Text>
                   <Text
                     style={{
-                      fontSize: 32,
+                      fontSize: showPayrollAmount ? 15 : 22,
                       fontWeight: "700",
                       color: colors.text,
                     }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
                   >
-                    {clients.length}
+                    {showPayrollAmount
+                      ? `${new Intl.NumberFormat("ko-KR").format(
+                          getMonthlyPayroll()
+                        )}원`
+                      : "확인"}
                   </Text>
                 </Pressable>
               </View>
@@ -1104,41 +1185,14 @@ export default function MainScreen() {
                     shadowRadius: 4,
                     elevation: 2,
                   }}
-                  onPress={() => router.push("/worker/payroll")}
-                >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                      marginBottom: 4,
-                    }}
-                  >
-                    💰 급여
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 28,
-                      fontWeight: "700",
-                      color: colors.text,
-                    }}
-                  >
-                    관리
-                  </Text>
-                </Pressable>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Pressable
-                  style={{
-                    backgroundColor: colors.surface,
-                    padding: 16,
-                    borderRadius: 14,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.04,
-                    shadowRadius: 4,
-                    elevation: 2,
+                  onPress={() => {
+                    if (!showUncollectedAmount) {
+                      setShowUncollectedAmount(true);
+                    } else {
+                      // 금액 상태 유지하면서 이동
+                      router.push("/clients/revenue-management");
+                    }
                   }}
-                  onPress={() => router.push("/clients/uncollected")}
                 >
                   <Text
                     style={{
@@ -1147,95 +1201,120 @@ export default function MainScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    💵 수급
+                    💵 미수금
                   </Text>
                   <Text
                     style={{
-                      fontSize: 28,
+                      fontSize: showUncollectedAmount ? 15 : 22,
                       fontWeight: "700",
                       color: colors.text,
                     }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
                   >
-                    관리
+                    {showUncollectedAmount
+                      ? `${new Intl.NumberFormat("ko-KR").format(
+                          getUncollectedAmount()
+                        )}원`
+                      : "확인"}
                   </Text>
                 </Pressable>
               </View>
             </View>
           </View>
 
-          {/* 기존 메뉴 - Apple Compact 스타일 */}
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: colors.text,
-              marginBottom: 16,
-            }}
-          >
-            빠른 접근
-          </Text>
-
-          <View style={{ gap: 10, paddingBottom: 40 }}>
-            {menuItems.map((item) => (
-              <Pressable
-                key={item.id}
+          {/* 카테고리별 메뉴 */}
+          {menuCategories.map((category, categoryIndex) => (
+            <View key={categoryIndex} style={{ marginBottom: 32 }}>
+              {/* 카테고리 제목 */}
+              <Text
                 style={{
-                  backgroundColor: colors.surface,
-                  padding: 16,
-                  borderRadius: 14,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.04,
-                  shadowRadius: 4,
-                  elevation: 2,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
+                  fontSize: 18,
+                  fontWeight: "600",
+                  color: colors.text,
+                  marginBottom: 12,
+                  paddingHorizontal: 4,
                 }}
-                onPress={() => handleMenuPress(item.route)}
               >
-                <View
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 12,
-                    backgroundColor: colors.border + "40",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 24 }}>{item.emoji}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: colors.text,
-                    }}
+                {category.title}
+              </Text>
+
+              {/* 카테고리별 메뉴 아이템 */}
+              <View
+                style={[
+                  { gap: 10 },
+                  isDesktop && {
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 12,
+                  },
+                ]}
+              >
+                {category.items.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={[
+                      {
+                        backgroundColor: colors.surface,
+                        padding: 16,
+                        borderRadius: 14,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.04,
+                        shadowRadius: 4,
+                        elevation: 2,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                      },
+                      isDesktop && {
+                        width: "calc(50% - 6px)",
+                        minWidth: 280,
+                      },
+                    ]}
+                    onPress={() => handleMenuPress(item.route)}
                   >
-                    {item.title}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-                    {item.description}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        backgroundColor: colors.border + "40",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 24 }}>{item.emoji}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "600",
+                          color: colors.text,
+                        }}
+                      >
+                        {item.title}
+                      </Text>
+                      <Text
+                        style={{ fontSize: 13, color: colors.textSecondary }}
+                      >
+                        {item.description}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
       </ScrollView>
 
-      {/* FAB 스타일 활동 알림 버튼 - 스크롤과 무관하게 고정 */}
+      {/* Apple Compact 스타일 활동 알림 버튼 */}
       {recentActivities.length > 0 && (
         <Pressable
-          style={[
-            styles.activityFab,
-            {
-              backgroundColor: colors.primary,
-              shadowColor: colors.primary,
-            },
-          ]}
+          style={styles.activityFab}
           onPress={() => {
             if (isWeb) {
               setShowWebNotificationPanel(true);
@@ -1244,12 +1323,44 @@ export default function MainScreen() {
             }
           }}
         >
-          <Ionicons name="notifications" size={24} color="white" />
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 48,
+              backgroundColor: "#ffffff",
+              justifyContent: "center",
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 4,
+            }}
+          >
+            <Ionicons name="notifications" size={20} color="#86868b" />
+          </View>
           {recentActivities.filter((a) => a.type === "payment").length > 0 && (
             <View
-              style={[styles.activityBadge, { backgroundColor: colors.error }]}
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                backgroundColor: "#ef4444",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
             >
-              <Text style={styles.activityBadgeText}>
+              <Text
+                style={{
+                  color: "white",
+                  fontSize: 11,
+                  fontWeight: "700",
+                }}
+              >
                 {formatActivityCount(
                   recentActivities.filter((a) => a.type === "payment").length
                 )}
@@ -1267,32 +1378,30 @@ export default function MainScreen() {
         selectedDate={selectedDate}
       />
 
-      {/* 오늘 근무 근로자 모달 */}
+      {/* 최근 활동 모달 */}
       <Modal
-        visible={showTodayWorkers}
+        visible={showActivityModal}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setShowTodayWorkers(false)}
+        onRequestClose={() => setShowActivityModal(false)}
       >
-        <View
+        <Pressable
           style={{
             flex: 1,
             backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: Platform.OS === "web" ? "center" : "flex-end",
-            padding: Platform.OS === "web" ? 20 : 0,
+            justifyContent: "flex-end",
           }}
+          onPress={() => setShowActivityModal(false)}
         >
-          <View
+          <Pressable
             style={{
               backgroundColor: colors.surface,
-              borderRadius: Platform.OS === "web" ? 12 : 20,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
-              width: "100%",
-              maxWidth: Platform.OS === "web" ? 600 : undefined,
-              height: Platform.OS === "web" ? "80%" : "85%",
+              height: "80%",
               padding: 20,
             }}
+            onPress={() => {}} // 빈 함수로 터치 이벤트 막기
           >
             {/* 헤더 */}
             <View
@@ -1313,10 +1422,10 @@ export default function MainScreen() {
                   color: colors.text,
                 }}
               >
-                오늘 근무 근로자
+                최근 활동
               </Text>
               <Pressable
-                onPress={() => setShowTodayWorkers(false)}
+                onPress={() => setShowActivityModal(false)}
                 style={{
                   width: 32,
                   height: 32,
@@ -1328,123 +1437,19 @@ export default function MainScreen() {
               </Pressable>
             </View>
 
-            {/* 근로자 목록 */}
+            {/* 활동 목록 */}
             <ScrollView style={{ flex: 1 }}>
-              {getTodayWorkers().length > 0 ? (
+              {recentActivities.length > 0 ? (
                 <View style={{ gap: 12 }}>
-                  {getTodayWorkers().map((worker) => (
-                    <Pressable
-                      key={worker.id}
-                      style={{
-                        backgroundColor: colors.card,
-                        padding: 16,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 12,
-                      }}
-                      onPress={() => {
-                        setShowTodayWorkers(false);
-                        setSelectedWorker(worker);
-                        setShowWorkerDetail(true);
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 12,
-                          backgroundColor: colors.primary + "20",
-                          justifyContent: "center",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text style={{ fontSize: 24 }}>👤</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={{
-                            fontSize: 16,
-                            fontWeight: "600",
-                            color: colors.text,
-                            marginBottom: 4,
-                          }}
-                        >
-                          {worker.name}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 13,
-                            color: colors.textSecondary,
-                            marginBottom: 2,
-                          }}
-                        >
-                          {worker.schedules.join(", ")}
-                        </Text>
-                        {worker.workTimes && worker.workTimes.length > 0 && (
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              color: colors.success,
-                              fontWeight: "600",
-                              marginBottom: 2,
-                            }}
-                          >
-                            ⏰ {worker.workTimes.join(", ")}
-                          </Text>
-                        )}
-                        {worker.phone && (
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              color: colors.textSecondary,
-                            }}
-                          >
-                            📱 {formatPhoneNumber(worker.phone)}
-                          </Text>
-                        )}
-                      </View>
-                      {/* 전화/문자 버튼 */}
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <Pressable
-                          onPress={() => {
-                            if (worker.phone) {
-                              Linking.openURL(`tel:${worker.phone}`);
-                            }
-                          }}
-                          style={({ pressed }) => [
-                            {
-                              opacity: pressed ? 0.6 : 1,
-                            },
-                          ]}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Text style={{ fontSize: 16 }}>📞</Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => {
-                            if (worker.phone) {
-                              Linking.openURL(`sms:${worker.phone}`);
-                            }
-                          }}
-                          style={({ pressed }) => [
-                            {
-                              opacity: pressed ? 0.6 : 1,
-                            },
-                          ]}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Text style={{ fontSize: 16 }}>💬</Text>
-                        </Pressable>
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color="#9ca3af"
-                      />
-                    </Pressable>
+                  {recentActivities.map((activity) => (
+                    <SwipeableActivityItem
+                      key={activity.id}
+                      activity={activity}
+                      onDelete={handleDeleteActivity}
+                      onViewDetails={handleViewActivityDetails}
+                      colors={colors}
+                      formatActivityTime={formatActivityTime}
+                    />
                   ))}
                 </View>
               ) : (
@@ -1456,12 +1461,207 @@ export default function MainScreen() {
                   }}
                 >
                   <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-                    오늘 근무하는 근로자가 없습니다
+                    최근 활동이 없습니다
                   </Text>
                 </View>
               )}
             </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 오늘 근무 근로자 모달 */}
+      <Modal
+        visible={showTodayWorkers}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTodayWorkers(false)}
+      >
+        <View style={[{ flex: 1 }, { backgroundColor: colors.background }]}>
+          {/* 헤더 */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingHorizontal: 20,
+              paddingTop: Platform.OS === "ios" ? 40 : 20,
+              paddingBottom: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "700",
+                color: colors.text,
+              }}
+            >
+              오늘 근무 근로자
+            </Text>
+            <Pressable
+              onPress={() => setShowTodayWorkers(false)}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: colors.surface,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
           </View>
+
+          {/* 근로자 목록 */}
+          <ScrollView style={{ flex: 1, padding: 20 }}>
+            {getTodayWorkers().length > 0 ? (
+              <View style={{ gap: 12 }}>
+                {getTodayWorkers().map((worker) => (
+                  <Pressable
+                    key={worker.id}
+                    style={{
+                      backgroundColor: colors.card,
+                      padding: 16,
+                      borderRadius: 14,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.04,
+                      shadowRadius: 4,
+                      elevation: 2,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                    onPress={() => {
+                      setShowTodayWorkers(false);
+                      setSelectedWorker(worker);
+                      setShowWorkerDetail(true);
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        backgroundColor: "#e8f0fe",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 24 }}>👤</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "600",
+                          color: colors.text,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {worker.name}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: colors.textSecondary,
+                          marginBottom: 2,
+                        }}
+                      >
+                        {worker.schedules.join(", ")}
+                      </Text>
+                      {worker.workTimes && worker.workTimes.length > 0 && (
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: colors.success,
+                            fontWeight: "600",
+                            marginBottom: 2,
+                          }}
+                        >
+                          ⏰ {worker.workTimes.join(", ")}
+                        </Text>
+                      )}
+                      {worker.phone && (
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          }}
+                        >
+                          📱 {formatPhoneNumber(worker.phone)}
+                        </Text>
+                      )}
+                    </View>
+                    {/* 전화/문자 버튼 */}
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Pressable
+                        onPress={() => {
+                          if (worker.phone) {
+                            Linking.openURL(`tel:${worker.phone}`);
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>📞</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          if (worker.phone) {
+                            Linking.openURL(`sms:${worker.phone}`);
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          {
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>💬</Text>
+                      </Pressable>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color="#9ca3af"
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <View
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingVertical: 60,
+                }}
+              >
+                <Ionicons
+                  name="people-outline"
+                  size={64}
+                  color={colors.textSecondary}
+                />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: colors.textSecondary,
+                    marginTop: 16,
+                  }}
+                >
+                  오늘 근무하는 근로자가 없습니다
+                </Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
       </Modal>
 
@@ -1763,55 +1963,117 @@ export default function MainScreen() {
       />
 
       {/* 웹 전용 알림 패널 */}
-      {isWeb && (
-        <Animated.View
-          style={[
-            styles.webNotificationPanel,
-            {
-              transform: [{ translateY: webNotificationAnimation }],
-            },
-          ]}
-        >
-          <View style={styles.webNotificationHeader}>
-            <Text style={styles.webNotificationTitle}>활동 알림</Text>
-            <Pressable onPress={() => setShowWebNotificationPanel(false)}>
-              <Ionicons name="close" size={24} color={colors.text} />
-            </Pressable>
-          </View>
-          <ScrollView style={styles.webNotificationContent}>
-            {recentActivities.map((activity) => (
-              <Pressable
-                key={activity.id}
-                style={styles.webNotificationItem}
-                onPress={() => handleActivityPress(activity)}
+      {isWeb && showWebNotificationPanel && (
+        <View style={styles.webNotificationOverlayContainer}>
+          {/* 배경 오버레이 */}
+          <Pressable
+            style={styles.webNotificationOverlay}
+            onPress={() => setShowWebNotificationPanel(false)}
+          />
+
+          {/* 알림 패널 */}
+          <View
+            style={[
+              styles.webNotificationPanel,
+              { backgroundColor: colors.surface },
+            ]}
+          >
+            <View
+              style={[
+                styles.webNotificationHeader,
+                {
+                  backgroundColor: colors.surface,
+                  borderBottomColor: colors.border,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.webNotificationHeaderTitle,
+                  { color: colors.text },
+                ]}
               >
-                <View
-                  style={[
-                    styles.webNotificationIcon,
-                    { backgroundColor: activity.color },
-                  ]}
-                >
-                  <Ionicons
-                    name={activity.icon as any}
-                    size={20}
-                    color="white"
-                  />
-                </View>
-                <View style={styles.webNotificationText}>
-                  <Text style={styles.webNotificationTitle}>
-                    {activity.title}
-                  </Text>
-                  <Text style={styles.webNotificationDescription}>
-                    {activity.description}
-                  </Text>
-                  <Text style={styles.webNotificationTime}>
-                    {formatRelativeTime(activity.timestamp)}
-                  </Text>
-                </View>
+                최근 활동
+              </Text>
+              <Pressable onPress={() => setShowWebNotificationPanel(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
               </Pressable>
-            ))}
-          </ScrollView>
-        </Animated.View>
+            </View>
+            <ScrollView style={styles.webNotificationContent}>
+              {recentActivities.length > 0 ? (
+                <View style={{ padding: 12, gap: 8 }}>
+                  {recentActivities.map((activity) => (
+                    <Pressable
+                      key={activity.id}
+                      style={styles.webNotificationItem}
+                      onPress={() => handleActivityPress(activity)}
+                    >
+                      <View
+                        style={[
+                          styles.webNotificationIcon,
+                          { backgroundColor: `${activity.color}20` },
+                        ]}
+                      >
+                        <Ionicons
+                          name={activity.icon as any}
+                          size={24}
+                          color={activity.color}
+                        />
+                      </View>
+                      <View style={styles.webNotificationText}>
+                        <Text
+                          style={[
+                            styles.webNotificationItemTitle,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {activity.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.webNotificationDescription,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {activity.description}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.webNotificationTime,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {formatRelativeTime(activity.timestamp)}
+                        </Text>
+                      </View>
+                      {!activity.isRead && (
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: colors.primary,
+                          }}
+                        />
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.webNotificationEmpty}>
+                  <Text
+                    style={[
+                      styles.webNotificationEmptyText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    최근 활동이 없습니다
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -1820,11 +2082,13 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#f5f5f7", // Apple Compact soft gray background
   },
   webContainer: {
     maxWidth: 1200,
     marginHorizontal: "auto",
     width: "100%",
+    minHeight: "100vh",
   },
   scrollContainer: {
     flex: 1,
@@ -2003,43 +2267,27 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 16,
     bottom: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
-  activityBadge: {
+  webNotificationOverlayContainer: {
     position: "absolute",
     top: 0,
+    left: 0,
     right: 0,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+    bottom: 0,
+    zIndex: 1000,
+    flexDirection: "row",
   },
-  activityBadgeText: {
-    color: "white",
-    fontSize: 11,
-    fontWeight: "700",
+  webNotificationOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   webNotificationPanel: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 380,
-    backgroundColor: "#ffffff",
+    width: 400,
+    height: "100%",
     shadowOffset: { width: -4, height: 0 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    zIndex: 1000,
   },
   webNotificationHeader: {
     flexDirection: "row",
@@ -2047,10 +2295,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#e8eaed",
   },
-  webNotificationTitle: {
-    fontSize: 18,
+  webNotificationHeaderTitle: {
+    fontSize: 20,
     fontWeight: "700",
   },
   webNotificationContent: {
@@ -2058,29 +2305,47 @@ const styles = StyleSheet.create({
   },
   webNotificationItem: {
     flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderRadius: 14,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
     gap: 12,
   },
   webNotificationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
   webNotificationText: {
     flex: 1,
   },
+  webNotificationItemTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
   webNotificationDescription: {
     fontSize: 14,
-    color: "#666",
     marginTop: 4,
   },
   webNotificationTime: {
     fontSize: 12,
-    color: "#999",
     marginTop: 4,
+  },
+  webNotificationEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  webNotificationEmptyText: {
+    fontSize: 14,
   },
 });

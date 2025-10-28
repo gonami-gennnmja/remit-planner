@@ -539,23 +539,8 @@ export default function PlannerCalendar({
         const startDate = dayjs(s.startDate);
         const endDate = dayjs(s.endDate);
         const selected = dayjs(selectedDate);
-        const currentMonthString = dayjs(currentMonth).format("YYYY-MM");
 
-        // 연간 달력에서 월별 선택 시 해당 월의 모든 일정 표시
-        // 현재 월과 일치하는 모든 스케줄을 표시
-        if (currentMonthString) {
-          const scheduleStartMonth = startDate.format("YYYY-MM");
-          const scheduleEndMonth = endDate.format("YYYY-MM");
-
-          return (
-            scheduleStartMonth === currentMonthString ||
-            scheduleEndMonth === currentMonthString ||
-            (startDate.isBefore(dayjs(currentMonth).endOf("month"), "day") &&
-              endDate.isAfter(dayjs(currentMonth).startOf("month"), "day"))
-          );
-        }
-
-        // 일반적인 날짜별 필터링 (fallback)
+        // 선택된 날짜가 시작일과 종료일 사이에 있는 스케줄만 표시
         return (
           selected.isSameOrAfter(startDate, "day") &&
           selected.isSameOrBefore(endDate, "day")
@@ -581,7 +566,7 @@ export default function PlannerCalendar({
           .sort((x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0))[0];
         return (aStart?.valueOf() ?? 0) - (bStart?.valueOf() ?? 0);
       });
-  }, [filteredSchedules, selectedDate, showYearView, currentMonth]);
+  }, [filteredSchedules, selectedDate]);
 
   const goToPreviousMonth = () => {
     const newMonth = dayjs(currentMonth).subtract(1, "month").format("YYYY-MM");
@@ -1041,27 +1026,29 @@ export default function PlannerCalendar({
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-              backgroundColor: "#f8f9fa",
+              paddingHorizontal: 20, // Apple Compact container padding
+              paddingVertical: 16,
+              backgroundColor: "#f5f5f7", // Apple Compact background
               borderBottomWidth: 1,
-              borderBottomColor: "#e1e5e9",
+              borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
               flexWrap: "wrap",
-              gap: 8,
+              gap: 10, // Apple Compact card gap
             }}
           >
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable
                 style={{
-                  backgroundColor: showYearView ? "#8b5cf6" : "#6b7280",
+                  backgroundColor: showYearView ? "#1d1d1f" : "#ffffff", // Apple Compact primary or white
                   paddingHorizontal: 16,
                   paddingVertical: 8,
-                  borderRadius: 8,
-                  elevation: 2,
-                  shadowColor: "#000",
+                  borderRadius: 10, // Apple Compact button border radius
+                  shadowColor: showYearView ? "#000" : "transparent",
                   shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 2,
+                  shadowOpacity: showYearView ? 0.04 : 0, // Apple Compact subtle shadow
+                  shadowRadius: 4,
+                  elevation: showYearView ? 2 : 0,
+                  borderWidth: showYearView ? 0 : 1,
+                  borderColor: "#86868b", // Apple Compact secondary text color
                   flexDirection: "row",
                   alignItems: "center",
                 }}
@@ -1069,7 +1056,7 @@ export default function PlannerCalendar({
               >
                 <Text
                   style={{
-                    color: "#ffffff",
+                    color: showYearView ? "#ffffff" : "#1d1d1f", // White when active, dark when inactive
                     fontSize: getResponsiveValue(13, 14, 15),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
@@ -1081,15 +1068,12 @@ export default function PlannerCalendar({
 
               <Pressable
                 style={{
-                  backgroundColor: colors.primary,
+                  backgroundColor: "#ffffff", // Apple Compact white surface
                   paddingHorizontal: 12,
                   paddingVertical: 8,
-                  borderRadius: 8,
-                  elevation: 2,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 2,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: "#86868b",
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 6,
@@ -1103,11 +1087,11 @@ export default function PlannerCalendar({
                       : "calendar-range"
                   }
                   size={18}
-                  color="#ffffff"
+                  color="#1d1d1f" // Apple Compact primary
                 />
                 <Text
                   style={{
-                    color: "#ffffff",
+                    color: "#1d1d1f", // Apple Compact primary text
                     fontSize: getResponsiveValue(13, 14, 15),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
@@ -1119,18 +1103,20 @@ export default function PlannerCalendar({
 
               <Pressable
                 style={{
-                  backgroundColor: isRangeSelectionMode ? "#10b981" : "#6b7280",
+                  backgroundColor: isRangeSelectionMode ? "#1d1d1f" : "#ffffff",
                   paddingHorizontal: 12,
                   paddingVertical: 8,
-                  borderRadius: 8,
-                  elevation: 2,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 2,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: "#86868b",
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 6,
+                  shadowColor: isRangeSelectionMode ? "#000" : "transparent",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: isRangeSelectionMode ? 0.04 : 0,
+                  shadowRadius: 4,
+                  elevation: isRangeSelectionMode ? 2 : 0,
                 }}
                 onPress={toggleRangeSelectionMode}
               >
@@ -1139,11 +1125,11 @@ export default function PlannerCalendar({
                     isRangeSelectionMode ? "calendar-check" : "calendar-cursor"
                   }
                   size={18}
-                  color="#ffffff"
+                  color={isRangeSelectionMode ? "#ffffff" : "#1d1d1f"}
                 />
                 <Text
                   style={{
-                    color: "#ffffff",
+                    color: isRangeSelectionMode ? "#ffffff" : "#1d1d1f",
                     fontSize: getResponsiveValue(13, 14, 15),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
@@ -1450,6 +1436,8 @@ export default function PlannerCalendar({
           <View
             style={{
               height: getResponsiveValue(350, 400, 450),
+              borderBottomWidth: 1,
+              borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
             }}
           >
             <CalendarList
@@ -1464,7 +1452,7 @@ export default function PlannerCalendar({
                       width: "100%",
                       backgroundColor: "#ffffff",
                       borderBottomWidth: 1,
-                      borderBottomColor: "#f3f4f6",
+                      borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                     }}
                   >
                     <Text
@@ -1497,7 +1485,7 @@ export default function PlannerCalendar({
                       marked[dateStr] = {
                         ...marked[dateStr],
                         selected: true,
-                        selectedColor: "#10b981",
+                        selectedColor: colors.primary, // 테마 색상 사용
                         selectedTextColor: "white",
                       };
                       current = current.add(1, "day");
@@ -1507,7 +1495,7 @@ export default function PlannerCalendar({
                     marked[selectedStartDate] = {
                       ...marked[selectedStartDate],
                       selected: true,
-                      selectedColor: "#10b981",
+                      selectedColor: colors.primary, // 테마 색상 사용
                       selectedTextColor: "white",
                     };
                   }
@@ -1547,13 +1535,17 @@ export default function PlannerCalendar({
               hideArrows={true}
               hideExtraDays={true}
               firstDay={1}
-              // 성능 최적화 옵션
+              // 성능 최적화 옵션 - 더 부드러운 스크롤
               removeClippedSubviews={Platform.OS === "android"}
-              maxToRenderPerBatch={2}
-              windowSize={5}
-              initialNumToRender={3}
-              updateCellsBatchingPeriod={50}
-              scrollEventThrottle={16}
+              maxToRenderPerBatch={1}
+              windowSize={10}
+              initialNumToRender={2}
+              updateCellsBatchingPeriod={100}
+              scrollEventThrottle={8}
+              // 부드러운 스크롤을 위한 추가 옵션
+              enableSwipeMonths={true}
+              disableMonthChange={false}
+              horizontal={false}
               theme={
                 {
                   // 기본 색상 - 카테고리별로 다양한 색상 지원
@@ -1589,10 +1581,6 @@ export default function PlannerCalendar({
                   dotStyle: { marginTop: -2 },
                 } as any
               }
-              onDayPress={(day) => {
-                handleDatePress(day.dateString);
-                setIsCalendarExpanded(false); // 날짜 선택 시 카드 영역 표시
-              }}
               onVisibleMonthsChange={(months) => {
                 if (months.length > 0) {
                   const newMonth = dayjs(months[0].dateString);
@@ -1622,7 +1610,7 @@ export default function PlannerCalendar({
           </View>
         )}
 
-        {/* 선택된 날짜의 스케줄 카드 목록 */}
+        {/* 선택된 날짜의 스케줄 카드 목록 (접힌 상태) */}
         {selectedDate && !showYearView && !isCalendarExpanded && (
           <View
             style={{
@@ -1649,7 +1637,7 @@ export default function PlannerCalendar({
                     fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
-                    color: "#374151",
+                    color: "#1d1d1f", // Apple Compact primary text
                   }}
                 >
                   {isRangeSelectionMode && selectedStartDate && selectedEndDate
@@ -1673,11 +1661,17 @@ export default function PlannerCalendar({
                       }
                     }}
                     style={{
-                      backgroundColor: "#6366f1",
-                      borderRadius: 6,
-                      padding: 6,
+                      backgroundColor: "#1d1d1f", // Apple Compact primary
+                      borderRadius: 10,
+                      width: 32,
+                      height: 32,
                       justifyContent: "center",
                       alignItems: "center",
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.04, // Apple Compact subtle shadow
+                      shadowRadius: 4,
+                      elevation: 2,
                     }}
                   >
                     <Ionicons name="add" size={18} color="white" />
@@ -1688,17 +1682,17 @@ export default function PlannerCalendar({
               <Pressable
                 onPress={() => setIsCalendarExpanded(true)}
                 style={{
-                  backgroundColor: "#6366f1",
-                  borderRadius: 8,
+                  backgroundColor: "#1d1d1f", // Apple Compact primary
+                  borderRadius: 10,
                   paddingHorizontal: 12,
                   paddingVertical: 8,
                   justifyContent: "center",
                   alignItems: "center",
                   shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 3,
-                  elevation: 3,
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.04, // Apple Compact subtle shadow
+                  shadowRadius: 4,
+                  elevation: 2,
                 }}
               >
                 <MaterialCommunityIcons
@@ -1709,33 +1703,14 @@ export default function PlannerCalendar({
               </Pressable>
             </View>
 
-            <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            <ScrollView
+              style={{ paddingHorizontal: 16, paddingTop: 8 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
               {(() => {
-                // 범위 선택 모드일 경우 범위 내의 모든 스케줄 표시
-                const dailySchedules = filteredSchedules.filter((s) => {
-                  const scheduleStart = dayjs(s.startDate);
-                  const scheduleEnd = dayjs(s.endDate);
-
-                  if (
-                    isRangeSelectionMode &&
-                    selectedStartDate &&
-                    selectedEndDate
-                  ) {
-                    const rangeStart = dayjs(selectedStartDate);
-                    const rangeEnd = dayjs(selectedEndDate);
-                    // 스케줄이 선택된 범위와 겹치는지 확인
-                    return (
-                      scheduleStart.isSameOrBefore(rangeEnd, "day") &&
-                      scheduleEnd.isSameOrAfter(rangeStart, "day")
-                    );
-                  } else {
-                    const selected = dayjs(selectedDate);
-                    return (
-                      selected.isSameOrAfter(scheduleStart, "day") &&
-                      selected.isSameOrBefore(scheduleEnd, "day")
-                    );
-                  }
-                });
+                // 선택된 날짜의 스케줄 사용
+                const dailySchedules = selectedDateSchedules;
 
                 const sortedSchedules = dailySchedules.slice().sort((a, b) => {
                   const aStart = a.workers
@@ -1767,15 +1742,15 @@ export default function PlannerCalendar({
                       style={{
                         padding: 32,
                         alignItems: "center",
-                        backgroundColor: "white",
-                        borderRadius: 12,
+                        backgroundColor: "#ffffff", // Apple Compact white surface
+                        borderRadius: 14, // Apple Compact card border radius
                         marginBottom: 16,
                       }}
                     >
                       <Text
                         style={{
                           fontSize: getResponsiveValue(16, 17, 18),
-                          color: "#6b7280",
+                          color: "#86868b", // Apple Compact secondary text
                           textAlign: "center",
                         }}
                       >
@@ -1818,20 +1793,15 @@ export default function PlannerCalendar({
                         <Pressable
                           key={schedule.id}
                           style={{
-                            backgroundColor: "white",
-                            borderRadius: 12,
-                            padding: 16,
-                            marginBottom: 12,
+                            backgroundColor: "#ffffff", // Apple Compact white surface
+                            borderRadius: 14, // Apple Compact card border radius
+                            padding: 16, // Apple Compact card padding
+                            marginBottom: 10, // Apple Compact card gap
                             shadowColor: "#000",
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.04, // Apple Compact very subtle shadow
                             shadowRadius: 4,
-                            elevation: 3,
-                            borderLeftWidth: 4,
-                            borderLeftColor: getCategoryColor(
-                              schedule.category,
-                              colors
-                            ),
+                            elevation: 2,
                           }}
                           onPress={() => onSchedulePress(schedule.id)}
                         >
@@ -1847,7 +1817,7 @@ export default function PlannerCalendar({
                                 style={{
                                   fontSize: getResponsiveValue(16, 17, 18),
                                   fontWeight: "600",
-                                  color: "#111827",
+                                  color: "#1d1d1f", // Apple Compact primary text
                                   marginBottom: 4,
                                 }}
                               >
@@ -1856,7 +1826,7 @@ export default function PlannerCalendar({
                               <Text
                                 style={{
                                   fontSize: getResponsiveValue(14, 15, 16),
-                                  color: "#6b7280",
+                                  color: "#86868b", // Apple Compact secondary text
                                   marginBottom: 8,
                                 }}
                               >
@@ -1868,8 +1838,8 @@ export default function PlannerCalendar({
                                 <Text
                                   style={{
                                     fontSize: getResponsiveValue(13, 14, 15),
-                                    color: "#374151",
-                                    backgroundColor: "#f3f4f6",
+                                    color: "#1d1d1f", // Apple Compact primary text
+                                    backgroundColor: "#f5f5f7", // Apple Compact background
                                     paddingHorizontal: 8,
                                     paddingVertical: 4,
                                     borderRadius: 6,
@@ -1910,7 +1880,7 @@ export default function PlannerCalendar({
                   </ScrollView>
                 );
               })()}
-            </View>
+            </ScrollView>
           </View>
         )}
 
@@ -1938,7 +1908,7 @@ export default function PlannerCalendar({
                 paddingBottom: 8,
                 backgroundColor: "#ffffff",
                 borderBottomWidth: 1,
-                borderBottomColor: "#e5e7eb",
+                borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
               }}
             >
               <View
@@ -1949,7 +1919,7 @@ export default function PlannerCalendar({
                     fontSize: getResponsiveValue(18, 20, 22),
                     fontWeight: "600",
                     fontFamily: "Inter_600SemiBold",
-                    color: "#374151",
+                    color: "#1d1d1f", // Apple Compact primary text
                   }}
                 >
                   {isRangeSelectionMode && selectedStartDate && selectedEndDate
@@ -1973,11 +1943,17 @@ export default function PlannerCalendar({
                       }
                     }}
                     style={{
-                      backgroundColor: "#6366f1",
-                      borderRadius: 6,
-                      padding: 6,
+                      backgroundColor: "#1d1d1f", // Apple Compact primary
+                      borderRadius: 10,
+                      width: 32,
+                      height: 32,
                       justifyContent: "center",
                       alignItems: "center",
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.04, // Apple Compact subtle shadow
+                      shadowRadius: 4,
+                      elevation: 2,
                     }}
                   >
                     <Ionicons name="add" size={18} color="white" />
@@ -1988,17 +1964,17 @@ export default function PlannerCalendar({
               <Pressable
                 onPress={() => setIsCalendarExpanded(false)}
                 style={{
-                  backgroundColor: "#6366f1",
-                  borderRadius: 8,
+                  backgroundColor: "#1d1d1f", // Apple Compact primary
+                  borderRadius: 10,
                   paddingHorizontal: 12,
                   paddingVertical: 8,
                   justifyContent: "center",
                   alignItems: "center",
                   shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 3,
-                  elevation: 3,
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.04, // Apple Compact subtle shadow
+                  shadowRadius: 4,
+                  elevation: 2,
                 }}
               >
                 <MaterialCommunityIcons
@@ -2067,15 +2043,15 @@ export default function PlannerCalendar({
                       style={{
                         padding: 32,
                         alignItems: "center",
-                        backgroundColor: "white",
-                        borderRadius: 12,
+                        backgroundColor: "#ffffff", // Apple Compact white surface
+                        borderRadius: 14, // Apple Compact card border radius
                         marginBottom: 16,
                       }}
                     >
                       <Text
                         style={{
                           fontSize: getResponsiveValue(16, 17, 18),
-                          color: "#6b7280",
+                          color: "#86868b", // Apple Compact secondary text
                           textAlign: "center",
                         }}
                       >
@@ -2118,20 +2094,15 @@ export default function PlannerCalendar({
                         <Pressable
                           key={schedule.id}
                           style={{
-                            backgroundColor: "white",
-                            borderRadius: 12,
-                            padding: 16,
-                            marginBottom: 12,
+                            backgroundColor: "#ffffff", // Apple Compact white surface
+                            borderRadius: 14, // Apple Compact card border radius
+                            padding: 16, // Apple Compact card padding
+                            marginBottom: 10, // Apple Compact card gap
                             shadowColor: "#000",
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.04, // Apple Compact very subtle shadow
                             shadowRadius: 4,
-                            elevation: 3,
-                            borderLeftWidth: 4,
-                            borderLeftColor: getCategoryColor(
-                              schedule.category,
-                              colors
-                            ),
+                            elevation: 2,
                           }}
                           onPress={() => onSchedulePress(schedule.id)}
                         >
@@ -2147,7 +2118,7 @@ export default function PlannerCalendar({
                                 style={{
                                   fontSize: getResponsiveValue(16, 17, 18),
                                   fontWeight: "600",
-                                  color: "#111827",
+                                  color: "#1d1d1f", // Apple Compact primary text
                                   marginBottom: 4,
                                 }}
                               >
@@ -2156,7 +2127,7 @@ export default function PlannerCalendar({
                               <Text
                                 style={{
                                   fontSize: getResponsiveValue(14, 15, 16),
-                                  color: "#6b7280",
+                                  color: "#86868b", // Apple Compact secondary text
                                   marginBottom: 8,
                                 }}
                               >
@@ -2168,8 +2139,8 @@ export default function PlannerCalendar({
                                 <Text
                                   style={{
                                     fontSize: getResponsiveValue(13, 14, 15),
-                                    color: "#374151",
-                                    backgroundColor: "#f3f4f6",
+                                    color: "#1d1d1f", // Apple Compact primary text
+                                    backgroundColor: "#f5f5f7", // Apple Compact background
                                     paddingHorizontal: 8,
                                     paddingVertical: 4,
                                     borderRadius: 6,
@@ -2265,7 +2236,7 @@ export default function PlannerCalendar({
                       alignItems: "center",
                       borderTopLeftRadius: 20,
                       borderTopRightRadius: 20,
-                      backgroundColor: "#f8f9fa",
+                      backgroundColor: "#f5f5f7", // Apple Compact background
                     }}
                   >
                     <View
@@ -2287,7 +2258,7 @@ export default function PlannerCalendar({
                           style={{
                             padding: 16,
                             borderBottomWidth: 1,
-                            borderBottomColor: "#e5e7eb",
+                            borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                           }}
                         >
                           <Text
@@ -2347,7 +2318,7 @@ export default function PlannerCalendar({
                                   style={{
                                     height: 40,
                                     borderBottomWidth: 1,
-                                    borderBottomColor: "#e5e7eb",
+                                    borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                                   }}
                                 />
                               ))}
@@ -2470,7 +2441,7 @@ export default function PlannerCalendar({
                           style={{
                             padding: 16,
                             borderBottomWidth: 1,
-                            borderBottomColor: "#e5e7eb",
+                            borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                             flexDirection: "row",
                             justifyContent: "space-between",
                             alignItems: "center",
@@ -2565,7 +2536,7 @@ export default function PlannerCalendar({
                                   style={{
                                     fontSize: getResponsiveValue(16, 17, 18),
                                     marginBottom: 16,
-                                    color: "#374151",
+                                    color: "#1d1d1f", // Apple Compact primary text
                                   }}
                                 >
                                   {schedule.startDate === schedule.endDate
@@ -2582,7 +2553,7 @@ export default function PlannerCalendar({
                                   style={{
                                     fontSize: getResponsiveValue(16, 17, 18),
                                     marginBottom: 16,
-                                    color: "#374151",
+                                    color: "#1d1d1f", // Apple Compact primary text
                                   }}
                                 >
                                   {schedule.description || "설명이 없습니다."}
@@ -2594,7 +2565,7 @@ export default function PlannerCalendar({
                                     style={{
                                       fontSize: getResponsiveValue(14, 15, 16),
                                       fontWeight: "600",
-                                      color: "#374151",
+                                      color: "#1d1d1f", // Apple Compact primary text
                                       marginBottom: 8,
                                     }}
                                   >
@@ -2720,7 +2691,7 @@ export default function PlannerCalendar({
                                             13,
                                             14
                                           ),
-                                          color: "#6b7280",
+                                          color: "#86868b", // Apple Compact secondary text
                                           marginBottom: 8,
                                         }}
                                       >
@@ -3066,7 +3037,7 @@ export default function PlannerCalendar({
                           style={{
                             padding: 16,
                             borderBottomWidth: 1,
-                            borderBottomColor: "#e5e7eb",
+                            borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                           }}
                         >
                           <Pressable
@@ -3200,7 +3171,7 @@ export default function PlannerCalendar({
                                     <View
                                       key={index}
                                       style={{
-                                        backgroundColor: "#f8f9fa",
+                                        backgroundColor: "#f5f5f7", // Apple Compact background
                                         padding: 16,
                                         borderRadius: 12,
                                         width: "48%",
@@ -3234,7 +3205,7 @@ export default function PlannerCalendar({
                                               13,
                                               14
                                             ),
-                                            color: "#6b7280",
+                                            color: "#86868b", // Apple Compact secondary text
                                             marginBottom: 4,
                                           }}
                                         >
@@ -3275,7 +3246,7 @@ export default function PlannerCalendar({
                                               13,
                                               14
                                             ),
-                                            color: "#6b7280",
+                                            color: "#86868b", // Apple Compact secondary text
                                             marginBottom: 4,
                                           }}
                                         >
@@ -3331,7 +3302,7 @@ export default function PlannerCalendar({
                                                 13,
                                                 14
                                               ),
-                                              color: "#6b7280",
+                                              color: "#86868b", // Apple Compact secondary text
                                             }}
                                           >
                                             원
@@ -3345,7 +3316,7 @@ export default function PlannerCalendar({
                                               13,
                                               14
                                             ),
-                                            color: "#6b7280",
+                                            color: "#86868b", // Apple Compact secondary text
                                             marginBottom: 4,
                                           }}
                                         >
@@ -3421,7 +3392,7 @@ export default function PlannerCalendar({
                                               13,
                                               14
                                             ),
-                                            color: "#6b7280",
+                                            color: "#86868b", // Apple Compact secondary text
                                             marginBottom: 4,
                                           }}
                                         >
@@ -3496,7 +3467,7 @@ export default function PlannerCalendar({
                                               13,
                                               14
                                             ),
-                                            color: "#6b7280",
+                                            color: "#86868b", // Apple Compact secondary text
                                             marginBottom: 4,
                                           }}
                                         >
@@ -3524,7 +3495,7 @@ export default function PlannerCalendar({
                                                   13,
                                                   14
                                                 ),
-                                                color: "#6b7280",
+                                                color: "#86868b", // Apple Compact secondary text
                                                 minWidth: 40,
                                               }}
                                             >
@@ -3623,7 +3594,7 @@ export default function PlannerCalendar({
                                                 13,
                                                 14
                                               ),
-                                              color: "#6b7280",
+                                              color: "#86868b", // Apple Compact secondary text
                                               marginBottom: 4,
                                             }}
                                           >
@@ -3668,7 +3639,7 @@ export default function PlannerCalendar({
                                                 13,
                                                 14
                                               ),
-                                              color: "#6b7280",
+                                              color: "#86868b", // Apple Compact secondary text
                                             }}
                                           >
                                             세금공제 (3.3%)
@@ -3788,7 +3759,7 @@ export default function PlannerCalendar({
                                                 13,
                                                 14
                                               ),
-                                              color: "#6b7280",
+                                              color: "#86868b", // Apple Compact secondary text
                                             }}
                                           >
                                             지급완료
@@ -3873,7 +3844,7 @@ export default function PlannerCalendar({
                   paddingHorizontal: 20,
                   paddingVertical: 16,
                   borderBottomWidth: 1,
-                  borderBottomColor: "#e5e7eb",
+                  borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                   flexDirection: "row",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -4304,7 +4275,7 @@ export default function PlannerCalendar({
                       style={{
                         fontSize: 14,
                         marginBottom: 8,
-                        color: "#374151",
+                        color: "#1d1d1f", // Apple Compact primary text
                       }}
                     >
                       근무 기간
@@ -4472,7 +4443,7 @@ export default function PlannerCalendar({
                       style={{
                         fontSize: 14,
                         marginBottom: 8,
-                        color: "#374151",
+                        color: "#1d1d1f", // Apple Compact primary text
                       }}
                     >
                       근무 시간
@@ -4595,7 +4566,7 @@ export default function PlannerCalendar({
                         style={{
                           fontSize: 14,
                           marginBottom: 8,
-                          color: "#374151",
+                          color: "#1d1d1f", // Apple Compact primary text
                         }}
                       >
                         날짜별 근무 시간
@@ -4629,7 +4600,7 @@ export default function PlannerCalendar({
                               <Text
                                 style={{
                                   fontSize: 12,
-                                  color: "#6b7280",
+                                  color: "#86868b", // Apple Compact secondary text
                                   marginBottom: 6,
                                   fontWeight: "500",
                                   fontFamily: "Inter_500Medium",
@@ -4913,7 +4884,7 @@ export default function PlannerCalendar({
                   paddingHorizontal: 20,
                   paddingVertical: 16,
                   borderBottomWidth: 1,
-                  borderBottomColor: "#e5e7eb",
+                  borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                   flexDirection: "row",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -5019,7 +4990,7 @@ export default function PlannerCalendar({
                   alignItems: "center",
                   padding: 20,
                   borderBottomWidth: 1,
-                  borderBottomColor: "#e5e7eb",
+                  borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                 }}
               >
                 <Text
@@ -5095,7 +5066,7 @@ export default function PlannerCalendar({
                   paddingHorizontal: 20,
                   paddingVertical: 16,
                   borderBottomWidth: 1,
-                  borderBottomColor: "#e5e7eb",
+                  borderBottomColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
                   flexDirection: "row",
                   justifyContent: "space-between",
                   alignItems: "center",

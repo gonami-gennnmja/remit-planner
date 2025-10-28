@@ -892,7 +892,7 @@ const styles = StyleSheet.create({
     marginBottom: Theme.spacing.md,
     shadowColor: Theme.colors.text.primary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
     shadowRadius: 4,
     elevation: 3,
   },
@@ -1022,7 +1022,7 @@ const styles = StyleSheet.create({
     marginBottom: Theme.spacing.sm,
     shadowColor: Theme.colors.text.primary,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
     shadowRadius: 2,
     elevation: 1,
   },

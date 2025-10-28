@@ -21,11 +21,33 @@ import {
 const { width } = Dimensions.get("window");
 const isWeb = Platform.OS === "web";
 
+// NaN을 0으로 변환하는 헬퍼 함수
+const safeNumber = (value: number): number => {
+  return isNaN(value) || !isFinite(value) ? 0 : value;
+};
+
+// 숫자 포맷팅 헬퍼 함수
+const formatNumber = (value: number): string => {
+  const safeValue = safeNumber(value);
+  return new Intl.NumberFormat("ko-KR").format(safeValue);
+};
+
+// compact 포맷팅 헬퍼 함수
+const formatCompactNumber = (value: number): string => {
+  const safeValue = safeNumber(value);
+  return new Intl.NumberFormat("ko-KR", {
+    notation: "compact",
+    compactDisplay: "short",
+  }).format(safeValue);
+};
+
 interface RevenueStats {
   totalRevenue: number;
+  weeklyRevenue: number;
   monthlyRevenue: number;
   yearlyRevenue: number;
   totalExpense: number;
+  weeklyExpense: number;
   monthlyExpense: number;
   yearlyExpense: number;
   totalPayroll: number;
@@ -33,6 +55,7 @@ interface RevenueStats {
   totalOtherAllowance: number;
   totalTaxWithheld: number;
   netProfit: number;
+  weeklyNetProfit: number;
   monthlyNetProfit: number;
   yearlyNetProfit: number;
   categoryRevenue: Array<{
@@ -67,9 +90,11 @@ export default function RevenueReportsScreen() {
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [stats, setStats] = useState<RevenueStats>({
     totalRevenue: 0,
+    weeklyRevenue: 0,
     monthlyRevenue: 0,
     yearlyRevenue: 0,
     totalExpense: 0,
+    weeklyExpense: 0,
     monthlyExpense: 0,
     yearlyExpense: 0,
     totalPayroll: 0,
@@ -77,6 +102,7 @@ export default function RevenueReportsScreen() {
     totalOtherAllowance: 0,
     totalTaxWithheld: 0,
     netProfit: 0,
+    weeklyNetProfit: 0,
     monthlyNetProfit: 0,
     yearlyNetProfit: 0,
     categoryRevenue: [],
@@ -137,9 +163,11 @@ export default function RevenueReportsScreen() {
       const REVENUE_PER_SCHEDULE = 500000; // 일정당 50만원 수익 가정
 
       let totalRevenue = 0;
+      let weeklyRevenue = 0;
       let monthlyRevenue = 0;
       let yearlyRevenue = 0;
       let totalExpense = 0;
+      let weeklyExpense = 0;
       let monthlyExpense = 0;
       let yearlyExpense = 0;
 
@@ -156,12 +184,22 @@ export default function RevenueReportsScreen() {
           scheduleDate.isSameOrAfter(periodStart) &&
           scheduleDate.isSameOrBefore(periodEnd);
 
+        // 주간 여부 확인
+        const isInWeek =
+          scheduleDate.isSameOrAfter(today.startOf("week")) &&
+          scheduleDate.isSameOrBefore(today.endOf("week"));
+        const isInMonth =
+          scheduleDate.isSameOrAfter(today.startOf("month")) &&
+          scheduleDate.isSameOrBefore(today.endOf("month"));
+        const isInYear =
+          scheduleDate.isSameOrAfter(today.startOf("year")) &&
+          scheduleDate.isSameOrBefore(today.endOf("year"));
+
         // 수익 계산
         totalRevenue += scheduleRevenue;
-        if (isInPeriod) {
-          monthlyRevenue += scheduleRevenue;
-          yearlyRevenue += scheduleRevenue;
-        }
+        if (isInWeek) weeklyRevenue += scheduleRevenue;
+        if (isInMonth) monthlyRevenue += scheduleRevenue;
+        if (isInYear) yearlyRevenue += scheduleRevenue;
 
         // 카테고리별 수익
         const category = schedule.category;
@@ -186,23 +224,39 @@ export default function RevenueReportsScreen() {
         // 지출 계산 (급여)
         schedule.workers?.forEach((workerInfo) => {
           const periods = workerInfo.periods || [];
-          const totalHours = periods.reduce((sum, period) => {
-            const start = dayjs(`${period.workDate}T${period.startTime}`);
-            const end = dayjs(`${period.workDate}T${period.endTime}`);
-            const hours =
-              end.diff(start, "hour", true) - period.breakDuration / 60;
-            return sum + Math.max(0, hours);
-          }, 0);
+          const totalHours = safeNumber(
+            periods.reduce((sum, period) => {
+              if (
+                !period ||
+                !period.workDate ||
+                !period.startTime ||
+                !period.endTime
+              ) {
+                return sum;
+              }
+              try {
+                const start = dayjs(`${period.workDate}T${period.startTime}`);
+                const end = dayjs(`${period.workDate}T${period.endTime}`);
+                const breakDuration = safeNumber(period.breakDuration || 0);
+                const hours =
+                  end.diff(start, "hour", true) - breakDuration / 60;
+                return sum + Math.max(0, safeNumber(hours));
+              } catch (e) {
+                return sum;
+              }
+            }, 0)
+          );
 
-          const grossPay = workerInfo.worker.hourlyWage * totalHours;
+          const grossPay =
+            (workerInfo.worker.hourlyWage || 0) * (totalHours || 0);
           const tax = workerInfo.taxWithheld ? grossPay * 0.033 : 0;
           const netPay = grossPay - tax;
 
-          totalExpense += Math.round(netPay);
-          if (isInPeriod) {
-            monthlyExpense += Math.round(netPay);
-            yearlyExpense += Math.round(netPay);
-          }
+          const roundedNetPay = Math.round(netPay || 0);
+          totalExpense += roundedNetPay;
+          if (isInWeek) weeklyExpense += roundedNetPay;
+          if (isInMonth) monthlyExpense += roundedNetPay;
+          if (isInYear) yearlyExpense += roundedNetPay;
         });
       });
 
@@ -210,8 +264,8 @@ export default function RevenueReportsScreen() {
       const categoryRevenue = Array.from(categoryRevenueMap.entries())
         .map(([category, revenue]) => ({
           category: getCategoryDisplayName(category),
-          revenue,
-          percentage: (revenue / totalRevenue) * 100,
+          revenue: safeNumber(revenue),
+          percentage: safeNumber((revenue / totalRevenue) * 100),
         }))
         .sort((a, b) => b.revenue - a.revenue);
 
@@ -219,8 +273,8 @@ export default function RevenueReportsScreen() {
       const clientRevenue = Array.from(clientRevenueMap.entries())
         .map(([clientName, data]) => ({
           clientName,
-          revenue: data.revenue,
-          scheduleCount: data.scheduleCount,
+          revenue: safeNumber(data.revenue),
+          scheduleCount: safeNumber(data.scheduleCount),
         }))
         .sort((a, b) => b.revenue - a.revenue);
 
@@ -247,44 +301,64 @@ export default function RevenueReportsScreen() {
 
           schedule.workers?.forEach((workerInfo) => {
             const periods = workerInfo.periods || [];
-            const totalHours = periods.reduce((sum, period) => {
-              const start = dayjs(`${period.workDate}T${period.startTime}`);
-              const end = dayjs(`${period.workDate}T${period.endTime}`);
-              const hours =
-                end.diff(start, "hour", true) - period.breakDuration / 60;
-              return sum + Math.max(0, hours);
-            }, 0);
+            const totalHours = safeNumber(
+              periods.reduce((sum, period) => {
+                if (
+                  !period ||
+                  !period.workDate ||
+                  !period.startTime ||
+                  !period.endTime
+                ) {
+                  return sum;
+                }
+                try {
+                  const start = dayjs(`${period.workDate}T${period.startTime}`);
+                  const end = dayjs(`${period.workDate}T${period.endTime}`);
+                  const breakDuration = safeNumber(period.breakDuration || 0);
+                  const hours =
+                    end.diff(start, "hour", true) - breakDuration / 60;
+                  return sum + Math.max(0, safeNumber(hours));
+                } catch (e) {
+                  return sum;
+                }
+              }, 0)
+            );
 
-            const grossPay = workerInfo.worker.hourlyWage * totalHours;
+            const grossPay = safeNumber(
+              (workerInfo.worker.hourlyWage || 0) * (totalHours || 0)
+            );
             const tax = workerInfo.taxWithheld ? grossPay * 0.033 : 0;
             const netPay = grossPay - tax;
-            monthExpense += Math.round(netPay);
+            monthExpense += Math.round(safeNumber(netPay || 0));
           });
         });
 
         monthlyTrend.push({
           month: month.format("YYYY-MM"),
-          revenue: monthRevenue,
-          expense: monthExpense,
-          payroll: monthExpense,
-          profit: monthRevenue - monthExpense,
+          revenue: safeNumber(monthRevenue),
+          expense: safeNumber(monthExpense),
+          payroll: safeNumber(monthExpense),
+          profit: safeNumber(monthRevenue - monthExpense),
         });
       }
 
       setStats({
-        totalRevenue,
-        monthlyRevenue,
-        yearlyRevenue,
-        totalExpense,
-        monthlyExpense,
-        yearlyExpense,
-        totalPayroll: totalExpense,
+        totalRevenue: safeNumber(totalRevenue),
+        weeklyRevenue: safeNumber(weeklyRevenue),
+        monthlyRevenue: safeNumber(monthlyRevenue),
+        yearlyRevenue: safeNumber(yearlyRevenue),
+        totalExpense: safeNumber(totalExpense),
+        weeklyExpense: safeNumber(weeklyExpense),
+        monthlyExpense: safeNumber(monthlyExpense),
+        yearlyExpense: safeNumber(yearlyExpense),
+        totalPayroll: safeNumber(totalExpense),
         totalFuelAllowance: 0,
         totalOtherAllowance: 0,
         totalTaxWithheld: 0,
-        netProfit: totalRevenue - totalExpense,
-        monthlyNetProfit: monthlyRevenue - monthlyExpense,
-        yearlyNetProfit: yearlyRevenue - yearlyExpense,
+        netProfit: safeNumber(totalRevenue - totalExpense),
+        weeklyNetProfit: safeNumber(weeklyRevenue - weeklyExpense),
+        monthlyNetProfit: safeNumber(monthlyRevenue - monthlyExpense),
+        yearlyNetProfit: safeNumber(yearlyRevenue - yearlyExpense),
         categoryRevenue,
         monthlyTrend,
         clientRevenue,
@@ -312,27 +386,27 @@ export default function RevenueReportsScreen() {
     switch (selectedPeriod) {
       case "week":
         return {
-          revenue: 0, // 주간 수익은 별도 계산 필요
-          expense: 0,
-          profit: 0,
+          revenue: safeNumber(stats.weeklyRevenue),
+          expense: safeNumber(stats.weeklyExpense),
+          profit: safeNumber(stats.weeklyNetProfit),
         };
       case "month":
         return {
-          revenue: stats.monthlyRevenue,
-          expense: stats.monthlyExpense,
-          profit: stats.monthlyNetProfit,
+          revenue: safeNumber(stats.monthlyRevenue),
+          expense: safeNumber(stats.monthlyExpense),
+          profit: safeNumber(stats.monthlyNetProfit),
         };
       case "year":
         return {
-          revenue: stats.yearlyRevenue,
-          expense: stats.yearlyExpense,
-          profit: stats.yearlyNetProfit,
+          revenue: safeNumber(stats.yearlyRevenue),
+          expense: safeNumber(stats.yearlyExpense),
+          profit: safeNumber(stats.yearlyNetProfit),
         };
       default:
         return {
-          revenue: stats.totalRevenue,
-          expense: stats.totalExpense,
-          profit: stats.netProfit,
+          revenue: safeNumber(stats.totalRevenue),
+          expense: safeNumber(stats.totalExpense),
+          profit: safeNumber(stats.netProfit),
         };
     }
   };
@@ -374,10 +448,7 @@ export default function RevenueReportsScreen() {
               <Ionicons name="trending-up" size={24} color="#10b981" />
             </View>
             <Text style={styles.statValue}>
-              {new Intl.NumberFormat("ko-KR", {
-                notation: "compact",
-                compactDisplay: "short",
-              }).format(periodStats.revenue)}
+              {formatCompactNumber(periodStats.revenue)}
             </Text>
             <Text style={styles.statLabel}>
               {selectedPeriod === "week"
@@ -394,10 +465,7 @@ export default function RevenueReportsScreen() {
               <Ionicons name="trending-down" size={24} color="#ef4444" />
             </View>
             <Text style={styles.statValue}>
-              {new Intl.NumberFormat("ko-KR", {
-                notation: "compact",
-                compactDisplay: "short",
-              }).format(periodStats.expense)}
+              {formatCompactNumber(periodStats.expense)}
             </Text>
             <Text style={styles.statLabel}>
               {selectedPeriod === "week"
@@ -433,10 +501,7 @@ export default function RevenueReportsScreen() {
                 { color: periodStats.profit >= 0 ? "#10b981" : "#ef4444" },
               ]}
             >
-              {new Intl.NumberFormat("ko-KR", {
-                notation: "compact",
-                compactDisplay: "short",
-              }).format(periodStats.profit)}
+              {formatCompactNumber(periodStats.profit)}
             </Text>
             <Text style={styles.statLabel}>순이익</Text>
           </View>
@@ -446,9 +511,11 @@ export default function RevenueReportsScreen() {
               <Ionicons name="analytics" size={24} color="#8b5cf6" />
             </View>
             <Text style={styles.statValue}>
-              {periodStats.revenue > 0
-                ? Math.round((periodStats.profit / periodStats.revenue) * 100)
-                : 0}
+              {safeNumber(
+                periodStats.revenue > 0
+                  ? Math.round((periodStats.profit / periodStats.revenue) * 100)
+                  : 0
+              )}
               %
             </Text>
             <Text style={styles.statLabel}>수익률</Text>
@@ -463,14 +530,14 @@ export default function RevenueReportsScreen() {
               <View style={styles.financialItem}>
                 <Text style={styles.financialLabel}>총 수익</Text>
                 <Text style={[styles.financialValue, { color: "#10b981" }]}>
-                  {new Intl.NumberFormat("ko-KR").format(periodStats.revenue)}원
+                  {formatNumber(periodStats.revenue)}원
                 </Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.financialItem}>
                 <Text style={styles.financialLabel}>총 지출</Text>
                 <Text style={[styles.financialValue, { color: "#ef4444" }]}>
-                  {new Intl.NumberFormat("ko-KR").format(periodStats.expense)}원
+                  {formatNumber(periodStats.expense)}원
                 </Text>
               </View>
             </View>
@@ -484,7 +551,7 @@ export default function RevenueReportsScreen() {
                   },
                 ]}
               >
-                {new Intl.NumberFormat("ko-KR").format(periodStats.profit)}원
+                {formatNumber(periodStats.profit)}원
               </Text>
             </View>
           </View>
@@ -502,7 +569,7 @@ export default function RevenueReportsScreen() {
                 <View style={styles.categoryInfo}>
                   <Text style={styles.categoryName}>{item.category}</Text>
                   <Text style={styles.categoryRevenue}>
-                    {new Intl.NumberFormat("ko-KR").format(item.revenue)}원
+                    {formatNumber(item.revenue)}원
                   </Text>
                 </View>
                 <View style={styles.categoryBar}>
@@ -561,7 +628,7 @@ export default function RevenueReportsScreen() {
                   <View style={styles.clientStatItem}>
                     <Text style={styles.clientStatLabel}>수익</Text>
                     <Text style={styles.clientStatValue}>
-                      {new Intl.NumberFormat("ko-KR").format(client.revenue)}원
+                      {formatNumber(client.revenue)}원
                     </Text>
                   </View>
                   <View style={styles.clientStatItem}>
@@ -573,7 +640,7 @@ export default function RevenueReportsScreen() {
                   <View style={styles.clientStatItem}>
                     <Text style={styles.clientStatLabel}>평균 수익</Text>
                     <Text style={styles.clientStatValue}>
-                      {new Intl.NumberFormat("ko-KR").format(
+                      {formatNumber(
                         Math.round(client.revenue / client.scheduleCount)
                       )}
                       원

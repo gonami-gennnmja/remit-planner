@@ -1,10 +1,9 @@
 // @ts-nocheck - web-specific properties cause type conflicts with React Native
-import { Theme } from "@/constants/Theme";
 import { initializeAuthDB, login } from "@/utils/authUtils";
 import { signInWithSocial, SocialProvider } from "@/utils/socialAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -21,13 +20,48 @@ import {
   View,
 } from "react-native";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+
+// 반응형 기준점
+const isTablet = width >= 768;
+const isDesktop = width >= 1024;
+const isSmallScreen = height < 700;
 
 export default function LoginScreen() {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigation = useRouter();
+
+  // 반응형 값 계산
+  const getResponsiveSize = (
+    mobile: number,
+    tablet?: number,
+    desktop?: number
+  ) => {
+    if (Platform.OS === "web") {
+      return undefined; // 웹은 CSS clamp 사용
+    }
+    if (isDesktop && desktop) return desktop;
+    if (isTablet && tablet) return tablet;
+    return mobile;
+  };
+
+  // 반응형 스타일
+  const responsiveStyles = useMemo(
+    () => ({
+      headerPaddingTop: getResponsiveSize(isSmallScreen ? 40 : 60, 60, 80),
+      headerPaddingBottom: getResponsiveSize(isSmallScreen ? 20 : 40, 40, 60),
+      logoSize: getResponsiveSize(isSmallScreen ? 48 : 56, 64, 72),
+      logoIconSize: getResponsiveSize(isSmallScreen ? 24 : 28, 32, 36),
+      titleSize: getResponsiveSize(isSmallScreen ? 24 : 32, 32, 36),
+      subtitleSize: getResponsiveSize(isSmallScreen ? 14 : 15, 15, 16),
+      formMarginBottom: getResponsiveSize(isSmallScreen ? 20 : 40, 40, 60),
+      containerPadding: getResponsiveSize(isSmallScreen ? 16 : 20, 20, 24),
+      socialButtonSize: getResponsiveSize(isSmallScreen ? 48 : 56, 60, 64),
+    }),
+    [isSmallScreen, isTablet, isDesktop]
+  );
 
   useEffect(() => {
     // Auth DB 초기화
@@ -117,31 +151,66 @@ export default function LoginScreen() {
   const renderContent = () => (
     <>
       {/* 로고 및 타이틀 */}
-      <View style={styles.header}>
-        <View style={styles.logoContainer}>
+      <View
+        style={[
+          styles.header,
+          {
+            marginTop: responsiveStyles.headerPaddingTop,
+            marginBottom: responsiveStyles.headerPaddingBottom,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.logoContainer,
+            {
+              width: responsiveStyles.logoSize,
+              height: responsiveStyles.logoSize,
+            },
+          ]}
+        >
           <Image
             source={require("@/assets/images/favicon.png")}
-            style={styles.logoImage}
+            style={[
+              styles.logoImage,
+              {
+                width: responsiveStyles.logoIconSize,
+                height: responsiveStyles.logoIconSize,
+              },
+            ]}
             resizeMode="contain"
           />
         </View>
-        <Text style={styles.title}>반반</Text>
-        <Text style={styles.subtitle}>Half&Half - 일도 반반, 여유도 반반</Text>
+        <Text style={[styles.title, { fontSize: responsiveStyles.titleSize }]}>
+          반반
+        </Text>
+        <Text
+          style={[styles.subtitle, { fontSize: responsiveStyles.subtitleSize }]}
+        >
+          Half&Half - 일도 반반, 여유도 반반
+        </Text>
       </View>
 
       {/* 로그인 폼 */}
-      <View style={styles.formContainer}>
+      <View
+        style={[
+          styles.formContainer,
+          {
+            marginBottom: responsiveStyles.formMarginBottom,
+          },
+        ]}
+      >
         <View style={styles.inputContainer}>
           <Ionicons
             name="person"
             size={20}
-            color="#6b7280"
+            color="#86868b"
             style={styles.inputIcon}
           />
           <TextInput
             style={styles.input}
             placeholder="이메일 또는 아이디"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#86868b"
             value={userId}
             onChangeText={setUserId}
             autoCapitalize="none"
@@ -170,13 +239,13 @@ export default function LoginScreen() {
           <Ionicons
             name="lock-closed"
             size={20}
-            color="#6b7280"
+            color="#86868b"
             style={styles.inputIcon}
           />
           <TextInput
             style={styles.input}
             placeholder="비밀번호"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#86868b"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -218,19 +287,41 @@ export default function LoginScreen() {
           <Text style={styles.socialLoginTitle}>소셜 로그인</Text>
           <View style={styles.socialButtonRow}>
             <Pressable
-              style={[styles.socialIconButton, styles.kakaoButton]}
+              style={[
+                styles.socialIconButton,
+                styles.kakaoButton,
+                {
+                  width: responsiveStyles.socialButtonSize,
+                  height: responsiveStyles.socialButtonSize,
+                },
+              ]}
               onPress={() => handleSocialLogin("kakao")}
               disabled={isLoading}
             >
-              <Ionicons name="chatbubble" size={28} color="#000000" />
+              <Ionicons
+                name="chatbubble"
+                size={responsiveStyles.socialButtonSize / 2.3}
+                color="#1d1d1f"
+              />
             </Pressable>
 
             <Pressable
-              style={[styles.socialIconButton, styles.googleButton]}
+              style={[
+                styles.socialIconButton,
+                styles.googleButton,
+                {
+                  width: responsiveStyles.socialButtonSize,
+                  height: responsiveStyles.socialButtonSize,
+                },
+              ]}
               onPress={() => handleSocialLogin("google")}
               disabled={isLoading}
             >
-              <Ionicons name="logo-google" size={28} color="#4285F4" />
+              <Ionicons
+                name="logo-google"
+                size={responsiveStyles.socialButtonSize / 2.3}
+                color="#1d1d1f"
+              />
             </Pressable>
 
             {/* Apple Login - 추후 구현 ($99/년 필요) */}
@@ -279,7 +370,10 @@ export default function LoginScreen() {
       ) : (
         <TouchableWithoutFeedback onPress={dismissKeyboard}>
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingHorizontal: responsiveStyles.containerPadding },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
@@ -294,7 +388,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: "#f5f5f7", // Apple Compact soft gray background
     // 웹 반응형 최적화
     ...(Platform.OS === "web" && {
       minHeight: "100vh",
@@ -305,8 +399,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Theme.spacing.xxl,
     justifyContent: "center",
+    // 기본 패딩은 인라인 스타일로 오버라이드됨
     // 웹 반응형 최적화 - 화면 크기별로 다르게
     ...(Platform.OS === "web" && {
       // 모바일: 100% 너비, 태블릿: 80% 너비, 데스크톱: 60% 너비
@@ -318,9 +412,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginTop: 100,
-    marginBottom: 60,
-    // 웹 반응형 최적화 - 화면 크기별로 다르게
+    // 기본값은 인라인 스타일로 오버라이드됨
     ...(Platform.OS === "web" && {
       // 모바일: 작은 여백, 태블릿: 중간 여백, 데스크톱: 큰 여백
       marginTop: "clamp(20px, 5vh, 80px)",
@@ -328,56 +420,55 @@ const styles = StyleSheet.create({
     }),
   },
   logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: Theme.borderRadius.full,
-    backgroundColor: Theme.colors.surface,
+    borderRadius: 12, // Apple Compact emoji box radius
+    backgroundColor: "#ffffff", // Apple Compact surface color
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Theme.spacing.xl,
-    ...Theme.shadows.sm,
-    // 웹 반응형 최적화 - 화면 크기별로 다르게
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
+    elevation: 2,
+    // 기본 크기는 인라인 스타일로 오버라이드됨
     ...(Platform.OS === "web" && {
-      // 모바일: 60px, 태블릿: 80px, 데스크톱: 100px
-      width: "clamp(60px, 6vw, 100px)",
-      height: "clamp(60px, 6vw, 100px)",
+      // 모바일: 56px, 태블릿: 64px, 데스크톱: 72px
+      width: "clamp(56px, 6vw, 72px)",
+      height: "clamp(56px, 6vw, 72px)",
     }),
   },
   logoImage: {
-    width: 60,
-    height: 60,
-    // 웹 반응형 최적화 - 화면 크기별로 다르게
+    // 기본 크기는 인라인 스타일로 오버라이드됨
     ...(Platform.OS === "web" && {
-      // 모바일: 45px, 태블릿: 60px, 데스크톱: 75px
-      width: "clamp(45px, 4.5vw, 75px)",
-      height: "clamp(45px, 4.5vw, 75px)",
+      // 모바일: 24px, 태블릿: 28px, 데스크톱: 32px
+      width: "clamp(24px, 3vw, 32px)",
+      height: "clamp(24px, 3vw, 32px)",
     }),
   },
   title: {
-    fontSize: Theme.typography.sizes.xxxl,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.primary,
-    marginBottom: Theme.spacing.sm,
-    // 웹 반응형 최적화 - 화면 크기별로 다르게
+    fontWeight: "700", // Bold
+    color: "#1d1d1f", // Apple Compact primary text
+    marginBottom: 8,
+    // 기본 크기는 인라인 스타일로 오버라이드됨
     ...(Platform.OS === "web" && {
       // 모바일: 24px, 태블릿: 28px, 데스크톱: 32px
       fontSize: "clamp(24px, 3vw, 32px)",
     }),
   },
   subtitle: {
-    fontSize: Theme.typography.sizes.md,
-    color: Theme.colors.text.secondary,
+    color: "#86868b", // Apple Compact secondary text
     textAlign: "center",
-    lineHeight: 24,
-    // 웹 반응형 최적화 - 화면 크기별로 다르게
+    lineHeight: 22,
+    // 기본 크기는 인라인 스타일로 오버라이드됨
     ...(Platform.OS === "web" && {
-      // 모바일: 14px, 태블릿: 16px, 데스크톱: 18px
-      fontSize: "clamp(14px, 2vw, 18px)",
-      lineHeight: "clamp(20px, 2.5vw, 24px)",
+      // 모바일: 14px, 태블릿: 15px, 데스크톱: 16px
+      fontSize: "clamp(14px, 1.8vw, 16px)",
+      lineHeight: "clamp(20px, 2.2vw, 22px)",
     }),
   },
   formContainer: {
-    marginBottom: 60,
+    gap: 10, // Apple Compact card gap
+    // 기본 마진은 인라인 스타일로 오버라이드됨
     // 웹 반응형 최적화 - 화면 크기별로 다르게
     ...(Platform.OS === "web" && {
       marginBottom: "clamp(40px, 8vh, 80px)",
@@ -390,13 +481,15 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    marginBottom: Theme.spacing.lg,
-    paddingHorizontal: Theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: Theme.colors.border.light,
-    ...Theme.shadows.sm,
+    backgroundColor: "#ffffff", // Apple Compact surface color
+    borderRadius: 14, // Apple Compact card border radius
+    marginBottom: 10, // Apple Compact card gap
+    padding: 16, // Apple Compact card padding
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
+    elevation: 2,
     // 웹 반응형 최적화 - 화면 크기별로 다르게
     ...(Platform.OS === "web" && {
       // @ts-ignore - web-specific properties
@@ -404,17 +497,15 @@ const styles = StyleSheet.create({
       userSelect: "none",
       // 모바일: 48px, 태블릿: 56px, 데스크톱: 64px
       minHeight: "clamp(48px, 6vh, 64px)",
-      paddingHorizontal: "clamp(12px, 3vw, 20px)",
     }),
   },
   inputIcon: {
-    marginRight: Theme.spacing.md,
+    marginRight: 12,
   },
   input: {
     flex: 1,
-    paddingVertical: Theme.spacing.lg,
-    fontSize: Theme.typography.sizes.md,
-    color: Theme.colors.text.primary,
+    fontSize: 16, // Apple Compact input text size
+    color: "#1d1d1f", // Apple Compact primary text
     // 웹 최적화
     ...(Platform.OS === "web" && {
       outline: "none",
@@ -422,16 +513,19 @@ const styles = StyleSheet.create({
       backgroundColor: "transparent",
       minHeight: 20,
       fontSize: "clamp(14px, 2vw, 16px)",
-      paddingVertical: "clamp(8px, 1.5vh, 12px)",
     }),
   },
   loginButton: {
-    backgroundColor: Theme.colors.primary,
-    paddingVertical: Theme.spacing.lg,
-    borderRadius: Theme.borderRadius.lg,
+    backgroundColor: "#1d1d1f", // Apple Compact primary text color for button
+    padding: 16, // Apple Compact button padding
+    borderRadius: 14, // Apple Compact card border radius
     alignItems: "center",
-    marginBottom: Theme.spacing.xxl,
-    ...Theme.shadows.sm,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
+    elevation: 2,
     // 웹 반응형 최적화 - 화면 크기별로 다르게
     ...(Platform.OS === "web" && {
       // 모바일: 44px, 태블릿: 52px, 데스크톱: 60px
@@ -440,12 +534,12 @@ const styles = StyleSheet.create({
     }),
   },
   loginButtonDisabled: {
-    backgroundColor: Theme.colors.text.tertiary,
+    backgroundColor: "#86868b", // Apple Compact secondary text for disabled
   },
   loginButtonText: {
-    color: Theme.colors.text.inverse,
-    fontSize: Theme.typography.sizes.md,
-    fontWeight: Theme.typography.weights.semibold,
+    color: "#ffffff", // White text on dark button
+    fontSize: 16, // Apple Compact button text
+    fontWeight: "600", // Semibold
     // 웹 반응형 최적화
     ...(Platform.OS === "web" && {
       fontSize: "clamp(14px, 2vw, 16px)",
@@ -454,75 +548,78 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Theme.spacing.xxl,
+    marginBottom: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Theme.colors.border.light,
+    backgroundColor: "rgba(0, 0, 0, 0.08)", // Subtle divider line
   },
   dividerText: {
-    marginHorizontal: Theme.spacing.lg,
-    color: Theme.colors.text.secondary,
-    fontSize: Theme.typography.sizes.sm,
+    marginHorizontal: 12,
+    color: "#86868b", // Apple Compact secondary text
+    fontSize: 14,
   },
   socialContainer: {
     alignItems: "center",
-    gap: Theme.spacing.lg,
+    gap: 16,
   },
   socialLoginTitle: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
-    fontWeight: Theme.typography.weights.medium,
-    marginBottom: Theme.spacing.xs,
+    fontSize: 14,
+    color: "#86868b", // Apple Compact secondary text
+    fontWeight: "500",
+    marginBottom: 8,
   },
   socialButtonRow: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: Theme.spacing.lg,
+    gap: 12,
   },
   socialIconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: Theme.borderRadius.full,
+    width: 56, // Apple Compact emoji box size
+    height: 56,
+    borderRadius: 14, // Apple Compact card border radius
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    ...Theme.shadows.sm,
+    backgroundColor: "#ffffff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
+    elevation: 2,
     // 웹 반응형 최적화 - 화면 크기별로 다르게
     ...(Platform.OS === "web" && {
-      // 모바일: 48px, 태블릿: 56px, 데스크톱: 64px
-      width: "clamp(48px, 6vw, 64px)",
-      height: "clamp(48px, 6vw, 64px)",
+      // 모바일: 56px, 태블릿: 60px, 데스크톱: 64px
+      width: "clamp(56px, 6vw, 64px)",
+      height: "clamp(56px, 6vw, 64px)",
     }),
   },
   kakaoButton: {
-    backgroundColor: "#FEE500",
-    borderColor: "#FEE500",
+    backgroundColor: "#ffffff",
   },
   googleButton: {
-    backgroundColor: Theme.colors.card,
-    borderColor: Theme.colors.border.light,
+    backgroundColor: "#ffffff",
   },
   appleButton: {
-    backgroundColor: "#000000",
-    borderColor: "#000000",
+    backgroundColor: "#1d1d1f",
   },
   footer: {
     alignItems: "center",
-    gap: Theme.spacing.lg,
+    gap: 16,
+    marginBottom: 40,
   },
   footerText: {
-    color: Theme.colors.text.secondary,
-    fontSize: Theme.typography.sizes.sm,
+    color: "#86868b", // Apple Compact secondary text
+    fontSize: 14,
   },
   footerLink: {
-    color: Theme.colors.primary,
-    fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.medium,
+    color: "#1d1d1f", // Apple Compact primary text
+    fontSize: 14,
+    fontWeight: "600", // Semibold
   },
   signupContainer: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 4,
   },
 });

@@ -12,6 +12,7 @@ import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,

@@ -1,5 +1,4 @@
 import WorkersScreen from "@/components/WorkersScreen";
-import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
 import {
@@ -182,7 +181,7 @@ export default function WorkersScreenPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: "#f5f5f7", // Apple Compact soft gray background
   },
   loadingContainer: {
     flex: 1,
@@ -191,6 +190,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: Theme.colors.text.secondary,
+    color: "#86868b", // Apple Compact secondary text
   },
 });

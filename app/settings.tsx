@@ -689,14 +689,14 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     backgroundColor: "white",
-    borderRadius: 12,
+    borderRadius: 14, // Apple Compact card border radius
     padding: 20,
     flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
     elevation: 2,
   },
   profileIcon: {
@@ -724,12 +724,12 @@ const styles = StyleSheet.create({
   },
   formCard: {
     backgroundColor: "white",
-    borderRadius: 12,
+    borderRadius: 14, // Apple Compact card border radius
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
     elevation: 2,
   },
   inputGroup: {
@@ -859,8 +859,8 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
     elevation: 2,
   },
   logoutButton: {

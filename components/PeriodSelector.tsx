@@ -190,11 +190,7 @@ export default function PeriodSelector({
       {/* 선택된 기간 정보 */}
       <View style={styles.periodInfo}>
         <View style={styles.periodInfoRow}>
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={Theme.colors.text.secondary}
-          />
+          <Ionicons name="calendar-outline" size={16} color="#86868b" />
           <Text style={styles.periodInfoText}>
             {periodStats.label}: {dayjs(periodStats.start).format("YYYY.MM.DD")}{" "}
             - {dayjs(periodStats.end).format("YYYY.MM.DD")}
@@ -457,48 +453,58 @@ export default function PeriodSelector({
 
 const styles = StyleSheet.create({
   container: {
-    margin: Theme.spacing.lg,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   periodSelector: {
     flexDirection: "row",
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.lg,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     padding: 4,
-    marginBottom: Theme.spacing.md,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   periodButton: {
     flex: 1,
-    paddingVertical: Theme.spacing.sm,
+    paddingVertical: 8,
     alignItems: "center",
-    borderRadius: Theme.borderRadius.md,
+    borderRadius: 10,
   },
   periodButtonActive: {
-    backgroundColor: Theme.colors.primary,
+    backgroundColor: "#1d1d1f",
   },
   periodButtonText: {
-    fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.medium,
-    color: Theme.colors.text.secondary,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#86868b",
   },
   periodButtonTextActive: {
     color: "white",
   },
   periodInfo: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.md,
-    padding: Theme.spacing.md,
-    borderWidth: 1,
-    borderColor: Theme.colors.border.light,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   periodInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.sm,
+    gap: 8,
   },
   periodInfoText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.primary,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 14,
+    color: "#1d1d1f",
+    fontWeight: "500",
   },
   customDateContainer: {
     marginTop: Theme.spacing.md,

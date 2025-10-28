@@ -140,7 +140,7 @@ function NavigationWrapper() {
         <Stack.Screen name="clients/index" options={{ headerShown: false }} />
         <Stack.Screen name="clients/[id]" options={{ headerShown: false }} />
         <Stack.Screen
-          name="clients/uncollected"
+          name="clients/revenue-management"
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -160,6 +160,15 @@ function NavigationWrapper() {
           name="reports/performance"
           options={{ headerShown: false }}
         />
+        <Stack.Screen
+          name="reports/cashflow"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="reports/worker-efficiency"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="reports/clients" options={{ headerShown: false }} />
 
         {/* 기타 */}
         <Stack.Screen name="files" options={{ headerShown: false }} />

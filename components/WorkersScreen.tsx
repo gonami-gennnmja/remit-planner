@@ -2451,10 +2451,10 @@ export default function WorkersScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: "#f5f5f7", // Apple Compact soft gray background
   },
   searchContainer: {
-    padding: Theme.spacing.xl,
+    padding: 20, // Apple Compact container padding
   },
   workerCountText: {
     fontSize: 16,
@@ -2465,8 +2465,8 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
+    backgroundColor: "#ffffff", // Apple Compact white surface
+    borderRadius: 14, // Apple Compact card border radius
     paddingHorizontal: Theme.spacing.lg,
     paddingVertical: Theme.spacing.md,
     ...Theme.shadows.sm,
@@ -2488,8 +2488,8 @@ const styles = StyleSheet.create({
     }),
   },
   workerCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
+    backgroundColor: "#ffffff", // Apple Compact white surface
+    borderRadius: 14, // Apple Compact card border radius
     padding: Theme.spacing.lg,
     marginBottom: Theme.spacing.md,
     flexDirection: "column", // 세로 방향으로 변경
@@ -3114,8 +3114,8 @@ const styles = StyleSheet.create({
   },
   workerCard: {
     width: Platform.OS === "web" ? "48%" : "100%",
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
+    backgroundColor: "#ffffff", // Apple Compact white surface
+    borderRadius: 14, // Apple Compact card border radius
     padding: Theme.spacing.lg,
     marginBottom: Theme.spacing.md,
     borderWidth: 1,

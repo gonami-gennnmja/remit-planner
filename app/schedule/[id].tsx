@@ -1474,8 +1474,8 @@ export default function ScheduleDetailScreen() {
                 margin: 16,
                 marginBottom: 8,
                 shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.04, // Apple Compact very subtle shadow
                 shadowRadius: 4,
                 elevation: 3,
                 borderWidth: editData.clientId === "" ? 2 : 0,
@@ -1545,8 +1545,8 @@ export default function ScheduleDetailScreen() {
                     marginHorizontal: 16,
                     marginBottom: 8,
                     shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.1,
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.04, // Apple Compact very subtle shadow
                     shadowRadius: 4,
                     elevation: 3,
                     borderWidth: editData.clientId === client.id ? 2 : 0,
@@ -1811,8 +1811,8 @@ export default function ScheduleDetailScreen() {
               maxHeight: "90%",
               shadowColor: "#000",
               shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 12,
+              shadowOpacity: 0.04, // Apple Compact very subtle shadow
+              shadowRadius: 4,
               elevation: 16,
             }}
           >

@@ -105,6 +105,27 @@ const borderRadius = {
 };
 ```
 
+### 카드 그림자 (Shadow)
+
+**Apple Compact의 그림자는 매우 연하게 설정됩니다:**
+
+```typescript
+const cardShadow = {
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.04, // 매우 연한 그림자
+  shadowRadius: 4,
+  elevation: 2, // Android
+};
+```
+
+**특징:**
+
+- `shadowOpacity: 0.04` - 거의 보이지 않을 정도의 연한 그림자
+- `shadowOffset: { width: 0, height: 1 }` - 아래로 1px 그림자
+- `shadowRadius: 4` - 부드러운 그림자
+- 모든 카드는 동일한 그림자 스타일 사용
+
 ---
 
 ## 📐 컴포넌트 가이드
@@ -538,18 +559,28 @@ backgroundColor: "#f5f5f7";
 
 ### 카드 기본 스타일
 
+모든 카드는 다음 스타일을 사용합니다:
+
 ```typescript
-{
-  backgroundColor: "#fff",
-  padding: 16,
-  borderRadius: 14,
+const cardStyle = {
+  backgroundColor: "#fff", // 순백
+  padding: 16, // Apple Compact card padding
+  borderRadius: 14, // Apple Compact card border radius
+  marginBottom: 10, // Apple Compact card gap
+  // 그림자 (모든 카드에 동일하게 적용)
   shadowColor: "#000",
   shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.04,
+  shadowOpacity: 0.04, // 매우 연한 그림자
   shadowRadius: 4,
-  elevation: 2,
-}
+  elevation: 2, // Android
+};
 ```
+
+**중요:** 모든 화면의 모든 카드는 이 그림자 스타일을 유지해야 합니다.
+
+- `shadowOpacity`는 항상 `0.04`로 유지
+- `shadowRadius`는 항상 `4`로 유지
+- `shadowOffset`은 항상 `{ width: 0, height: 1 }`로 유지
 
 ### 텍스트 순서
 
@@ -565,8 +596,13 @@ backgroundColor: "#f5f5f7";
 
 - [ ] 배경색이 `#fff`인가?
 - [ ] 라운드가 `14px`인가?
-- [ ] 그림자가 매우 얕은가? (opacity 0.04)
+- [ ] 그림자 스타일이 통일되었는가?
+  - [ ] `shadowOpacity: 0.04`인가?
+  - [ ] `shadowRadius: 4`인가?
+  - [ ] `shadowOffset: { width: 0, height: 1 }`인가?
+  - [ ] `elevation: 2`인가?
 - [ ] 패딩이 `16px`인가?
+- [ ] 카드 간격이 `10px`인가?
 - [ ] 텍스트 크기가 가이드에 맞는가?
 - [ ] 이모지가 적절히 사용되었는가?
 - [ ] 색상이 컬러 시스템에 맞는가?

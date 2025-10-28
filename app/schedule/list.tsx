@@ -508,7 +508,7 @@ export default function ScheduleListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: "#f5f5f7", // Apple Compact soft gray background
   },
   loadingContainer: {
     flex: 1,
@@ -522,20 +522,23 @@ const styles = StyleSheet.create({
     color: Theme.colors.text.secondary,
   },
   searchContainer: {
-    backgroundColor: Theme.colors.card,
-    paddingHorizontal: Theme.spacing.lg,
-    paddingVertical: Theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border.light,
+    backgroundColor: "transparent", // Apple Compact 투명 배경
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   searchInputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.lg,
-    paddingHorizontal: Theme.spacing.md,
+    backgroundColor: "#ffffff", // Apple Compact white surface
+    borderRadius: 14, // Apple Compact card border radius
+    paddingHorizontal: 16,
     height: 44,
-    marginBottom: Theme.spacing.md,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   searchIcon: {
     marginRight: Theme.spacing.sm,
@@ -548,39 +551,40 @@ const styles = StyleSheet.create({
   },
   filterContainer: {
     flexDirection: "row",
-    gap: Theme.spacing.xs,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.xs,
-    borderWidth: 1,
-    borderColor: Theme.colors.border.medium,
+    gap: 8,
+    backgroundColor: "#ffffff", // Apple Compact white surface
+    borderRadius: 14,
+    padding: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterButton: {
-    paddingHorizontal: Theme.spacing.md,
-    paddingVertical: Theme.spacing.sm,
-    borderRadius: Theme.borderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     backgroundColor: "transparent",
-    borderWidth: 0,
     justifyContent: "center",
     alignItems: "center",
   },
   filterButtonActive: {
-    backgroundColor: Theme.colors.primary,
-    borderColor: Theme.colors.primary,
+    backgroundColor: "#1d1d1f", // Apple Compact primary text color
   },
   filterButtonText: {
-    fontSize: Theme.typography.sizes.sm,
-    fontWeight: Theme.typography.weights.medium,
-    color: Theme.colors.text.secondary,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#86868b", // Apple Compact secondary text
   },
   filterButtonTextActive: {
-    color: Theme.colors.text.inverse,
+    color: "#ffffff", // White text on dark button
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: Theme.spacing.lg,
+    padding: 20, // Apple Compact container padding
   },
   contentContainerWeb: {
     maxWidth: 1200,
@@ -604,13 +608,15 @@ const styles = StyleSheet.create({
     color: Theme.colors.text.tertiary,
   },
   scheduleCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.borderRadius.lg,
-    padding: Theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: Theme.colors.border.light,
-    ...Theme.shadows.sm,
-    marginBottom: Theme.spacing.md,
+    backgroundColor: "#ffffff", // Apple Compact white surface
+    borderRadius: 14, // Apple Compact card border radius
+    padding: 16, // Apple Compact card padding
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, // Apple Compact very subtle shadow
+    shadowRadius: 4,
+    elevation: 2,
+    marginBottom: 10, // Apple Compact card gap
     ...(Platform.OS === "web"
       ? {
           flex: 1,
@@ -623,144 +629,143 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: Theme.spacing.md,
+    marginBottom: 12,
   },
   titleRow: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.sm,
-    marginRight: Theme.spacing.md,
+    gap: 8,
+    marginRight: 12,
   },
   scheduleTitle: {
-    fontSize: Theme.typography.sizes.lg,
-    fontWeight: Theme.typography.weights.bold,
-    color: Theme.colors.text.primary,
+    fontSize: 18, // Apple Compact schedule title
+    fontWeight: "600", // Semibold
+    color: "#1d1d1f", // Apple Compact primary text
     flex: 1,
   },
   categoryBadge: {
-    paddingHorizontal: Theme.spacing.sm,
-    paddingVertical: Theme.spacing.xs,
-    borderRadius: Theme.borderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   categoryText: {
-    fontSize: Theme.typography.sizes.xs,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 12,
+    fontWeight: "500",
     color: "#ffffff",
   },
   deleteButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Theme.colors.surface,
+    backgroundColor: "#fef2f2", // Light red background
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
-    elevation: 5,
     cursor: "pointer",
     position: "relative",
   },
   dateRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.sm,
-    marginBottom: Theme.spacing.sm,
+    gap: 8,
+    marginBottom: 8,
   },
   dateText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.primary,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 14,
+    color: "#1d1d1f", // Apple Compact primary text
+    fontWeight: "500",
     flex: 1,
   },
   pastBadge: {
-    backgroundColor: Theme.colors.surface,
-    paddingHorizontal: Theme.spacing.sm,
+    backgroundColor: "#f5f5f7",
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: Theme.borderRadius.sm,
+    borderRadius: 6,
   },
   pastBadgeText: {
-    fontSize: Theme.typography.sizes.xs,
-    color: Theme.colors.text.tertiary,
+    fontSize: 12,
+    color: "#86868b", // Apple Compact secondary text
   },
   description: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
+    fontSize: 14,
+    color: "#86868b", // Apple Compact secondary text
     lineHeight: 20,
-    marginBottom: Theme.spacing.sm,
+    marginBottom: 8,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.sm,
-    marginBottom: Theme.spacing.md,
+    gap: 8,
+    marginBottom: 12,
   },
   locationText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
+    fontSize: 14,
+    color: "#86868b", // Apple Compact secondary text
     flex: 1,
   },
   attachmentRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.sm,
-    marginBottom: Theme.spacing.sm,
+    gap: 8,
+    marginBottom: 8,
   },
   attachmentText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.primary,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 14,
+    color: "#1d1d1f", // Apple Compact primary text
+    fontWeight: "500",
   },
   timeSettingsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.sm,
-    marginBottom: Theme.spacing.sm,
+    gap: 8,
+    marginBottom: 8,
   },
   timeSettingsText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
+    fontSize: 14,
+    color: "#86868b", // Apple Compact secondary text
     fontStyle: "italic",
   },
   workerInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Theme.spacing.md,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Theme.colors.border.light,
+    borderTopColor: "rgba(0, 0, 0, 0.08)", // Subtle divider
   },
   workerCountRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.xs,
+    gap: 4,
   },
   workerCountText: {
-    fontSize: Theme.typography.sizes.sm,
-    color: Theme.colors.text.secondary,
+    fontSize: 14,
+    color: "#86868b", // Apple Compact secondary text
   },
   paidStatus: {
     flexDirection: "row",
-    gap: Theme.spacing.sm,
+    gap: 8,
   },
   paidIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.xs,
+    gap: 4,
   },
   paidText: {
-    fontSize: Theme.typography.sizes.xs,
-    color: Theme.colors.success,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 12,
+    color: "#10b981", // Success color
+    fontWeight: "500",
   },
   unpaidIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Theme.spacing.xs,
+    gap: 4,
   },
   unpaidText: {
-    fontSize: Theme.typography.sizes.xs,
-    color: Theme.colors.warning,
-    fontWeight: Theme.typography.weights.medium,
+    fontSize: 12,
+    color: "#f59e0b", // Warning color
+    fontWeight: "500",
   },
   // 필터 컨테이너
   filterContainerWrapper: {
