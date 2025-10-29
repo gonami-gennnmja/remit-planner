@@ -1,7 +1,7 @@
 // @ts-nocheck
 import CommonHeader from "@/components/CommonHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import ScheduleAddModal from "@/components/ScheduleAddModal";
+import MultiStepScheduleModal from "@/components/MultiStepScheduleModal";
 import { Theme } from "@/constants/Theme";
 import { getDatabase } from "@/database/platformDatabase";
 import { Schedule } from "@/models/types";
@@ -495,11 +495,12 @@ export default function ScheduleListScreen() {
         )}
       </ScrollView>
 
-      {/* 스케줄 추가 모달 */}
-      <ScheduleAddModal
+      {/* 스케줄 추가 모달 (멀티 스텝) */}
+      <MultiStepScheduleModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSave={handleSaveSchedule}
+        modalType={"bottomSheet"}
       />
     </View>
   );

@@ -212,10 +212,10 @@ function getSchedulePosition(
 ): { top: number; height: number } {
   const times = (schedule.workers || []).flatMap((w) =>
     (w.periods || [])
-      .filter((p: any) => p && p.start && p.end)
+      .filter((p: any) => p && p.startTime && p.endTime)
       .map((p) => ({
-        start: dayjs(p.start),
-        end: dayjs(p.end),
+        start: dayjs(`${p.workDate} ${p.startTime}`),
+        end: dayjs(`${p.workDate} ${p.endTime}`),
       }))
   );
 
@@ -548,19 +548,23 @@ export default function PlannerCalendar({
       })
       .slice()
       .sort((a, b) => {
-        const aStart = a.workers
+        const aStart = (a.workers || [])
           .flatMap((w) =>
             (w.periods || [])
-              .filter((p: any) => p && p.start)
-              .map((p: any) => (p && p.start ? dayjs(p.start) : null))
+              .filter((p: any) => p && p.startTime)
+              .map((p: any) =>
+                p && p.startTime ? dayjs(`${p.workDate} ${p.startTime}`) : null
+              )
               .filter((d: any) => d !== null)
           )
           .sort((x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0))[0];
-        const bStart = b.workers
+        const bStart = (b.workers || [])
           .flatMap((w) =>
             (w.periods || [])
-              .filter((p: any) => p && p.start)
-              .map((p: any) => (p && p.start ? dayjs(p.start) : null))
+              .filter((p: any) => p && p.startTime)
+              .map((p: any) =>
+                p && p.startTime ? dayjs(`${p.workDate} ${p.startTime}`) : null
+              )
               .filter((d: any) => d !== null)
           )
           .sort((x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0))[0];
@@ -625,7 +629,7 @@ export default function PlannerCalendar({
     const taxWithheld =
       workerDataForId.taxWithheld !== undefined
         ? workerDataForId.taxWithheld
-        : workerInfo.worker.taxWithheld;
+        : false;
 
     const grossPay = hourlyWage * hours;
 
@@ -688,7 +692,13 @@ export default function PlannerCalendar({
       const db = getDatabase();
 
       // 1. DB에서 스케줄-근로자 관계 삭제
-      await db.removeWorkerFromSchedule(scheduleId, workerId);
+      const scheduleWorkers = await db.getScheduleWorkers(scheduleId);
+      const scheduleWorker = scheduleWorkers.find(
+        (sw) => sw.workerId === workerId
+      );
+      if (scheduleWorker) {
+        await db.deleteScheduleWorker(scheduleWorker.id);
+      }
       console.log("Worker removed from schedule in DB successfully");
 
       // 2. 로컬 상태 업데이트
@@ -745,21 +755,14 @@ export default function PlannerCalendar({
       const db = getDatabase();
       const workerData = {
         id: newWorkerId,
+        userId: "", // Add missing userId
         name: worker.name,
         phone: worker.phone,
         bankAccount: worker.bankAccount,
         hourlyWage: worker.hourlyWage,
-        taxWithheld: worker.taxWithheld,
+        fuelAllowance: worker.fuelAllowance || 0, // Add missing fuelAllowance
+        otherAllowance: worker.otherAllowance || 0, // Add missing otherAllowance
         memo: worker.memo || "",
-        workStartDate: workStartDate,
-        workEndDate: workEndDate,
-        workHours: worker.workHours || 0,
-        workMinutes: worker.workMinutes || 0,
-        isFullPeriodWork: worker.fullPeriod,
-        isSameWorkHoursDaily: worker.isWorkHoursSameEveryDay,
-        dailyWorkTimes: worker.dailyWorkTimes || [],
-        defaultStartTime: worker.workTimes?.[0]?.startTime || "09:00",
-        defaultEndTime: worker.workTimes?.[0]?.endTime || "18:00",
       };
 
       console.log("Creating worker in DB:", workerData);
@@ -773,7 +776,37 @@ export default function PlannerCalendar({
         newWorkerId,
         periods
       );
-      await db.addWorkerToSchedule(scheduleId, newWorkerId, periods, false);
+      // Create schedule-worker relationship
+      const scheduleWorkerId = await db.createScheduleWorker({
+        id: "",
+        scheduleId,
+        workerId: newWorkerId,
+        workStartDate: periods[0]?.workDate || schedule.startDate,
+        workEndDate: periods[periods.length - 1]?.workDate || schedule.endDate,
+        uniformTime: false,
+        hourlyWage: worker.hourlyWage,
+        fuelAllowance: worker.fuelAllowance,
+        otherAllowance: worker.otherAllowance,
+        overtimeEnabled: false,
+        nightShiftEnabled: false,
+        taxWithheld: false,
+        wagePaid: false,
+        fuelPaid: false,
+        otherPaid: false,
+      });
+
+      // Create work periods
+      for (const period of periods) {
+        await db.createWorkPeriod({
+          id: "",
+          scheduleWorkerId,
+          workDate: period.workDate,
+          startTime: period.startTime,
+          endTime: period.endTime,
+          breakDuration: period.breakDuration || 0,
+          overtimeHours: period.overtimeHours || 0,
+        });
+      }
       console.log("Worker added to schedule in DB successfully");
 
       // 3. 로컬 상태 업데이트
@@ -784,7 +817,7 @@ export default function PlannerCalendar({
           phone: worker.phone,
           bankAccount: worker.bankAccount,
           hourlyWage: worker.hourlyWage,
-          taxWithheld: worker.taxWithheld,
+          taxWithheld: false,
           memo: worker.memo,
         },
         periods: periods,
@@ -977,7 +1010,8 @@ export default function PlannerCalendar({
     }
   };
 
-  const handleDatePress = (dateString: string) => {
+  const handleDatePress = (date: any) => {
+    const dateString = date.dateString;
     if (isRangeSelectionMode) {
       // 범위 선택 모드
       if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
@@ -1713,21 +1747,29 @@ export default function PlannerCalendar({
                 const dailySchedules = selectedDateSchedules;
 
                 const sortedSchedules = dailySchedules.slice().sort((a, b) => {
-                  const aStart = a.workers
+                  const aStart = (a.workers || [])
                     .flatMap((w) =>
                       (w.periods || [])
-                        .filter((p: any) => p && p.start)
-                        .map((p: any) => (p && p.start ? dayjs(p.start) : null))
+                        .filter((p: any) => p && p.startTime)
+                        .map((p: any) =>
+                          p && p.startTime
+                            ? dayjs(`${p.workDate} ${p.startTime}`)
+                            : null
+                        )
                         .filter((d: any) => d !== null)
                     )
                     .sort(
                       (x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0)
                     )[0];
-                  const bStart = b.workers
+                  const bStart = (b.workers || [])
                     .flatMap((w) =>
                       (w.periods || [])
-                        .filter((p: any) => p && p.start)
-                        .map((p: any) => (p && p.start ? dayjs(p.start) : null))
+                        .filter((p: any) => p && p.startTime)
+                        .map((p: any) =>
+                          p && p.startTime
+                            ? dayjs(`${p.workDate} ${p.startTime}`)
+                            : null
+                        )
                         .filter((d: any) => d !== null)
                     )
                     .sort(
@@ -1766,10 +1808,10 @@ export default function PlannerCalendar({
                     showsVerticalScrollIndicator={false}
                   >
                     {sortedSchedules.map((schedule) => {
-                      const scheduleStart = schedule.workers
+                      const scheduleStart = (schedule.workers || [])
                         .flatMap((w) =>
                           (w.periods || [])
-                            .filter((p: any) => p && p.start)
+                            .filter((p: any) => p && p.startTime)
                             .map((p: any) =>
                               p && p.start ? dayjs(p.start) : null
                             )
@@ -1778,7 +1820,7 @@ export default function PlannerCalendar({
                         .sort(
                           (x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0)
                         )[0];
-                      const scheduleEnd = schedule.workers
+                      const scheduleEnd = (schedule.workers || [])
                         .flatMap((w) =>
                           (w.periods || [])
                             .filter((p: any) => p && p.end)
@@ -2014,21 +2056,29 @@ export default function PlannerCalendar({
                 });
 
                 const sortedSchedules = dailySchedules.slice().sort((a, b) => {
-                  const aStart = a.workers
+                  const aStart = (a.workers || [])
                     .flatMap((w) =>
                       (w.periods || [])
-                        .filter((p: any) => p && p.start)
-                        .map((p: any) => (p && p.start ? dayjs(p.start) : null))
+                        .filter((p: any) => p && p.startTime)
+                        .map((p: any) =>
+                          p && p.startTime
+                            ? dayjs(`${p.workDate} ${p.startTime}`)
+                            : null
+                        )
                         .filter((d: any) => d !== null)
                     )
                     .sort(
                       (x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0)
                     )[0];
-                  const bStart = b.workers
+                  const bStart = (b.workers || [])
                     .flatMap((w) =>
                       (w.periods || [])
-                        .filter((p: any) => p && p.start)
-                        .map((p: any) => (p && p.start ? dayjs(p.start) : null))
+                        .filter((p: any) => p && p.startTime)
+                        .map((p: any) =>
+                          p && p.startTime
+                            ? dayjs(`${p.workDate} ${p.startTime}`)
+                            : null
+                        )
                         .filter((d: any) => d !== null)
                     )
                     .sort(
@@ -2067,10 +2117,10 @@ export default function PlannerCalendar({
                     showsVerticalScrollIndicator={false}
                   >
                     {sortedSchedules.map((schedule) => {
-                      const scheduleStart = schedule.workers
+                      const scheduleStart = (schedule.workers || [])
                         .flatMap((w) =>
                           (w.periods || [])
-                            .filter((p: any) => p && p.start)
+                            .filter((p: any) => p && p.startTime)
                             .map((p: any) =>
                               p && p.start ? dayjs(p.start) : null
                             )
@@ -2079,7 +2129,7 @@ export default function PlannerCalendar({
                         .sort(
                           (x, y) => (x?.valueOf() || 0) - (y?.valueOf() || 0)
                         )[0];
-                      const scheduleEnd = schedule.workers
+                      const scheduleEnd = (schedule.workers || [])
                         .flatMap((w) =>
                           (w.periods || [])
                             .filter((p: any) => p && p.end)
@@ -2357,11 +2407,14 @@ export default function PlannerCalendar({
                                   1;
 
                                 // 시작/종료 시간 표시
-                                const times = schedule.workers.flatMap((w) =>
-                                  w.periods.map((p) => ({
-                                    start: dayjs(p.start),
-                                    end: dayjs(p.end),
-                                  }))
+                                const times = (schedule.workers || []).flatMap(
+                                  (w) =>
+                                    (w.periods || []).map((p) => ({
+                                      start: dayjs(
+                                        `${p.workDate} ${p.startTime}`
+                                      ),
+                                      end: dayjs(`${p.workDate} ${p.endTime}`),
+                                    }))
                                 );
                                 const start = times.reduce(
                                   (
@@ -2977,51 +3030,60 @@ export default function PlannerCalendar({
                                     </View>
                                   </View>
 
-                                  {schedule.workers.map((workerInfo, index) => (
-                                    <WorkerCard
-                                      key={index}
-                                      worker={workerInfo.worker}
-                                      periods={workerInfo.periods}
-                                      paid={workerInfo.paid}
-                                      onTogglePaid={(paid) => {
-                                        const updatedSchedules = [...schedules];
-                                        const scheduleIndex =
-                                          updatedSchedules.findIndex(
-                                            (s) => s.id === schedule.id
+                                  {(schedule.workers || []).map(
+                                    (workerInfo, index) => (
+                                      <WorkerCard
+                                        key={index}
+                                        worker={workerInfo.worker}
+                                        periods={workerInfo.periods}
+                                        paid={workerInfo.paid}
+                                        onTogglePaid={(paid) => {
+                                          const updatedSchedules = [
+                                            ...schedules,
+                                          ];
+                                          const scheduleIndex =
+                                            updatedSchedules.findIndex(
+                                              (s) => s.id === schedule.id
+                                            );
+                                          if (scheduleIndex !== -1) {
+                                            if (
+                                              updatedSchedules[scheduleIndex]
+                                                .workers
+                                            ) {
+                                              updatedSchedules[
+                                                scheduleIndex
+                                              ].workers![index].paid = paid;
+                                            }
+                                            setSchedules(updatedSchedules);
+                                          }
+                                        }}
+                                        onCall={(phone) => {
+                                          const url = `tel:${phone}`;
+                                          Linking.openURL(url).catch(() => {
+                                            Alert.alert(
+                                              "오류",
+                                              "전화 앱을 열 수 없습니다."
+                                            );
+                                          });
+                                        }}
+                                        onSMS={(phone) => {
+                                          const url = `sms:${phone}`;
+                                          Linking.openURL(url).catch(() => {
+                                            Alert.alert(
+                                              "오류",
+                                              "메시지 앱을 열 수 없습니다."
+                                            );
+                                          });
+                                        }}
+                                        onDelete={async (workerId) => {
+                                          await removeWorkerFromSchedule(
+                                            schedule.id,
+                                            workerId
                                           );
-                                        if (scheduleIndex !== -1) {
-                                          updatedSchedules[
-                                            scheduleIndex
-                                          ].workers[index].paid = paid;
-                                          setSchedules(updatedSchedules);
-                                        }
-                                      }}
-                                      onCall={(phone) => {
-                                        const url = `tel:${phone}`;
-                                        Linking.openURL(url).catch(() => {
-                                          Alert.alert(
-                                            "오류",
-                                            "전화 앱을 열 수 없습니다."
-                                          );
-                                        });
-                                      }}
-                                      onSMS={(phone) => {
-                                        const url = `sms:${phone}`;
-                                        Linking.openURL(url).catch(() => {
-                                          Alert.alert(
-                                            "오류",
-                                            "메시지 앱을 열 수 없습니다."
-                                          );
-                                        });
-                                      }}
-                                      onDelete={async (workerId) => {
-                                        await removeWorkerFromSchedule(
-                                          schedule.id,
-                                          workerId
-                                        );
-                                      }}
-                                    />
-                                  ))}
+                                        }}
+                                      />
+                                    )
+                                  )}
                                 </View>
                               </View>
                             );
@@ -3167,425 +3229,37 @@ export default function PlannerCalendar({
                                     gap: 12,
                                   }}
                                 >
-                                  {schedule.workers.map((workerInfo, index) => (
-                                    <View
-                                      key={index}
-                                      style={{
-                                        backgroundColor: "#f5f5f7", // Apple Compact background
-                                        padding: 16,
-                                        borderRadius: 12,
-                                        width: "48%",
-                                        minHeight: 200,
-                                        borderWidth: 1,
-                                        borderColor: "#e5e7eb",
-                                      }}
-                                    >
-                                      {/* 근로자 이름 */}
-                                      <Text
+                                  {(schedule.workers || []).map(
+                                    (workerInfo, index) => (
+                                      <View
+                                        key={index}
                                         style={{
-                                          fontSize: getResponsiveValue(
-                                            18,
-                                            20,
-                                            22
-                                          ),
-                                          fontWeight: "600",
-                                          marginBottom: 12,
-                                          textAlign: "center",
+                                          backgroundColor: "#f5f5f7", // Apple Compact background
+                                          padding: 16,
+                                          borderRadius: 12,
+                                          width: "48%",
+                                          minHeight: 200,
+                                          borderWidth: 1,
+                                          borderColor: "#e5e7eb",
                                         }}
                                       >
-                                        {workerInfo.worker.name}
-                                      </Text>
-
-                                      {/* 전화번호 */}
-                                      <View style={{ marginBottom: 12 }}>
+                                        {/* 근로자 이름 */}
                                         <Text
                                           style={{
                                             fontSize: getResponsiveValue(
-                                              12,
-                                              13,
-                                              14
+                                              18,
+                                              20,
+                                              22
                                             ),
-                                            color: "#86868b", // Apple Compact secondary text
-                                            marginBottom: 4,
-                                          }}
-                                        >
-                                          전화번호
-                                        </Text>
-                                        <Pressable
-                                          onPress={() =>
-                                            makePhoneCall(
-                                              workerInfo.worker.phone
-                                            )
-                                          }
-                                        >
-                                          <Text
-                                            style={{
-                                              fontSize: getResponsiveValue(
-                                                14,
-                                                15,
-                                                16
-                                              ),
-                                              color: "#2563eb",
-                                              textDecorationLine: "underline",
-                                            }}
-                                          >
-                                            📞{" "}
-                                            {formatPhoneNumber(
-                                              workerInfo.worker.phone
-                                            )}
-                                          </Text>
-                                        </Pressable>
-                                      </View>
-
-                                      {/* 시급 및 근무시간 */}
-                                      <View style={{ marginBottom: 12 }}>
-                                        <Text
-                                          style={{
-                                            fontSize: getResponsiveValue(
-                                              12,
-                                              13,
-                                              14
-                                            ),
-                                            color: "#86868b", // Apple Compact secondary text
-                                            marginBottom: 4,
-                                          }}
-                                        >
-                                          시급
-                                        </Text>
-                                        <View
-                                          style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            gap: 8,
+                                            fontWeight: "600",
                                             marginBottom: 12,
+                                            textAlign: "center",
                                           }}
                                         >
-                                          <TextInput
-                                            style={{
-                                              borderWidth: 1,
-                                              borderColor: "#d1d5db",
-                                              borderRadius: 4,
-                                              padding: 6,
-                                              backgroundColor: "white",
-                                              fontSize: getResponsiveValue(
-                                                12,
-                                                13,
-                                                14
-                                              ),
-                                              width: 80,
-                                            }}
-                                            value={(
-                                              workerData[workerInfo.worker.id]
-                                                ?.hourlyWage ||
-                                              workerInfo.worker.hourlyWage
-                                            ).toLocaleString()}
-                                            onChangeText={(text: string) => {
-                                              const wage = parseInt(
-                                                text.replace(/,/g, "")
-                                              );
-                                              if (!isNaN(wage)) {
-                                                updateWorkerData(
-                                                  workerInfo.worker.id,
-                                                  {
-                                                    hourlyWage: wage,
-                                                  }
-                                                );
-                                              }
-                                            }}
-                                            keyboardType="numeric"
-                                            placeholder="시급"
-                                          />
-                                          <Text
-                                            style={{
-                                              fontSize: getResponsiveValue(
-                                                12,
-                                                13,
-                                                14
-                                              ),
-                                              color: "#86868b", // Apple Compact secondary text
-                                            }}
-                                          >
-                                            원
-                                          </Text>
-                                        </View>
-
-                                        <Text
-                                          style={{
-                                            fontSize: getResponsiveValue(
-                                              12,
-                                              13,
-                                              14
-                                            ),
-                                            color: "#86868b", // Apple Compact secondary text
-                                            marginBottom: 4,
-                                          }}
-                                        >
-                                          근무시간 (시간+분)
+                                          {workerInfo.worker.name}
                                         </Text>
-                                        <View
-                                          style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            gap: 8,
-                                          }}
-                                        >
-                                          <TextInput
-                                            style={{
-                                              borderWidth: 1,
-                                              borderColor: "#d1d5db",
-                                              borderRadius: 4,
-                                              padding: 6,
-                                              backgroundColor: "white",
-                                              fontSize: getResponsiveValue(
-                                                12,
-                                                13,
-                                                14
-                                              ),
-                                              width: 100,
-                                            }}
-                                            value={formatWorkHours(
-                                              workHours[workerInfo.worker.id] ||
-                                                workerInfo.periods.reduce(
-                                                  (
-                                                    total: number,
-                                                    period: any
-                                                  ) => {
-                                                    const start = dayjs(
-                                                      period.start
-                                                    );
-                                                    const end = dayjs(
-                                                      period.end
-                                                    );
-                                                    return (
-                                                      total +
-                                                      end.diff(
-                                                        start,
-                                                        "hour",
-                                                        true
-                                                      )
-                                                    );
-                                                  },
-                                                  0
-                                                )
-                                            )}
-                                            onChangeText={(text: string) => {
-                                              const hours =
-                                                parseWorkHours(text);
-                                              if (!isNaN(hours)) {
-                                                updateWorkHours(
-                                                  workerInfo.worker.id,
-                                                  hours
-                                                );
-                                              }
-                                            }}
-                                            placeholder="2시간 00분"
-                                          />
-                                        </View>
-                                      </View>
 
-                                      {/* 급여 계산 */}
-                                      <View style={{ marginBottom: 12 }}>
-                                        <Text
-                                          style={{
-                                            fontSize: getResponsiveValue(
-                                              12,
-                                              13,
-                                              14
-                                            ),
-                                            color: "#86868b", // Apple Compact secondary text
-                                            marginBottom: 4,
-                                          }}
-                                        >
-                                          급여 계산
-                                        </Text>
-                                        {(() => {
-                                          const pay = calculatePay(workerInfo);
-                                          return (
-                                            <View
-                                              style={{
-                                                backgroundColor: "#f0f9ff",
-                                                padding: 8,
-                                                borderRadius: 4,
-                                              }}
-                                            >
-                                              <Text
-                                                style={{
-                                                  fontSize: getResponsiveValue(
-                                                    12,
-                                                    13,
-                                                    14
-                                                  ),
-                                                  color: "#1f2937",
-                                                  marginBottom: 2,
-                                                }}
-                                              >
-                                                총 급여:{" "}
-                                                {pay.gross.toLocaleString()}원
-                                              </Text>
-                                              {pay.taxWithheld && (
-                                                <Text
-                                                  style={{
-                                                    fontSize:
-                                                      getResponsiveValue(
-                                                        12,
-                                                        13,
-                                                        14
-                                                      ),
-                                                    color: "#dc2626",
-                                                    marginBottom: 2,
-                                                  }}
-                                                >
-                                                  세금 공제 (3.3%): -
-                                                  {pay.tax.toLocaleString()}원
-                                                </Text>
-                                              )}
-                                              <Text
-                                                style={{
-                                                  fontSize: getResponsiveValue(
-                                                    14,
-                                                    15,
-                                                    16
-                                                  ),
-                                                  color: "#059669",
-                                                  fontWeight: "600",
-                                                }}
-                                              >
-                                                실수령액:{" "}
-                                                {pay.net.toLocaleString()}원
-                                              </Text>
-                                            </View>
-                                          );
-                                        })()}
-                                      </View>
-
-                                      {/* 계좌번호 및 송금 */}
-                                      <View style={{ marginBottom: 12 }}>
-                                        <Text
-                                          style={{
-                                            fontSize: getResponsiveValue(
-                                              12,
-                                              13,
-                                              14
-                                            ),
-                                            color: "#86868b", // Apple Compact secondary text
-                                            marginBottom: 4,
-                                          }}
-                                        >
-                                          계좌번호
-                                        </Text>
-                                        <View
-                                          style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                          }}
-                                        >
-                                          <View
-                                            style={{
-                                              flex: 1,
-                                              flexDirection: "row",
-                                              alignItems: "center",
-                                              gap: 8,
-                                            }}
-                                          >
-                                            <Text
-                                              style={{
-                                                fontSize: getResponsiveValue(
-                                                  12,
-                                                  13,
-                                                  14
-                                                ),
-                                                color: "#86868b", // Apple Compact secondary text
-                                                minWidth: 40,
-                                              }}
-                                            >
-                                              {workerInfo.worker.bankCode
-                                                ? KOREAN_BANKS.find(
-                                                    (bank) =>
-                                                      bank.code ===
-                                                      workerInfo.worker.bankCode
-                                                  )?.shortName || "은행"
-                                                : detectBankFromAccount(
-                                                    workerInfo.worker
-                                                      .bankAccount
-                                                  )?.shortName || "은행"}
-                                            </Text>
-                                            <Text
-                                              style={{
-                                                fontSize: getResponsiveValue(
-                                                  12,
-                                                  13,
-                                                  14
-                                                ),
-                                                color: "#1f2937",
-                                                flex: 1,
-                                              }}
-                                            >
-                                              {workerInfo.worker.bankCode
-                                                ? formatAccountNumber(
-                                                    workerInfo.worker
-                                                      .bankAccount,
-                                                    workerInfo.worker.bankCode
-                                                  )
-                                                : workerInfo.worker.bankAccount}
-                                            </Text>
-                                          </View>
-                                          <View
-                                            style={{
-                                              flexDirection: "row",
-                                              gap: 4,
-                                            }}
-                                          >
-                                            <Pressable
-                                              onPress={() =>
-                                                copyToClipboard(
-                                                  workerInfo.worker.bankAccount
-                                                )
-                                              }
-                                              style={{
-                                                backgroundColor: "#2563eb",
-                                                paddingHorizontal: 6,
-                                                paddingVertical: 2,
-                                                borderRadius: 4,
-                                              }}
-                                            >
-                                              <Text
-                                                style={{
-                                                  color: "white",
-                                                  fontSize: 10,
-                                                }}
-                                              >
-                                                복사
-                                              </Text>
-                                            </Pressable>
-                                            <Pressable
-                                              onPress={() =>
-                                                openPaymentApp(
-                                                  workerInfo.worker.bankAccount
-                                                )
-                                              }
-                                              style={{
-                                                backgroundColor: "#10b981",
-                                                paddingHorizontal: 6,
-                                                paddingVertical: 2,
-                                                borderRadius: 4,
-                                              }}
-                                            >
-                                              <Text
-                                                style={{
-                                                  color: "white",
-                                                  fontSize: 10,
-                                                }}
-                                              >
-                                                송금
-                                              </Text>
-                                            </Pressable>
-                                          </View>
-                                        </View>
-                                      </View>
-
-                                      {/* 메모 */}
-                                      {workerInfo.worker.memo && (
+                                        {/* 전화번호 */}
                                         <View style={{ marginBottom: 12 }}>
                                           <Text
                                             style={{
@@ -3598,40 +3272,36 @@ export default function PlannerCalendar({
                                               marginBottom: 4,
                                             }}
                                           >
-                                            메모
+                                            전화번호
                                           </Text>
-                                          <Text
-                                            style={{
-                                              fontSize: getResponsiveValue(
-                                                12,
-                                                13,
-                                                14
-                                              ),
-                                              color: "#1f2937",
-                                              fontStyle: "italic",
-                                            }}
+                                          <Pressable
+                                            onPress={() =>
+                                              makePhoneCall(
+                                                workerInfo.worker.phone
+                                              )
+                                            }
                                           >
-                                            {workerInfo.worker.memo}
-                                          </Text>
+                                            <Text
+                                              style={{
+                                                fontSize: getResponsiveValue(
+                                                  14,
+                                                  15,
+                                                  16
+                                                ),
+                                                color: "#2563eb",
+                                                textDecorationLine: "underline",
+                                              }}
+                                            >
+                                              📞{" "}
+                                              {formatPhoneNumber(
+                                                workerInfo.worker.phone
+                                              )}
+                                            </Text>
+                                          </Pressable>
                                         </View>
-                                      )}
 
-                                      {/* 급여 설정 */}
-                                      <View
-                                        style={{
-                                          borderTopWidth: 1,
-                                          borderTopColor: "#e5e7eb",
-                                          paddingTop: 8,
-                                        }}
-                                      >
-                                        <View
-                                          style={{
-                                            flexDirection: "row",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            marginBottom: 8,
-                                          }}
-                                        >
+                                        {/* 시급 및 근무시간 */}
+                                        <View style={{ marginBottom: 12 }}>
                                           <Text
                                             style={{
                                               fontSize: getResponsiveValue(
@@ -3640,158 +3310,550 @@ export default function PlannerCalendar({
                                                 14
                                               ),
                                               color: "#86868b", // Apple Compact secondary text
+                                              marginBottom: 4,
                                             }}
                                           >
-                                            세금공제 (3.3%)
+                                            시급
                                           </Text>
                                           <View
                                             style={{
                                               flexDirection: "row",
+                                              alignItems: "center",
+                                              gap: 8,
+                                              marginBottom: 12,
+                                            }}
+                                          >
+                                            <TextInput
+                                              style={{
+                                                borderWidth: 1,
+                                                borderColor: "#d1d5db",
+                                                borderRadius: 4,
+                                                padding: 6,
+                                                backgroundColor: "white",
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
+                                                width: 80,
+                                              }}
+                                              value={(
+                                                workerData[workerInfo.worker.id]
+                                                  ?.hourlyWage ||
+                                                workerInfo.worker.hourlyWage
+                                              ).toLocaleString()}
+                                              onChangeText={(text: string) => {
+                                                const wage = parseInt(
+                                                  text.replace(/,/g, "")
+                                                );
+                                                if (!isNaN(wage)) {
+                                                  updateWorkerData(
+                                                    workerInfo.worker.id,
+                                                    {
+                                                      hourlyWage: wage,
+                                                    }
+                                                  );
+                                                }
+                                              }}
+                                              keyboardType="numeric"
+                                              placeholder="시급"
+                                            />
+                                            <Text
+                                              style={{
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
+                                                color: "#86868b", // Apple Compact secondary text
+                                              }}
+                                            >
+                                              원
+                                            </Text>
+                                          </View>
+
+                                          <Text
+                                            style={{
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
+                                              color: "#86868b", // Apple Compact secondary text
+                                              marginBottom: 4,
+                                            }}
+                                          >
+                                            근무시간 (시간+분)
+                                          </Text>
+                                          <View
+                                            style={{
+                                              flexDirection: "row",
+                                              alignItems: "center",
                                               gap: 8,
                                             }}
                                           >
-                                            <Pressable
-                                              onPress={() => {
-                                                updateWorkerData(
-                                                  workerInfo.worker.id,
-                                                  {
-                                                    taxWithheld: true,
-                                                  }
-                                                );
-                                              }}
+                                            <TextInput
                                               style={{
-                                                backgroundColor: (
-                                                  workerData[
-                                                    workerInfo.worker.id
-                                                  ]?.taxWithheld !== undefined
-                                                    ? workerData[
-                                                        workerInfo.worker.id
-                                                      ].taxWithheld
-                                                    : workerInfo.worker
-                                                        .taxWithheld
-                                                )
-                                                  ? "#2563eb"
-                                                  : "#e5e7eb",
-                                                paddingHorizontal: 8,
-                                                paddingVertical: 4,
+                                                borderWidth: 1,
+                                                borderColor: "#d1d5db",
                                                 borderRadius: 4,
+                                                padding: 6,
+                                                backgroundColor: "white",
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
+                                                width: 100,
+                                              }}
+                                              value={formatWorkHours(
+                                                workHours[
+                                                  workerInfo.worker.id
+                                                ] ||
+                                                  workerInfo.periods.reduce(
+                                                    (
+                                                      total: number,
+                                                      period: any
+                                                    ) => {
+                                                      const start = dayjs(
+                                                        period.start
+                                                      );
+                                                      const end = dayjs(
+                                                        period.end
+                                                      );
+                                                      return (
+                                                        total +
+                                                        end.diff(
+                                                          start,
+                                                          "hour",
+                                                          true
+                                                        )
+                                                      );
+                                                    },
+                                                    0
+                                                  )
+                                              )}
+                                              onChangeText={(text: string) => {
+                                                const hours =
+                                                  parseWorkHours(text);
+                                                if (!isNaN(hours)) {
+                                                  updateWorkHours(
+                                                    workerInfo.worker.id,
+                                                    hours
+                                                  );
+                                                }
+                                              }}
+                                              placeholder="2시간 00분"
+                                            />
+                                          </View>
+                                        </View>
+
+                                        {/* 급여 계산 */}
+                                        <View style={{ marginBottom: 12 }}>
+                                          <Text
+                                            style={{
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
+                                              color: "#86868b", // Apple Compact secondary text
+                                              marginBottom: 4,
+                                            }}
+                                          >
+                                            급여 계산
+                                          </Text>
+                                          {(() => {
+                                            const pay =
+                                              calculatePay(workerInfo);
+                                            return (
+                                              <View
+                                                style={{
+                                                  backgroundColor: "#f0f9ff",
+                                                  padding: 8,
+                                                  borderRadius: 4,
+                                                }}
+                                              >
+                                                <Text
+                                                  style={{
+                                                    fontSize:
+                                                      getResponsiveValue(
+                                                        12,
+                                                        13,
+                                                        14
+                                                      ),
+                                                    color: "#1f2937",
+                                                    marginBottom: 2,
+                                                  }}
+                                                >
+                                                  총 급여:{" "}
+                                                  {pay.gross.toLocaleString()}원
+                                                </Text>
+                                                {pay.taxWithheld && (
+                                                  <Text
+                                                    style={{
+                                                      fontSize:
+                                                        getResponsiveValue(
+                                                          12,
+                                                          13,
+                                                          14
+                                                        ),
+                                                      color: "#dc2626",
+                                                      marginBottom: 2,
+                                                    }}
+                                                  >
+                                                    세금 공제 (3.3%): -
+                                                    {pay.tax.toLocaleString()}원
+                                                  </Text>
+                                                )}
+                                                <Text
+                                                  style={{
+                                                    fontSize:
+                                                      getResponsiveValue(
+                                                        14,
+                                                        15,
+                                                        16
+                                                      ),
+                                                    color: "#059669",
+                                                    fontWeight: "600",
+                                                  }}
+                                                >
+                                                  실수령액:{" "}
+                                                  {pay.net.toLocaleString()}원
+                                                </Text>
+                                              </View>
+                                            );
+                                          })()}
+                                        </View>
+
+                                        {/* 계좌번호 및 송금 */}
+                                        <View style={{ marginBottom: 12 }}>
+                                          <Text
+                                            style={{
+                                              fontSize: getResponsiveValue(
+                                                12,
+                                                13,
+                                                14
+                                              ),
+                                              color: "#86868b", // Apple Compact secondary text
+                                              marginBottom: 4,
+                                            }}
+                                          >
+                                            계좌번호
+                                          </Text>
+                                          <View
+                                            style={{
+                                              flexDirection: "row",
+                                              alignItems: "center",
+                                              justifyContent: "space-between",
+                                            }}
+                                          >
+                                            <View
+                                              style={{
+                                                flex: 1,
+                                                flexDirection: "row",
+                                                alignItems: "center",
+                                                gap: 8,
                                               }}
                                             >
                                               <Text
                                                 style={{
-                                                  color: (
+                                                  fontSize: getResponsiveValue(
+                                                    12,
+                                                    13,
+                                                    14
+                                                  ),
+                                                  color: "#86868b", // Apple Compact secondary text
+                                                  minWidth: 40,
+                                                }}
+                                              >
+                                                {detectBankFromAccount(
+                                                  workerInfo.worker
+                                                    .bankAccount || ""
+                                                )?.shortName || "은행"}
+                                              </Text>
+                                              <Text
+                                                style={{
+                                                  fontSize: getResponsiveValue(
+                                                    12,
+                                                    13,
+                                                    14
+                                                  ),
+                                                  color: "#1f2937",
+                                                  flex: 1,
+                                                }}
+                                              >
+                                                {formatAccountNumber(
+                                                  workerInfo.worker
+                                                    .bankAccount || ""
+                                                ) ||
+                                                  workerInfo.worker
+                                                    .bankAccount ||
+                                                  ""}
+                                              </Text>
+                                            </View>
+                                            <View
+                                              style={{
+                                                flexDirection: "row",
+                                                gap: 4,
+                                              }}
+                                            >
+                                              <Pressable
+                                                onPress={() =>
+                                                  copyToClipboard(
+                                                    workerInfo.worker
+                                                      .bankAccount || ""
+                                                  )
+                                                }
+                                                style={{
+                                                  backgroundColor: "#2563eb",
+                                                  paddingHorizontal: 6,
+                                                  paddingVertical: 2,
+                                                  borderRadius: 4,
+                                                }}
+                                              >
+                                                <Text
+                                                  style={{
+                                                    color: "white",
+                                                    fontSize: 10,
+                                                  }}
+                                                >
+                                                  복사
+                                                </Text>
+                                              </Pressable>
+                                              <Pressable
+                                                onPress={() =>
+                                                  openPaymentApp(
+                                                    workerInfo.worker
+                                                      .bankAccount || ""
+                                                  )
+                                                }
+                                                style={{
+                                                  backgroundColor: "#10b981",
+                                                  paddingHorizontal: 6,
+                                                  paddingVertical: 2,
+                                                  borderRadius: 4,
+                                                }}
+                                              >
+                                                <Text
+                                                  style={{
+                                                    color: "white",
+                                                    fontSize: 10,
+                                                  }}
+                                                >
+                                                  송금
+                                                </Text>
+                                              </Pressable>
+                                            </View>
+                                          </View>
+                                        </View>
+
+                                        {/* 메모 */}
+                                        {workerInfo.worker.memo && (
+                                          <View style={{ marginBottom: 12 }}>
+                                            <Text
+                                              style={{
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
+                                                color: "#86868b", // Apple Compact secondary text
+                                                marginBottom: 4,
+                                              }}
+                                            >
+                                              메모
+                                            </Text>
+                                            <Text
+                                              style={{
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
+                                                color: "#1f2937",
+                                                fontStyle: "italic",
+                                              }}
+                                            >
+                                              {workerInfo.worker.memo}
+                                            </Text>
+                                          </View>
+                                        )}
+
+                                        {/* 급여 설정 */}
+                                        <View
+                                          style={{
+                                            borderTopWidth: 1,
+                                            borderTopColor: "#e5e7eb",
+                                            paddingTop: 8,
+                                          }}
+                                        >
+                                          <View
+                                            style={{
+                                              flexDirection: "row",
+                                              justifyContent: "space-between",
+                                              alignItems: "center",
+                                              marginBottom: 8,
+                                            }}
+                                          >
+                                            <Text
+                                              style={{
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
+                                                color: "#86868b", // Apple Compact secondary text
+                                              }}
+                                            >
+                                              세금공제 (3.3%)
+                                            </Text>
+                                            <View
+                                              style={{
+                                                flexDirection: "row",
+                                                gap: 8,
+                                              }}
+                                            >
+                                              <Pressable
+                                                onPress={() => {
+                                                  updateWorkerData(
+                                                    workerInfo.worker.id,
+                                                    {
+                                                      taxWithheld: true,
+                                                    }
+                                                  );
+                                                }}
+                                                style={{
+                                                  backgroundColor: (
                                                     workerData[
                                                       workerInfo.worker.id
                                                     ]?.taxWithheld !== undefined
                                                       ? workerData[
                                                           workerInfo.worker.id
                                                         ].taxWithheld
-                                                      : workerInfo.worker
-                                                          .taxWithheld
+                                                      : false
                                                   )
-                                                    ? "white"
-                                                    : "#6b7280",
-                                                  fontSize: 10,
-                                                  fontWeight: "600",
+                                                    ? "#2563eb"
+                                                    : "#e5e7eb",
+                                                  paddingHorizontal: 8,
+                                                  paddingVertical: 4,
+                                                  borderRadius: 4,
                                                 }}
                                               >
-                                                Y
-                                              </Text>
-                                            </Pressable>
-                                            <Pressable
-                                              onPress={() => {
-                                                updateWorkerData(
-                                                  workerInfo.worker.id,
-                                                  {
-                                                    taxWithheld: false,
-                                                  }
-                                                );
-                                              }}
-                                              style={{
-                                                backgroundColor: !(workerData[
-                                                  workerInfo.worker.id
-                                                ]?.taxWithheld !== undefined
-                                                  ? workerData[
-                                                      workerInfo.worker.id
-                                                    ].taxWithheld
-                                                  : workerInfo.worker
-                                                      .taxWithheld)
-                                                  ? "#2563eb"
-                                                  : "#e5e7eb",
-                                                paddingHorizontal: 8,
-                                                paddingVertical: 4,
-                                                borderRadius: 4,
-                                              }}
-                                            >
-                                              <Text
+                                                <Text
+                                                  style={{
+                                                    color: (
+                                                      workerData[
+                                                        workerInfo.worker.id
+                                                      ]?.taxWithheld !==
+                                                      undefined
+                                                        ? workerData[
+                                                            workerInfo.worker.id
+                                                          ].taxWithheld
+                                                        : false
+                                                    )
+                                                      ? "white"
+                                                      : "#6b7280",
+                                                    fontSize: 10,
+                                                    fontWeight: "600",
+                                                  }}
+                                                >
+                                                  Y
+                                                </Text>
+                                              </Pressable>
+                                              <Pressable
+                                                onPress={() => {
+                                                  updateWorkerData(
+                                                    workerInfo.worker.id,
+                                                    {
+                                                      taxWithheld: false,
+                                                    }
+                                                  );
+                                                }}
                                                 style={{
-                                                  color: !(workerData[
+                                                  backgroundColor: !(workerData[
                                                     workerInfo.worker.id
                                                   ]?.taxWithheld !== undefined
                                                     ? workerData[
                                                         workerInfo.worker.id
                                                       ].taxWithheld
-                                                    : workerInfo.worker
-                                                        .taxWithheld)
-                                                    ? "white"
-                                                    : "#6b7280",
-                                                  fontSize: 10,
-                                                  fontWeight: "600",
+                                                    : false)
+                                                    ? "#2563eb"
+                                                    : "#e5e7eb",
+                                                  paddingHorizontal: 8,
+                                                  paddingVertical: 4,
+                                                  borderRadius: 4,
                                                 }}
                                               >
-                                                N
-                                              </Text>
-                                            </Pressable>
+                                                <Text
+                                                  style={{
+                                                    color: !(workerData[
+                                                      workerInfo.worker.id
+                                                    ]?.taxWithheld !== undefined
+                                                      ? workerData[
+                                                          workerInfo.worker.id
+                                                        ].taxWithheld
+                                                      : false)
+                                                      ? "white"
+                                                      : "#6b7280",
+                                                    fontSize: 10,
+                                                    fontWeight: "600",
+                                                  }}
+                                                >
+                                                  N
+                                                </Text>
+                                              </Pressable>
+                                            </View>
                                           </View>
-                                        </View>
 
-                                        <View
-                                          style={{
-                                            flexDirection: "row",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                          }}
-                                        >
-                                          <Text
+                                          <View
                                             style={{
-                                              fontSize: getResponsiveValue(
-                                                12,
-                                                13,
-                                                14
-                                              ),
-                                              color: "#86868b", // Apple Compact secondary text
+                                              flexDirection: "row",
+                                              justifyContent: "space-between",
+                                              alignItems: "center",
                                             }}
                                           >
-                                            지급완료
-                                          </Text>
-                                          <Switch
-                                            value={
-                                              workerData[workerInfo.worker.id]
-                                                ?.paid !== undefined
-                                                ? workerData[
-                                                    workerInfo.worker.id
-                                                  ].paid
-                                                : workerInfo.paid
-                                            }
-                                            onValueChange={(value) => {
-                                              updateWorkerData(
-                                                workerInfo.worker.id,
-                                                {
-                                                  paid: value,
-                                                }
-                                              );
-                                            }}
-                                            style={{
-                                              transform: [
-                                                { scaleX: 0.8 },
-                                                { scaleY: 0.8 },
-                                              ],
-                                            }}
-                                          />
+                                            <Text
+                                              style={{
+                                                fontSize: getResponsiveValue(
+                                                  12,
+                                                  13,
+                                                  14
+                                                ),
+                                                color: "#86868b", // Apple Compact secondary text
+                                              }}
+                                            >
+                                              지급완료
+                                            </Text>
+                                            <Switch
+                                              value={
+                                                workerData[workerInfo.worker.id]
+                                                  ?.paid !== undefined
+                                                  ? workerData[
+                                                      workerInfo.worker.id
+                                                    ].paid
+                                                  : workerInfo.paid
+                                              }
+                                              onValueChange={(value) => {
+                                                updateWorkerData(
+                                                  workerInfo.worker.id,
+                                                  {
+                                                    paid: value,
+                                                  }
+                                                );
+                                              }}
+                                              style={{
+                                                transform: [
+                                                  { scaleX: 0.8 },
+                                                  { scaleY: 0.8 },
+                                                ],
+                                              }}
+                                            />
+                                          </View>
                                         </View>
                                       </View>
-                                    </View>
-                                  ))}
+                                    )
+                                  )}
                                 </View>
                               </View>
                             );
@@ -5135,9 +5197,9 @@ export default function PlannerCalendar({
                           ...newWorker,
                           name: worker.name,
                           phone: worker.phone,
-                          bankAccount: worker.bankAccount,
+                          bankAccount: worker.bankAccount || "",
                           hourlyWage: worker.hourlyWage,
-                          taxWithheld: worker.taxWithheld,
+                          taxWithheld: false,
                           memo: worker.memo || "",
                         });
                         setShowWorkerSearch(false);

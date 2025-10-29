@@ -208,6 +208,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: Theme.colors.background,
+    width: "100%",
   },
   dateText: {
     fontSize: Theme.typography.sizes.md,

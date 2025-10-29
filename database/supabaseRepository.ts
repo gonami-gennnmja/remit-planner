@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { Notification, NotificationSettings, PayrollCalculation, ScheduleTime, WorkPeriod } from '@/models/types'
+import { ContractDocument, DocumentCategory, Notification, NotificationSettings, PayrollCalculation, ScheduleContract, ScheduleDocument, ScheduleTime, WorkPeriod } from '@/models/types'
 import { IDatabase } from './interface'
 
 // React Native용 UUID 생성 함수
@@ -264,6 +264,8 @@ export class SupabaseRepository implements IDatabase {
 				uniform_time: schedule.uniformTime !== undefined ? schedule.uniformTime : true,
 				documents_folder_path: schedule.documentsFolderPath,
 				has_attachments: schedule.hasAttachments || false,
+				schedule_type: schedule.scheduleType || 'business', // Added schedule_type
+				contract_amount: schedule.contractAmount || 0,
 				memo: schedule.memo,
 			}])
 			.select()
@@ -971,6 +973,8 @@ export class SupabaseRepository implements IDatabase {
 			uniformTime: dbSchedule.uniform_time,
 			documentsFolderPath: dbSchedule.documents_folder_path,
 			hasAttachments: dbSchedule.has_attachments,
+			scheduleType: dbSchedule.schedule_type || 'business', // Added schedule_type
+			contractAmount: dbSchedule.contract_amount || 0,
 			allWagesPaid: dbSchedule.all_wages_paid,
 			revenueStatus: dbSchedule.revenue_status,
 			revenueDueDate: dbSchedule.revenue_due_date,
@@ -1819,16 +1823,8 @@ export class SupabaseRepository implements IDatabase {
 		}
 	}
 
-	// Schedule document operations
-	async createScheduleDocument(document: {
-		id: string;
-		scheduleId: string;
-		fileName: string;
-		fileUrl: string;
-		filePath: string;
-		fileType: string;
-		fileSize?: number;
-	}): Promise<string> {
+	// Schedule document operations (updated)
+	async createScheduleDocument(document: ScheduleDocument): Promise<string> {
 		const user = await this.getCurrentUser()
 
 		const { data, error } = await supabase
@@ -1836,12 +1832,15 @@ export class SupabaseRepository implements IDatabase {
 			.insert({
 				id: document.id,
 				schedule_id: document.scheduleId,
+				category_id: document.categoryId,
 				user_id: user.id,
 				file_name: document.fileName,
 				file_url: document.fileUrl,
 				file_path: document.filePath,
 				file_type: document.fileType,
 				file_size: document.fileSize,
+				document_type: document.documentType,
+				description: document.description,
 			})
 			.select()
 			.single()
@@ -1854,16 +1853,7 @@ export class SupabaseRepository implements IDatabase {
 		return data.id
 	}
 
-	async getScheduleDocuments(scheduleId: string): Promise<Array<{
-		id: string;
-		scheduleId: string;
-		fileName: string;
-		fileUrl: string;
-		filePath: string;
-		fileType: string;
-		fileSize?: number;
-		uploadedAt: string;
-	}>> {
+	async getScheduleDocuments(scheduleId: string): Promise<ScheduleDocument[]> {
 		const user = await this.getCurrentUser()
 
 		const { data, error } = await supabase
@@ -1878,16 +1868,7 @@ export class SupabaseRepository implements IDatabase {
 			return []
 		}
 
-		return (data || []).map((doc: any) => ({
-			id: doc.id,
-			scheduleId: doc.schedule_id,
-			fileName: doc.file_name,
-			fileUrl: doc.file_url,
-			filePath: doc.file_path,
-			fileType: doc.file_type,
-			fileSize: doc.file_size,
-			uploadedAt: doc.uploaded_at,
-		}))
+		return data.map(doc => this.transformScheduleDocumentFromDB(doc))
 	}
 
 	async deleteScheduleDocument(documentId: string): Promise<void> {
@@ -1902,6 +1883,408 @@ export class SupabaseRepository implements IDatabase {
 		if (error) {
 			console.error('Error deleting schedule document:', error)
 			throw error
+		}
+	}
+
+	// ==================== Document Category Operations ====================
+
+	async createDocumentCategory(category: DocumentCategory): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('document_categories')
+			.insert([{
+				id: category.id,
+				name: category.name,
+				description: category.description,
+				color: category.color,
+				icon: category.icon,
+				sort_order: category.sortOrder,
+			}])
+			.select()
+
+		if (error) {
+			console.error('Error creating document category:', error)
+			throw error
+		}
+
+		return data[0].id
+	}
+
+	async getDocumentCategory(id: string): Promise<DocumentCategory | null> {
+		const { data, error } = await supabase
+			.from('document_categories')
+			.select('*')
+			.eq('id', id)
+			.single()
+
+		if (error) {
+			console.error('Error getting document category:', error)
+			return null
+		}
+
+		return this.transformDocumentCategoryFromDB(data)
+	}
+
+	async getAllDocumentCategories(): Promise<DocumentCategory[]> {
+		const { data, error } = await supabase
+			.from('document_categories')
+			.select('*')
+			.order('sort_order', { ascending: true })
+
+		if (error) {
+			console.error('Error getting document categories:', error)
+			return []
+		}
+
+		return data.map(category => this.transformDocumentCategoryFromDB(category))
+	}
+
+	async updateDocumentCategory(id: string, category: Partial<DocumentCategory>): Promise<void> {
+		const updateData: any = {}
+		if (category.name !== undefined) updateData.name = category.name
+		if (category.description !== undefined) updateData.description = category.description
+		if (category.color !== undefined) updateData.color = category.color
+		if (category.icon !== undefined) updateData.icon = category.icon
+		if (category.sortOrder !== undefined) updateData.sort_order = category.sortOrder
+
+		const { error } = await supabase
+			.from('document_categories')
+			.update(updateData)
+			.eq('id', id)
+
+		if (error) {
+			console.error('Error updating document category:', error)
+			throw error
+		}
+	}
+
+	async deleteDocumentCategory(id: string): Promise<void> {
+		const { error } = await supabase
+			.from('document_categories')
+			.delete()
+			.eq('id', id)
+
+		if (error) {
+			console.error('Error deleting document category:', error)
+			throw error
+		}
+	}
+
+	// ==================== Schedule Contract Operations ====================
+
+	async createScheduleContract(contract: ScheduleContract): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_contracts')
+			.insert([{
+				id: contract.id,
+				schedule_id: contract.scheduleId,
+				contract_type: contract.contractType,
+				contract_direction: contract.contractDirection,
+				contract_amount: contract.contractAmount,
+				contract_content: contract.contractContent,
+				contract_status: contract.contractStatus,
+				sent_date: contract.sentDate,
+				received_date: contract.receivedDate,
+				approved_date: contract.approvedDate,
+				rejected_date: contract.rejectedDate,
+				rejection_reason: contract.rejectionReason,
+			}])
+			.select()
+
+		if (error) {
+			console.error('Error creating schedule contract:', error)
+			throw error
+		}
+
+		return data[0].id
+	}
+
+	async getScheduleContract(id: string): Promise<ScheduleContract | null> {
+		const { data, error } = await supabase
+			.from('schedule_contracts')
+			.select('*')
+			.eq('id', id)
+			.single()
+
+		if (error) {
+			console.error('Error getting schedule contract:', error)
+			return null
+		}
+
+		return this.transformScheduleContractFromDB(data)
+	}
+
+	async getScheduleContracts(scheduleId: string): Promise<ScheduleContract[]> {
+		const { data, error } = await supabase
+			.from('schedule_contracts')
+			.select('*')
+			.eq('schedule_id', scheduleId)
+			.order('created_at', { ascending: false })
+
+		if (error) {
+			console.error('Error getting schedule contracts:', error)
+			return []
+		}
+
+		return data.map(contract => this.transformScheduleContractFromDB(contract))
+	}
+
+	async updateScheduleContract(id: string, contract: Partial<ScheduleContract>): Promise<void> {
+		const updateData: any = {}
+		if (contract.contractType !== undefined) updateData.contract_type = contract.contractType
+		if (contract.contractDirection !== undefined) updateData.contract_direction = contract.contractDirection
+		if (contract.contractAmount !== undefined) updateData.contract_amount = contract.contractAmount
+		if (contract.contractContent !== undefined) updateData.contract_content = contract.contractContent
+		if (contract.contractStatus !== undefined) updateData.contract_status = contract.contractStatus
+		if (contract.sentDate !== undefined) updateData.sent_date = contract.sentDate
+		if (contract.receivedDate !== undefined) updateData.received_date = contract.receivedDate
+		if (contract.approvedDate !== undefined) updateData.approved_date = contract.approvedDate
+		if (contract.rejectedDate !== undefined) updateData.rejected_date = contract.rejectedDate
+		if (contract.rejectionReason !== undefined) updateData.rejection_reason = contract.rejectionReason
+
+		const { error } = await supabase
+			.from('schedule_contracts')
+			.update(updateData)
+			.eq('id', id)
+
+		if (error) {
+			console.error('Error updating schedule contract:', error)
+			throw error
+		}
+	}
+
+	async deleteScheduleContract(id: string): Promise<void> {
+		const { error } = await supabase
+			.from('schedule_contracts')
+			.delete()
+			.eq('id', id)
+
+		if (error) {
+			console.error('Error deleting schedule contract:', error)
+			throw error
+		}
+	}
+
+	// ==================== Contract Document Operations ====================
+
+	async createContractDocument(document: ContractDocument): Promise<string> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('contract_documents')
+			.insert([{
+				id: document.id,
+				contract_id: document.contractId,
+				file_name: document.fileName,
+				file_url: document.fileUrl,
+				file_path: document.filePath,
+				file_type: document.fileType,
+				file_size: document.fileSize,
+				document_type: document.documentType,
+				description: document.description,
+			}])
+			.select()
+
+		if (error) {
+			console.error('Error creating contract document:', error)
+			throw error
+		}
+
+		return data[0].id
+	}
+
+	async getContractDocument(id: string): Promise<ContractDocument | null> {
+		const { data, error } = await supabase
+			.from('contract_documents')
+			.select('*')
+			.eq('id', id)
+			.single()
+
+		if (error) {
+			console.error('Error getting contract document:', error)
+			return null
+		}
+
+		return this.transformContractDocumentFromDB(data)
+	}
+
+	async getContractDocuments(contractId: string): Promise<ContractDocument[]> {
+		const { data, error } = await supabase
+			.from('contract_documents')
+			.select('*')
+			.eq('contract_id', contractId)
+			.order('uploaded_at', { ascending: false })
+
+		if (error) {
+			console.error('Error getting contract documents:', error)
+			return []
+		}
+
+		return data.map(doc => this.transformContractDocumentFromDB(doc))
+	}
+
+	async updateContractDocument(id: string, document: Partial<ContractDocument>): Promise<void> {
+		const updateData: any = {}
+		if (document.fileName !== undefined) updateData.file_name = document.fileName
+		if (document.fileUrl !== undefined) updateData.file_url = document.fileUrl
+		if (document.filePath !== undefined) updateData.file_path = document.filePath
+		if (document.fileType !== undefined) updateData.file_type = document.fileType
+		if (document.fileSize !== undefined) updateData.file_size = document.fileSize
+		if (document.documentType !== undefined) updateData.document_type = document.documentType
+		if (document.description !== undefined) updateData.description = document.description
+
+		const { error } = await supabase
+			.from('contract_documents')
+			.update(updateData)
+			.eq('id', id)
+
+		if (error) {
+			console.error('Error updating contract document:', error)
+			throw error
+		}
+	}
+
+	async deleteContractDocument(id: string): Promise<void> {
+		const { error } = await supabase
+			.from('contract_documents')
+			.delete()
+			.eq('id', id)
+
+		if (error) {
+			console.error('Error deleting contract document:', error)
+			throw error
+		}
+	}
+
+	// ==================== Updated Schedule Document Operations ====================
+
+	async getScheduleDocument(id: string): Promise<ScheduleDocument | null> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_documents')
+			.select('*')
+			.eq('id', id)
+			.eq('user_id', user.id)
+			.single()
+
+		if (error) {
+			console.error('Error getting schedule document:', error)
+			return null
+		}
+
+		return this.transformScheduleDocumentFromDB(data)
+	}
+
+	async getScheduleDocumentsByCategory(scheduleId: string, categoryId: string): Promise<ScheduleDocument[]> {
+		const user = await this.getCurrentUser()
+
+		const { data, error } = await supabase
+			.from('schedule_documents')
+			.select('*')
+			.eq('schedule_id', scheduleId)
+			.eq('category_id', categoryId)
+			.eq('user_id', user.id)
+			.order('uploaded_at', { ascending: false })
+
+		if (error) {
+			console.error('Error getting schedule documents by category:', error)
+			return []
+		}
+
+		return data.map(doc => this.transformScheduleDocumentFromDB(doc))
+	}
+
+	async updateScheduleDocument(id: string, document: Partial<ScheduleDocument>): Promise<void> {
+		const user = await this.getCurrentUser()
+
+		const updateData: any = {}
+		if (document.categoryId !== undefined) updateData.category_id = document.categoryId
+		if (document.fileName !== undefined) updateData.file_name = document.fileName
+		if (document.fileUrl !== undefined) updateData.file_url = document.fileUrl
+		if (document.filePath !== undefined) updateData.file_path = document.filePath
+		if (document.fileType !== undefined) updateData.file_type = document.fileType
+		if (document.fileSize !== undefined) updateData.file_size = document.fileSize
+		if (document.documentType !== undefined) updateData.document_type = document.documentType
+		if (document.description !== undefined) updateData.description = document.description
+
+		const { error } = await supabase
+			.from('schedule_documents')
+			.update(updateData)
+			.eq('id', id)
+			.eq('user_id', user.id)
+
+		if (error) {
+			console.error('Error updating schedule document:', error)
+			throw error
+		}
+	}
+
+	// ==================== Data Transform Helpers ====================
+
+	private transformDocumentCategoryFromDB(dbCategory: any): DocumentCategory {
+		return {
+			id: dbCategory.id,
+			name: dbCategory.name,
+			description: dbCategory.description,
+			color: dbCategory.color,
+			icon: dbCategory.icon,
+			sortOrder: dbCategory.sort_order,
+			createdAt: dbCategory.created_at,
+			updatedAt: dbCategory.updated_at,
+		}
+	}
+
+	private transformScheduleContractFromDB(dbContract: any): ScheduleContract {
+		return {
+			id: dbContract.id,
+			scheduleId: dbContract.schedule_id,
+			contractType: dbContract.contract_type,
+			contractDirection: dbContract.contract_direction,
+			contractAmount: dbContract.contract_amount,
+			contractContent: dbContract.contract_content,
+			contractStatus: dbContract.contract_status,
+			sentDate: dbContract.sent_date,
+			receivedDate: dbContract.received_date,
+			approvedDate: dbContract.approved_date,
+			rejectedDate: dbContract.rejected_date,
+			rejectionReason: dbContract.rejection_reason,
+			createdAt: dbContract.created_at,
+			updatedAt: dbContract.updated_at,
+		}
+	}
+
+	private transformContractDocumentFromDB(dbDoc: any): ContractDocument {
+		return {
+			id: dbDoc.id,
+			contractId: dbDoc.contract_id,
+			fileName: dbDoc.file_name,
+			fileUrl: dbDoc.file_url,
+			filePath: dbDoc.file_path,
+			fileType: dbDoc.file_type,
+			fileSize: dbDoc.file_size,
+			documentType: dbDoc.document_type,
+			description: dbDoc.description,
+			uploadedAt: dbDoc.uploaded_at,
+		}
+	}
+
+	private transformScheduleDocumentFromDB(dbDoc: any): ScheduleDocument {
+		return {
+			id: dbDoc.id,
+			scheduleId: dbDoc.schedule_id,
+			categoryId: dbDoc.category_id,
+			fileName: dbDoc.file_name,
+			fileUrl: dbDoc.file_url,
+			filePath: dbDoc.file_path,
+			fileType: dbDoc.file_type,
+			fileSize: dbDoc.file_size,
+			documentType: dbDoc.document_type,
+			description: dbDoc.description,
+			uploadedAt: dbDoc.uploaded_at,
 		}
 	}
 }

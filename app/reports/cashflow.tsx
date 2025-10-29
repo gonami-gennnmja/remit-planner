@@ -116,9 +116,7 @@ export default function CashFlowReportsScreen() {
       const startOfMonth = today.startOf("month");
       const endOfMonth = today.endOf("month");
 
-      // 수익 계산
-      const REVENUE_PER_SCHEDULE = 500000; // 일정당 50만원 수익 가정
-
+      // 수익 계산 (실제 계약금액 사용)
       let totalRevenue = 0;
       let monthlyRevenue = 0;
 
@@ -147,14 +145,16 @@ export default function CashFlowReportsScreen() {
         const scheduleEnd = dayjs(schedule.endDate);
         const daysSinceEnd = today.diff(scheduleEnd, "day");
 
-        // 수익 계산
-        const scheduleRevenue = REVENUE_PER_SCHEDULE;
-        totalRevenue += scheduleRevenue;
-        if (
-          scheduleDate.isSameOrAfter(startOfMonth) &&
-          scheduleDate.isSameOrBefore(endOfMonth)
-        ) {
-          monthlyRevenue += scheduleRevenue;
+        // 업무 스케줄만 수익에 포함 (실제 계약금액 사용)
+        if (schedule.scheduleType === "business") {
+          const scheduleRevenue = schedule.contractAmount || 0;
+          totalRevenue += scheduleRevenue;
+          if (
+            scheduleDate.isSameOrAfter(startOfMonth) &&
+            scheduleDate.isSameOrBefore(endOfMonth)
+          ) {
+            monthlyRevenue += scheduleRevenue;
+          }
         }
 
         // 미수금 확인 (14일 이상 지난 경우)
@@ -253,7 +253,10 @@ export default function CashFlowReportsScreen() {
         let outflow = 0;
 
         monthSchedules.forEach((schedule) => {
-          inflow += REVENUE_PER_SCHEDULE;
+          // 업무 스케줄만 수익에 포함
+          if (schedule.scheduleType === "business") {
+            inflow += schedule.contractAmount || 0; // 실제 계약금액 사용
+          }
 
           schedule.workers?.forEach((workerInfo) => {
             const periods = workerInfo.periods || [];

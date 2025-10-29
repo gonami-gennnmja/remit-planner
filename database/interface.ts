@@ -2,10 +2,14 @@
 import {
   Category,
   Client,
+  ContractDocument,
+  DocumentCategory,
   Notification,
   NotificationSettings,
   PayrollCalculation,
   Schedule,
+  ScheduleContract,
+  ScheduleDocument,
   ScheduleTime,
   ScheduleWorker,
   UserProfile,
@@ -194,26 +198,33 @@ export interface IDatabase {
   }>>;
   deleteClientDocument(documentId: string): Promise<void>;
 
-  // Schedule document operations
-  createScheduleDocument(document: {
-    id: string;
-    scheduleId: string;
-    fileName: string;
-    fileUrl: string;
-    filePath: string;
-    fileType: string;
-    fileSize?: number;
-  }): Promise<string>;
-  getScheduleDocuments(scheduleId: string): Promise<Array<{
-    id: string;
-    scheduleId: string;
-    fileName: string;
-    fileUrl: string;
-    filePath: string;
-    fileType: string;
-    fileSize?: number;
-    uploadedAt: string;
-  }>>;
+  // Document category operations
+  createDocumentCategory(category: DocumentCategory): Promise<string>;
+  getDocumentCategory(id: string): Promise<DocumentCategory | null>;
+  getAllDocumentCategories(): Promise<DocumentCategory[]>;
+  updateDocumentCategory(id: string, category: Partial<DocumentCategory>): Promise<void>;
+  deleteDocumentCategory(id: string): Promise<void>;
+
+  // Schedule contract operations
+  createScheduleContract(contract: ScheduleContract): Promise<string>;
+  getScheduleContract(id: string): Promise<ScheduleContract | null>;
+  getScheduleContracts(scheduleId: string): Promise<ScheduleContract[]>;
+  updateScheduleContract(id: string, contract: Partial<ScheduleContract>): Promise<void>;
+  deleteScheduleContract(id: string): Promise<void>;
+
+  // Contract document operations
+  createContractDocument(document: ContractDocument): Promise<string>;
+  getContractDocument(id: string): Promise<ContractDocument | null>;
+  getContractDocuments(contractId: string): Promise<ContractDocument[]>;
+  updateContractDocument(id: string, document: Partial<ContractDocument>): Promise<void>;
+  deleteContractDocument(id: string): Promise<void>;
+
+  // Schedule document operations (updated)
+  createScheduleDocument(document: ScheduleDocument): Promise<string>;
+  getScheduleDocument(id: string): Promise<ScheduleDocument | null>;
+  getScheduleDocuments(scheduleId: string): Promise<ScheduleDocument[]>;
+  getScheduleDocumentsByCategory(scheduleId: string, categoryId: string): Promise<ScheduleDocument[]>;
+  updateScheduleDocument(id: string, document: Partial<ScheduleDocument>): Promise<void>;
   deleteScheduleDocument(documentId: string): Promise<void>;
 
   // Utility

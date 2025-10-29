@@ -65,15 +65,15 @@ export default function MonthlyPayrollModal({
       ) {
         schedulesInRange.push(schedule);
 
-        schedule.workers.forEach((workerInfo) => {
+        schedule.workers?.forEach((workerInfo) => {
           const hourlyWage = workerInfo.worker.hourlyWage;
-          const taxWithheld = workerInfo.worker.taxWithheld;
+          const taxWithheld = workerInfo.taxWithheld;
           const taxRate = 0.033;
 
           // 근무 시간 계산
           const totalHours = workerInfo.periods.reduce((sum, period) => {
-            const start = dayjs(period.start);
-            const end = dayjs(period.end);
+            const start = dayjs(`${period.workDate} ${period.startTime}`);
+            const end = dayjs(`${period.workDate} ${period.endTime}`);
             return sum + end.diff(start, "hour", true);
           }, 0);
 

@@ -18,30 +18,32 @@ export const CREATE_TABLES = `
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
-  -- Schedules table
-  CREATE TABLE IF NOT EXISTS schedules (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    start_date TEXT NOT NULL,
-    end_date TEXT NOT NULL,
-    category TEXT NOT NULL,
-    location TEXT,
-    address TEXT,
-    uniform_time BOOLEAN DEFAULT true,
-    schedule_times TEXT DEFAULT '[]',
-    documents_folder_path TEXT,
-    has_attachments BOOLEAN DEFAULT false,
-    all_wages_paid BOOLEAN DEFAULT false,
-    revenue_status TEXT DEFAULT 'pending' CHECK (revenue_status IN ('received', 'pending', 'overdue')),
-    revenue_due_date TEXT,
-    client_id TEXT,
-    memo TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
-  );
+-- Schedules table
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  category TEXT NOT NULL,
+  location TEXT,
+  address TEXT,
+  uniform_time BOOLEAN DEFAULT true,
+  schedule_times TEXT DEFAULT '[]',
+  documents_folder_path TEXT,
+  has_attachments BOOLEAN DEFAULT false,
+  schedule_type TEXT DEFAULT 'business' CHECK (schedule_type IN ('personal', 'business')),
+  all_wages_paid BOOLEAN DEFAULT false,
+  revenue_status TEXT DEFAULT 'pending' CHECK (revenue_status IN ('received', 'pending', 'overdue')),
+  revenue_due_date TEXT,
+  contract_amount INTEGER DEFAULT 0,
+  client_id TEXT,
+  memo TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+);
 
   -- Schedule times table (일별 시간 설정)
   CREATE TABLE IF NOT EXISTS schedule_times (
@@ -166,17 +168,67 @@ export const CREATE_TABLES = `
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
   );
 
-  -- Schedule documents table
-  CREATE TABLE IF NOT EXISTS schedule_documents (
+  -- Document categories table (서류 분류)
+  CREATE TABLE IF NOT EXISTS document_categories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    color TEXT DEFAULT '#3b82f6',
+    icon TEXT DEFAULT 'document-outline',
+    sort_order INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Schedule contracts table (계약서 관리)
+  CREATE TABLE IF NOT EXISTS schedule_contracts (
     id TEXT PRIMARY KEY,
     schedule_id TEXT NOT NULL,
+    contract_type TEXT NOT NULL CHECK (contract_type IN ('written', 'verbal', 'text')),
+    contract_direction TEXT NOT NULL CHECK (contract_direction IN ('sent', 'received')),
+    contract_amount INTEGER NOT NULL,
+    contract_content TEXT,
+    contract_status TEXT DEFAULT 'draft' CHECK (contract_status IN ('draft', 'sent', 'received', 'approved', 'rejected')),
+    sent_date TEXT,
+    received_date TEXT,
+    approved_date TEXT,
+    rejected_date TEXT,
+    rejection_reason TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+  );
+
+  -- Contract documents table (계약서 첨부파일)
+  CREATE TABLE IF NOT EXISTS contract_documents (
+    id TEXT PRIMARY KEY,
+    contract_id TEXT NOT NULL,
     file_name TEXT NOT NULL,
     file_url TEXT NOT NULL,
     file_path TEXT NOT NULL,
     file_type TEXT NOT NULL,
     file_size INTEGER,
+    document_type TEXT NOT NULL CHECK (document_type IN ('contract', 'amendment', 'attachment')),
+    description TEXT,
     uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+    FOREIGN KEY (contract_id) REFERENCES schedule_contracts(id) ON DELETE CASCADE
+  );
+
+  -- Schedule documents table (기존 테이블 개선)
+  CREATE TABLE IF NOT EXISTS schedule_documents (
+    id TEXT PRIMARY KEY,
+    schedule_id TEXT NOT NULL,
+    category_id TEXT,
+    file_name TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    file_size INTEGER,
+    document_type TEXT NOT NULL CHECK (document_type IN ('contract', 'guidance', 'safety', 'equipment', 'other')),
+    description TEXT,
+    uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES document_categories(id) ON DELETE SET NULL
   );
 
   -- User profiles table
@@ -214,6 +266,8 @@ export const CREATE_TABLES = `
   CREATE INDEX IF NOT EXISTS idx_workers_user_id ON workers(user_id);
   CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id);
   CREATE INDEX IF NOT EXISTS idx_schedules_start_date ON schedules(start_date);
+  CREATE INDEX IF NOT EXISTS idx_schedules_contract_amount ON schedules(contract_amount);
+  CREATE INDEX IF NOT EXISTS idx_schedules_schedule_type ON schedules(schedule_type);
   CREATE INDEX IF NOT EXISTS idx_schedule_times_schedule_id ON schedule_times(schedule_id);
   CREATE INDEX IF NOT EXISTS idx_schedule_workers_user_id ON schedule_workers(user_id);
   CREATE INDEX IF NOT EXISTS idx_schedule_workers_schedule ON schedule_workers(schedule_id);
@@ -224,7 +278,14 @@ export const CREATE_TABLES = `
   CREATE INDEX IF NOT EXISTS idx_clients_user_id ON clients(user_id);
   CREATE INDEX IF NOT EXISTS idx_client_contacts_client ON client_contacts(client_id);
   CREATE INDEX IF NOT EXISTS idx_client_documents_client ON client_documents(client_id);
+  CREATE INDEX IF NOT EXISTS idx_document_categories_sort_order ON document_categories(sort_order);
+  CREATE INDEX IF NOT EXISTS idx_schedule_contracts_schedule ON schedule_contracts(schedule_id);
+  CREATE INDEX IF NOT EXISTS idx_schedule_contracts_status ON schedule_contracts(contract_status);
+  CREATE INDEX IF NOT EXISTS idx_schedule_contracts_type ON schedule_contracts(contract_type);
+  CREATE INDEX IF NOT EXISTS idx_contract_documents_contract ON contract_documents(contract_id);
   CREATE INDEX IF NOT EXISTS idx_schedule_documents_schedule ON schedule_documents(schedule_id);
+  CREATE INDEX IF NOT EXISTS idx_schedule_documents_category ON schedule_documents(category_id);
+  CREATE INDEX IF NOT EXISTS idx_schedule_documents_type ON schedule_documents(document_type);
   CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
   CREATE INDEX IF NOT EXISTS idx_activities_created_at ON activities(created_at);
 `;

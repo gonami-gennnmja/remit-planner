@@ -57,7 +57,8 @@ export default function StaffWorkStatusModal({
       // 스케줄이 선택된 기간과 겹치는지 확인
       if (
         scheduleStart.isSameOrBefore(periodEnd) &&
-        scheduleEnd.isSameOrAfter(periodStart)
+        scheduleEnd.isSameOrAfter(periodStart) &&
+        schedule.workers
       ) {
         schedule.workers.forEach((workerInfo) => {
           const workerId = workerInfo.worker.id;
@@ -67,8 +68,8 @@ export default function StaffWorkStatusModal({
             // 기존 스태프 정보 업데이트
             existingStaff.totalHours += workerInfo.periods.reduce(
               (sum, period) => {
-                const start = dayjs(period.start);
-                const end = dayjs(period.end);
+                const start = dayjs(`${period.workDate} ${period.startTime}`);
+                const end = dayjs(`${period.workDate} ${period.endTime}`);
                 return sum + end.diff(start, "hour", true);
               },
               0
@@ -79,8 +80,8 @@ export default function StaffWorkStatusModal({
           } else {
             // 새 스태프 추가
             const totalHours = workerInfo.periods.reduce((sum, period) => {
-              const start = dayjs(period.start);
-              const end = dayjs(period.end);
+              const start = dayjs(`${period.workDate} ${period.startTime}`);
+              const end = dayjs(`${period.workDate} ${period.endTime}`);
               return sum + end.diff(start, "hour", true);
             }, 0);
 
@@ -113,10 +114,10 @@ export default function StaffWorkStatusModal({
   const getWorkStatus = (periods: any[]) => {
     const now = dayjs();
     const hasCompletedWork = periods.some((period) =>
-      dayjs(period.end).isBefore(now)
+      dayjs(`${period.workDate} ${period.endTime}`).isBefore(now)
     );
     const hasUpcomingWork = periods.some((period) =>
-      dayjs(period.start).isAfter(now)
+      dayjs(`${period.workDate} ${period.startTime}`).isAfter(now)
     );
 
     if (hasCompletedWork && hasUpcomingWork) return "mixed";
@@ -236,11 +237,13 @@ export default function StaffWorkStatusModal({
                 </View>
 
                 <View style={styles.scheduleList}>
-                  {staff.schedules.slice(0, 3).map((schedule, index) => (
-                    <Text key={index} style={styles.scheduleItem}>
-                      • {schedule}
-                    </Text>
-                  ))}
+                  {staff.schedules
+                    .slice(0, 3)
+                    .map((schedule: string, index: number) => (
+                      <Text key={index} style={styles.scheduleItem}>
+                        • {schedule}
+                      </Text>
+                    ))}
                   {staff.schedules.length > 3 && (
                     <Text style={styles.moreSchedules}>
                       +{staff.schedules.length - 3}개 더

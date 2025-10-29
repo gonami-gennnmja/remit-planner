@@ -159,9 +159,7 @@ export default function RevenueReportsScreen() {
           periodEnd = today.endOf("month");
       }
 
-      // 전체 수익/지출 계산 (임시로 일정당 고정 수익 가정)
-      const REVENUE_PER_SCHEDULE = 500000; // 일정당 50만원 수익 가정
-
+      // 전체 수익/지출 계산 (실제 계약금액 사용)
       let totalRevenue = 0;
       let weeklyRevenue = 0;
       let monthlyRevenue = 0;
@@ -179,7 +177,7 @@ export default function RevenueReportsScreen() {
 
       allSchedules.forEach((schedule) => {
         const scheduleDate = dayjs(schedule.startDate);
-        const scheduleRevenue = REVENUE_PER_SCHEDULE;
+        const scheduleRevenue = schedule.contractAmount || 0; // 실제 계약금액 사용
         const isInPeriod =
           scheduleDate.isSameOrAfter(periodStart) &&
           scheduleDate.isSameOrBefore(periodEnd);
@@ -195,11 +193,13 @@ export default function RevenueReportsScreen() {
           scheduleDate.isSameOrAfter(today.startOf("year")) &&
           scheduleDate.isSameOrBefore(today.endOf("year"));
 
-        // 수익 계산
-        totalRevenue += scheduleRevenue;
-        if (isInWeek) weeklyRevenue += scheduleRevenue;
-        if (isInMonth) monthlyRevenue += scheduleRevenue;
-        if (isInYear) yearlyRevenue += scheduleRevenue;
+        // 업무 스케줄만 수익에 포함
+        if (schedule.scheduleType === "business") {
+          totalRevenue += scheduleRevenue;
+          if (isInWeek) weeklyRevenue += scheduleRevenue;
+          if (isInMonth) monthlyRevenue += scheduleRevenue;
+          if (isInYear) yearlyRevenue += scheduleRevenue;
+        }
 
         // 카테고리별 수익
         const category = schedule.category;
@@ -297,7 +297,10 @@ export default function RevenueReportsScreen() {
         let monthExpense = 0;
 
         monthSchedules.forEach((schedule) => {
-          monthRevenue += REVENUE_PER_SCHEDULE;
+          // 업무 스케줄만 수익에 포함
+          if (schedule.scheduleType === "business") {
+            monthRevenue += schedule.contractAmount || 0; // 실제 계약금액 사용
+          }
 
           schedule.workers?.forEach((workerInfo) => {
             const periods = workerInfo.periods || [];

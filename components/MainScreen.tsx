@@ -1,6 +1,6 @@
 // @ts-nocheck
 import MonthlyPayrollModal from "@/components/MonthlyPayrollModal";
-import ScheduleAddModal from "@/components/ScheduleAddModal";
+import MultiStepScheduleModal from "@/components/MultiStepScheduleModal";
 import StaffWorkStatusModal from "@/components/StaffWorkStatusModal";
 import TodayScheduleModal from "@/components/TodayScheduleModal";
 import UnpaidScheduleModal from "@/components/UnpaidScheduleModal";
@@ -1957,7 +1957,7 @@ export default function MainScreen() {
         schedules={schedules}
       />
 
-      <ScheduleAddModal
+      <MultiStepScheduleModal
         visible={showAddScheduleModal}
         onClose={() => setShowAddScheduleModal(false)}
       />

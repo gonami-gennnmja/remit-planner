@@ -90,30 +90,9 @@ export default function RevenueManagementScreen() {
       for (const schedule of schedules) {
         const client = clients.find((c) => c.id === schedule.clientId);
 
-        if (client) {
-          // 실제 근로자 급여 기반으로 수입 금액 계산
-          let totalAmount = 0;
-          schedule.workers?.forEach((workerInfo) => {
-            const hourlyWage = workerInfo.worker.hourlyWage;
-            const taxWithheld = (workerInfo as any).taxWithheld ?? false;
-            const taxRate = 0.033;
-
-            const totalHours =
-              workerInfo.periods?.reduce((sum, period) => {
-                const start = dayjs(period.startTime);
-                const end = dayjs(period.endTime);
-                return sum + end.diff(start, "hour", true);
-              }, 0) || 0;
-
-            let grossPay = hourlyWage * totalHours;
-            let netPay = grossPay;
-
-            if (taxWithheld) {
-              netPay = grossPay * (1 - taxRate);
-            }
-
-            totalAmount += Math.round(netPay);
-          });
+        if (client && schedule.scheduleType === "business") {
+          // 업무 스케줄만 수익에 포함, 실제 계약금액 사용
+          const totalAmount = schedule.contractAmount || 0;
 
           // 미수금 상태 확인 (2주 이상 지난 경우)
           const today = dayjs();

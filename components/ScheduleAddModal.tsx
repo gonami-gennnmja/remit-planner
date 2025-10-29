@@ -1,5 +1,5 @@
 import DatePicker from "@/components/DatePicker";
-import FileUpload from "@/components/FileUpload";
+import { FileUpload } from "@/components/FileUpload";
 import { Text } from "@/components/Themed";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
@@ -575,6 +575,7 @@ export default function ScheduleAddModal({
         uniformTime: formData.uniformTime,
         documentsFolderPath: formData.documentsFolderPath,
         hasAttachments: formData.hasAttachments,
+        scheduleType: "business", // 기본값으로 업무 스케줄 설정
         allWagesPaid: false,
         revenueStatus: "pending",
         memo: formData.memo,
@@ -1655,30 +1656,16 @@ export default function ScheduleAddModal({
 
                   <View style={styles.inputGroup}>
                     <FileUpload
-                      type="document"
-                      currentUrl=""
-                      currentPath=""
-                      onUpload={(url, path) => {
+                      onFileSelect={(file) => {
                         setFormData({
                           ...formData,
-                          documentsFolderPath: path,
+                          documentsFolderPath: file.name,
                           hasAttachments: true,
                         });
                       }}
-                      onDelete={() => {
-                        setFormData({
-                          ...formData,
-                          documentsFolderPath: "",
-                          hasAttachments: false,
-                        });
-                      }}
-                      options={{
-                        bucket: "remit-planner-files",
-                        folder: `schedules/${formData.title || "temp"}`,
-                        fileType: "document",
-                        maxSize: 20, // 20MB
-                      }}
-                      placeholder="설명서, 안내사항, 계약서 등을 업로드하세요"
+                      acceptedTypes={["pdf", "doc", "docx", "jpg", "png"]}
+                      maxFiles={5}
+                      documentType="schedule"
                     />
                   </View>
                 </View>

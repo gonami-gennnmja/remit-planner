@@ -1,235 +1,161 @@
-import {
-  deleteFile,
-  FileUploadOptions,
-  pickAndUploadDocument,
-  pickAndUploadImage,
-} from "@/utils/fileUpload";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface FileUploadProps {
-  type: "image" | "document";
-  currentUrl?: string;
-  currentPath?: string;
-  onUpload: (url: string, path: string) => void;
-  onDelete?: () => void;
-  options: FileUploadOptions;
-  placeholder?: string;
-  disabled?: boolean;
+  onFileSelect: (file: any) => void;
+  acceptedTypes?: string[];
+  maxFiles?: number;
+  documentType?: string;
 }
 
-export default function FileUpload({
-  type,
-  currentUrl,
-  currentPath,
-  onUpload,
-  onDelete,
-  options,
-  placeholder,
-  disabled = false,
-}: FileUploadProps) {
+export const FileUpload: React.FC<FileUploadProps> = ({
+  onFileSelect,
+  acceptedTypes = ["pdf", "doc", "docx", "jpg", "png"],
+  maxFiles = 5,
+  documentType = "other",
+}) => {
   const [uploading, setUploading] = useState(false);
 
-  const handleUpload = async () => {
-    if (disabled) return;
-
-    setUploading(true);
+  const handleFilePick = async () => {
     try {
-      const result =
-        type === "image"
-          ? await pickAndUploadImage(options)
-          : await pickAndUploadDocument(options);
+      setUploading(true);
 
-      if (result.success && result.url && result.path) {
-        onUpload(result.url, result.path);
-      } else {
-        const errorMessage = result.error?.includes("row-level security policy")
-          ? "파일 업로드 권한이 없습니다. Supabase Storage의 RLS 정책을 확인해주세요."
-          : result.error || "파일 업로드에 실패했습니다.";
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
 
-        Alert.alert("업로드 실패", errorMessage);
+      if (result.canceled) {
+        return;
       }
+
+      const file = result.assets[0];
+
+      // 파일 타입 검증
+      const fileExtension = file.name.split(".").pop()?.toLowerCase();
+      if (fileExtension && !acceptedTypes.includes(fileExtension)) {
+        Alert.alert(
+          "지원하지 않는 파일 형식",
+          `지원되는 형식: ${acceptedTypes.join(", ")}`
+        );
+        return;
+      }
+
+      // 파일 크기 검증 (10MB 제한)
+      if (file.size && file.size > 10 * 1024 * 1024) {
+        Alert.alert("파일 크기 초과", "파일 크기는 10MB를 초과할 수 없습니다.");
+        return;
+      }
+
+      // 파일 정보 생성
+      const fileData = {
+        id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        fileName: file.name,
+        fileUrl: file.uri,
+        filePath: file.uri,
+        fileType: fileExtension || "unknown",
+        fileSize: file.size || 0,
+        documentType: documentType,
+        description: "",
+      };
+
+      onFileSelect(fileData);
     } catch (error) {
-      console.error("Upload error:", error);
-      Alert.alert("오류", "파일 업로드 중 오류가 발생했습니다.");
+      console.error("Error picking file:", error);
+      Alert.alert("오류", "파일 선택 중 오류가 발생했습니다.");
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (disabled || !currentPath) return;
-
-    Alert.alert("파일 삭제", "이 파일을 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제",
-        style: "destructive",
-        onPress: async () => {
-          const result = await deleteFile(options.bucket, currentPath);
-          if (result.success) {
-            onDelete?.();
-          } else {
-            Alert.alert(
-              "삭제 실패",
-              result.error || "파일 삭제에 실패했습니다."
-            );
-          }
-        },
-      },
-    ]);
+  const getFileIcon = (fileType: string) => {
+    switch (fileType) {
+      case "pdf":
+        return "document-text-outline";
+      case "doc":
+      case "docx":
+        return "document-outline";
+      case "jpg":
+      case "jpeg":
+      case "png":
+        return "image-outline";
+      default:
+        return "document-outline";
+    }
   };
 
-  const getPlaceholderText = () => {
-    if (placeholder) return placeholder;
-    return type === "image" ? "이미지를 선택하세요" : "문서를 선택하세요";
-  };
-
-  const getIconName = () => {
-    if (type === "image") return "image-outline";
-    return "document-outline";
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   return (
     <View style={styles.container}>
-      {currentUrl ? (
-        <View style={styles.filePreview}>
-          {type === "image" ? (
-            <Image source={{ uri: currentUrl }} style={styles.imagePreview} />
-          ) : (
-            <View style={styles.documentPreview}>
-              <Ionicons name="document" size={40} color="#6b7280" />
-              <Text style={styles.documentText}>문서 업로드됨</Text>
-            </View>
-          )}
-
-          <View style={styles.fileActions}>
-            <Pressable
-              style={[styles.actionButton, styles.uploadButton]}
-              onPress={handleUpload}
-              disabled={disabled || uploading}
-            >
-              {uploading ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Ionicons name="refresh" size={16} color="white" />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={[styles.actionButton, styles.deleteButton]}
-              onPress={handleDelete}
-              disabled={disabled}
-            >
-              <Ionicons name="trash" size={16} color="white" />
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <Pressable
-          style={[styles.uploadArea, disabled && styles.uploadAreaDisabled]}
-          onPress={handleUpload}
-          disabled={disabled || uploading}
+      <Pressable
+        style={[styles.uploadButton, uploading && styles.uploadButtonDisabled]}
+        onPress={handleFilePick}
+        disabled={uploading}
+      >
+        <Ionicons
+          name={uploading ? "hourglass-outline" : "cloud-upload-outline"}
+          size={24}
+          color={uploading ? "#9ca3af" : "#3b82f6"}
+        />
+        <Text
+          style={[
+            styles.uploadButtonText,
+            uploading && styles.uploadButtonTextDisabled,
+          ]}
         >
-          {uploading ? (
-            <ActivityIndicator size="large" color="#6b7280" />
-          ) : (
-            <>
-              <Ionicons name={getIconName()} size={40} color="#6b7280" />
-              <Text style={styles.uploadText}>{getPlaceholderText()}</Text>
-              <Text style={styles.uploadSubText}>
-                {type === "image"
-                  ? "JPG, PNG, GIF 지원"
-                  : "PDF, DOC, XLS 등 지원"}
-              </Text>
-            </>
-          )}
-        </Pressable>
-      )}
+          {uploading ? "업로드 중..." : "파일 선택"}
+        </Text>
+      </Pressable>
+
+      <Text style={styles.helpText}>
+        지원 형식: {acceptedTypes.join(", ")} (최대 {maxFiles}개, 10MB 이하)
+      </Text>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
-    width: "100%",
-  },
-  uploadArea: {
-    borderWidth: 2,
-    borderColor: "#d1d5db",
-    borderStyle: "dashed",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f9fafb",
-    minHeight: 120,
-  },
-  uploadAreaDisabled: {
-    opacity: 0.5,
-  },
-  uploadText: {
-    fontSize: 16,
-    color: "#374151",
-    fontWeight: "500",
-    marginTop: 8,
-  },
-  uploadSubText: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  filePreview: {
-    position: "relative",
-  },
-  imagePreview: {
-    width: "100%",
-    height: 200,
-    borderRadius: 12,
-    resizeMode: "cover",
-  },
-  documentPreview: {
-    width: "100%",
-    height: 120,
-    borderRadius: 12,
-    backgroundColor: "#f3f4f6",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  documentText: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginTop: 8,
-  },
-  fileActions: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    flexDirection: "row",
-    gap: 8,
-  },
-  actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
+    marginBottom: 16,
   },
   uploadButton: {
-    backgroundColor: "#3b82f6",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8fafc",
+    borderWidth: 2,
+    borderColor: "#3b82f6",
+    borderStyle: "dashed",
+    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
   },
-  deleteButton: {
-    backgroundColor: "#ef4444",
+  uploadButtonDisabled: {
+    borderColor: "#d1d5db",
+    backgroundColor: "#f9fafb",
+  },
+  uploadButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#3b82f6",
+    marginLeft: 8,
+  },
+  uploadButtonTextDisabled: {
+    color: "#9ca3af",
+  },
+  helpText: {
+    fontSize: 12,
+    color: "#6b7280",
+    textAlign: "center",
+    marginTop: 8,
   },
 });

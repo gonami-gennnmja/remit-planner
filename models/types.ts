@@ -157,8 +157,12 @@ export type Schedule = {
   uniformTime: boolean; // 일정 시간이 동일한지 여부
   documentsFolderPath?: string; // 문서 폴더 경로
   hasAttachments: boolean; // 첨부파일 여부
+  // 스케줄 타입 구분
+  scheduleType: 'personal' | 'business'; // 개인 스케줄 vs 업무 스케줄
   // 거래처 관련 필드
   clientId?: string; // 연결된 거래처 ID
+  // 계약 관련 필드
+  contractAmount?: number; // 계약금액
   // 수급 관련 필드들
   allWagesPaid: boolean; // 모든 근로자 임금 지급 완료 여부
   revenueStatus: 'received' | 'pending' | 'overdue'; // 수급 상태
@@ -179,15 +183,60 @@ export type Schedule = {
   }>;
 };
 
+// 서류 분류 타입
+export type DocumentCategory = {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon: string;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+// 계약서 타입
+export type ScheduleContract = {
+  id: string;
+  scheduleId: string;
+  contractType: 'written' | 'verbal' | 'text';
+  contractDirection: 'sent' | 'received';
+  contractAmount: number;
+  contractContent?: string; // 구두/텍스트 계약 내용
+  contractStatus: 'draft' | 'sent' | 'received' | 'approved' | 'rejected';
+  sentDate?: string;
+  receivedDate?: string;
+  approvedDate?: string;
+  rejectedDate?: string;
+  rejectionReason?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+// 계약서 첨부파일 타입
+export type ContractDocument = {
+  id: string;
+  contractId: string;
+  fileName: string;
+  fileUrl: string;
+  filePath: string;
+  fileType: string;
+  fileSize?: number;
+  documentType: 'contract' | 'amendment' | 'attachment';
+  description?: string;
+  uploadedAt?: string;
+};
+
 export type ScheduleDocument = {
   id: string;
   scheduleId: string;
+  categoryId?: string; // 서류 분류 ID
   fileName: string; // 원본 파일명
   fileUrl: string; // 파일 URL
   filePath: string; // 파일 경로
   fileType: string; // 파일 타입
   fileSize?: number; // 파일 크기
-  documentType: string; // 문서 타입 (manual, guide, photo, report 등)
+  documentType: 'contract' | 'guidance' | 'safety' | 'equipment' | 'other'; // 문서 타입
   description?: string; // 파일 설명
   uploadedAt?: string;
 };

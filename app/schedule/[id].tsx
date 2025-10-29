@@ -1,9 +1,15 @@
 import CommonHeader from "@/components/CommonHeader";
+import { ContractModal } from "@/components/ContractModal";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { Theme } from "@/constants/Theme";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
-import { Client, Schedule, ScheduleTime } from "@/models/types";
+import {
+  Client,
+  Schedule,
+  ScheduleContract,
+  ScheduleTime,
+} from "@/models/types";
 import {
   formatAccountNumber,
   formatPhoneNumber,
@@ -92,6 +98,13 @@ export default function ScheduleDetailScreen() {
   const [showBankSelection, setShowBankSelection] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
 
+  // 계약서 관련 상태
+  const [contracts, setContracts] = useState<ScheduleContract[]>([]);
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [contractDirection, setContractDirection] = useState<
+    "sent" | "received"
+  >("sent");
+
   useEffect(() => {
     const loadSchedule = async () => {
       try {
@@ -135,6 +148,9 @@ export default function ScheduleDetailScreen() {
             }
             setLoadingFiles(false);
           }
+
+          // 계약서 로드
+          await loadContracts();
         }
       } catch (error) {
         console.error("Failed to load schedule:", error);
@@ -156,6 +172,61 @@ export default function ScheduleDetailScreen() {
       loadClients();
     }
   }, [id]);
+
+  const loadContracts = async () => {
+    try {
+      const db = getDatabase();
+      const contractsData = await db.getScheduleContracts(id as string);
+      setContracts(contractsData);
+    } catch (error) {
+      console.error("Failed to load contracts:", error);
+    }
+  };
+
+  const getContractStatusColor = (status: string) => {
+    switch (status) {
+      case "draft":
+        return "#6b7280";
+      case "sent":
+        return "#3b82f6";
+      case "received":
+        return "#10b981";
+      case "approved":
+        return "#059669";
+      case "rejected":
+        return "#ef4444";
+      default:
+        return "#6b7280";
+    }
+  };
+
+  const getContractStatusText = (status: string) => {
+    switch (status) {
+      case "draft":
+        return "초안";
+      case "sent":
+        return "발송";
+      case "received":
+        return "수신";
+      case "approved":
+        return "승인";
+      case "rejected":
+        return "거절";
+      default:
+        return "알 수 없음";
+    }
+  };
+
+  const handleContractSaved = (contract: ScheduleContract) => {
+    setContracts((prev) => [contract, ...prev]);
+    // 스케줄의 계약금액 업데이트
+    if (schedule) {
+      setSchedule({
+        ...schedule,
+        contractAmount: contract.contractAmount,
+      });
+    }
+  };
 
   const handleEditSchedule = async () => {
     try {
@@ -346,6 +417,20 @@ export default function ScheduleDetailScreen() {
             </View>
           )}
 
+          {/* 계약금액 */}
+          {schedule.contractAmount && schedule.contractAmount > 0 && (
+            <View style={styles.infoRow}>
+              <Ionicons
+                name="cash-outline"
+                size={16}
+                color={Theme.colors.primary}
+              />
+              <Text style={[styles.infoText, { color: Theme.colors.primary }]}>
+                계약금액: {schedule.contractAmount.toLocaleString()}원
+              </Text>
+            </View>
+          )}
+
           <View style={styles.timeRow}>
             <Ionicons
               name="time-outline"
@@ -489,6 +574,128 @@ export default function ScheduleDetailScreen() {
             ))}
           </View>
         )}
+
+        {/* 계약서 관리 섹션 */}
+        <View style={styles.contractSection}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <Text style={styles.sectionTitle}>계약서 관리</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={() => {
+                  setContractDirection("sent");
+                  setShowContractModal(true);
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: "#3b82f6",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="create-outline" size={16} color="#fff" />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setContractDirection("received");
+                  setShowContractModal(true);
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: "#10b981",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="download-outline" size={16} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
+
+          {contracts.length > 0 ? (
+            <View style={styles.contractsList}>
+              {contracts.map((contract) => (
+                <View key={contract.id} style={styles.contractCard}>
+                  <View style={styles.contractHeader}>
+                    <View style={styles.contractType}>
+                      <Ionicons
+                        name={
+                          contract.contractType === "written"
+                            ? "document-text-outline"
+                            : contract.contractType === "verbal"
+                            ? "mic-outline"
+                            : "chatbubble-outline"
+                        }
+                        size={16}
+                        color="#fff"
+                      />
+                      <Text style={styles.contractTypeText}>
+                        {contract.contractType === "written"
+                          ? "작성"
+                          : contract.contractType === "verbal"
+                          ? "구두"
+                          : "텍스트"}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.contractStatus,
+                        {
+                          backgroundColor: getContractStatusColor(
+                            contract.contractStatus
+                          ),
+                        },
+                      ]}
+                    >
+                      <Text style={styles.contractStatusText}>
+                        {getContractStatusText(contract.contractStatus)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.contractInfo}>
+                    <Text style={styles.contractAmount}>
+                      {contract.contractAmount.toLocaleString()}원
+                    </Text>
+                    <Text style={styles.contractDirection}>
+                      {contract.contractDirection === "sent" ? "발송" : "수신"}
+                    </Text>
+                  </View>
+
+                  {contract.contractContent && (
+                    <Text style={styles.contractContent} numberOfLines={2}>
+                      {contract.contractContent}
+                    </Text>
+                  )}
+
+                  <Text style={styles.contractDate}>
+                    {dayjs(contract.createdAt).format("YYYY.MM.DD")}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyContracts}>
+              <Ionicons name="document-outline" size={48} color="#d1d5db" />
+              <Text style={styles.emptyContractsText}>
+                등록된 계약서가 없습니다
+              </Text>
+              <Text style={styles.emptyContractsSubtext}>
+                계약서를 작성하거나 수신해보세요
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* 근로자 목록 */}
         <View style={styles.workersSection}>
@@ -3382,6 +3589,7 @@ export default function ScheduleDetailScreen() {
                           startTime: "09:00",
                           endTime: "18:00",
                           breakDuration: 60,
+                          overtimeHours: 0,
                         });
 
                         // 스케줄 새로고침
@@ -3925,6 +4133,7 @@ export default function ScheduleDetailScreen() {
                     startTime: "09:00",
                     endTime: "18:00",
                     breakDuration: 60,
+                    overtimeHours: 0,
                   });
 
                   // 스케줄 새로고침
@@ -3972,6 +4181,15 @@ export default function ScheduleDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 계약서 모달 */}
+      <ContractModal
+        visible={showContractModal}
+        onClose={() => setShowContractModal(false)}
+        scheduleId={id as string}
+        contractDirection={contractDirection}
+        onContractSaved={handleContractSaved}
+      />
     </View>
   );
 }
@@ -4215,6 +4433,89 @@ const styles = StyleSheet.create({
     color: Theme.colors.text.primary,
   },
   timeValue: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.secondary,
+  },
+  contractSection: {
+    marginBottom: Theme.spacing.xl,
+  },
+  contractsList: {
+    gap: Theme.spacing.md,
+  },
+  contractCard: {
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: Theme.colors.border.light,
+  },
+  contractHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Theme.spacing.sm,
+  },
+  contractType: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: Theme.spacing.sm,
+    paddingVertical: Theme.spacing.xs,
+    borderRadius: Theme.borderRadius.sm,
+  },
+  contractTypeText: {
+    fontSize: Theme.typography.sizes.xs,
+    color: "#fff",
+    marginLeft: Theme.spacing.xs,
+    fontWeight: Theme.typography.weights.medium,
+  },
+  contractStatus: {
+    paddingHorizontal: Theme.spacing.sm,
+    paddingVertical: Theme.spacing.xs,
+    borderRadius: Theme.borderRadius.sm,
+  },
+  contractStatusText: {
+    fontSize: Theme.typography.sizes.xs,
+    color: "#fff",
+    fontWeight: Theme.typography.weights.medium,
+  },
+  contractInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Theme.spacing.sm,
+  },
+  contractAmount: {
+    fontSize: Theme.typography.sizes.lg,
+    fontWeight: Theme.typography.weights.bold,
+    color: Theme.colors.text.primary,
+  },
+  contractDirection: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.secondary,
+  },
+  contractContent: {
+    fontSize: Theme.typography.sizes.sm,
+    color: Theme.colors.text.secondary,
+    marginBottom: Theme.spacing.sm,
+    lineHeight: 20,
+  },
+  contractDate: {
+    fontSize: Theme.typography.sizes.xs,
+    color: Theme.colors.text.secondary,
+  },
+  emptyContracts: {
+    alignItems: "center",
+    paddingVertical: Theme.spacing.xl,
+  },
+  emptyContractsText: {
+    fontSize: Theme.typography.sizes.md,
+    fontWeight: Theme.typography.weights.medium,
+    color: Theme.colors.text.secondary,
+    marginTop: Theme.spacing.md,
+    marginBottom: Theme.spacing.sm,
+  },
+  emptyContractsSubtext: {
     fontSize: Theme.typography.sizes.sm,
     color: Theme.colors.text.secondary,
   },

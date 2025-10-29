@@ -1,6 +1,6 @@
 import CommonHeader from "@/components/CommonHeader";
+import MultiStepScheduleModal from "@/components/MultiStepScheduleModal";
 import PlannerCalendar from "@/components/PlannerCalendar";
-import ScheduleAddModal from "@/components/ScheduleAddModal";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -62,14 +62,15 @@ export default function ScheduleScreen() {
         />
       </View>
 
-      {/* 스케줄 추가 모달 */}
-      <ScheduleAddModal
+      {/* 스케줄 추가 모달 (멀티 스텝) */}
+      <MultiStepScheduleModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSave={handleSaveSchedule}
         initialStartDate={initialStartDate}
         initialEndDate={initialEndDate}
         initialIsMultiDay={initialIsMultiDay}
+        modalType={"bottomSheet"}
       />
     </View>
   );
