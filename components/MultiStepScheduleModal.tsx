@@ -10,6 +10,7 @@ import { getCurrentSupabaseUser } from "@/utils/supabaseAuth";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import dayjs from "dayjs";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { SketchPicker } from "react-color";
 import {
@@ -24,7 +25,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { WebView } from "react-native-webview";
 // @ts-ignore - react-native-color-wheel doesn't have type definitions
 import { ColorWheel } from "react-native-color-wheel";
 
@@ -284,6 +284,7 @@ export default function MultiStepScheduleModal({
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
   const { colors } = useTheme();
+  const router = useRouter();
 
   // 현재 스텝 상태
   const [currentStep, setCurrentStep] = useState<Step>(STEPS.BASIC_INFO);
@@ -337,6 +338,7 @@ export default function MultiStepScheduleModal({
   const [showAddressSearch, setShowAddressSearch] = useState(false);
   const [showClientSelector, setShowClientSelector] = useState(false);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [webAddressSearchReady, setWebAddressSearchReady] = useState(false);
   // iOS 초기 진입 시 1 -> 2단계 레이아웃 재계산을 위한 키
   const [dateStepKey, setDateStepKey] = useState(0);
 
@@ -585,6 +587,146 @@ export default function MultiStepScheduleModal({
 
     return () => clearInterval(interval);
   }, [visible, formData]);
+
+  // 웹 환경에서 주소 검색 초기화
+  useEffect(() => {
+    if (Platform.OS === "web" && showAddressSearch) {
+      const loadDaumPostcode = async () => {
+        if (typeof window === "undefined" || typeof document === "undefined") {
+          return;
+        }
+
+        // 이미 로드되어 있는지 확인
+        if ((window as any).daum && (window as any).daum.Postcode) {
+          setWebAddressSearchReady(true);
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src =
+          "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+        script.onload = () => {
+          setWebAddressSearchReady(true);
+        };
+        script.onerror = () => {
+          console.error("다음 우편번호 서비스 로드 실패");
+        };
+        document.head.appendChild(script);
+      };
+
+      loadDaumPostcode();
+    }
+  }, [showAddressSearch]);
+
+  // 웹 환경에서 주소 검색 실행
+  useEffect(() => {
+    if (Platform.OS === "web" && showAddressSearch && webAddressSearchReady) {
+      const containerId = "daum-postcode-container-multistep";
+      let container = document.getElementById(containerId);
+
+      if (!container) {
+        container = document.createElement("div");
+        container.id = containerId;
+        container.style.width = "100%";
+        container.style.height = "100%";
+        const parentElement = document.querySelector(
+          '[data-testid="address-search-web-container"]'
+        );
+        if (parentElement) {
+          parentElement.appendChild(container);
+        }
+      }
+
+      const daum = (window as any).daum;
+      if (!daum || !daum.Postcode || !container) {
+        return;
+      }
+
+      // 기존 인스턴스 정리
+      container.innerHTML = "";
+
+      const postcode = new daum.Postcode({
+        oncomplete: function (data: any) {
+          const addr = data.roadAddress || data.jibunAddress;
+          const fullAddress = data.buildingName
+            ? `${addr} (${data.buildingName})`
+            : addr;
+          setFormData((prev) => ({
+            ...prev,
+            address: fullAddress,
+            location: fullAddress,
+          }));
+          setShowAddressSearch(false);
+        },
+        width: "100%",
+        height: "100%",
+      });
+
+      postcode.embed(container, {
+        q: formData.address || "",
+        autoClose: false,
+      });
+
+      return () => {
+        // cleanup - 모달이 닫힐 때 정리
+        if (container) {
+          container.innerHTML = "";
+          const parent = container.parentElement;
+          if (parent) {
+            parent.removeChild(container);
+          }
+        }
+      };
+    } else if (Platform.OS === "web" && !showAddressSearch) {
+      // 모달이 닫힐 때도 정리
+      const containerId = "daum-postcode-container-multistep";
+      const container = document.getElementById(containerId);
+      if (container) {
+        container.innerHTML = "";
+        const parent = container.parentElement;
+        if (parent) {
+          parent.removeChild(container);
+        }
+      }
+      setWebAddressSearchReady(false);
+    }
+  }, [webAddressSearchReady, showAddressSearch, formData.address]);
+
+  // 주소 검색 결과 확인 (모바일용)
+  useEffect(() => {
+    if (!visible || Platform.OS === "web") return;
+
+    let mounted = true;
+
+    const checkSelectedAddress = async () => {
+      try {
+        const address = await AsyncStorage.getItem("selectedAddress");
+        if (address && mounted) {
+          console.log("✅ 저장된 주소 발견:", address);
+          setFormData((prev) => ({
+            ...prev,
+            address: address,
+            location: address,
+          }));
+          // 사용 후 삭제
+          await AsyncStorage.removeItem("selectedAddress");
+        }
+      } catch (error) {
+        console.error("❌ 주소 확인 오류:", error);
+      }
+    };
+
+    // 주소 검색 화면에서 돌아왔을 때 확인을 위해 주기적으로 체크
+    const interval = setInterval(checkSelectedAddress, 1000);
+
+    // 모달이 열릴 때 즉시 한 번 확인
+    checkSelectedAddress();
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [visible]);
 
   // 초기화
   useEffect(() => {
@@ -1477,127 +1619,32 @@ export default function MultiStepScheduleModal({
   const renderLocationStep = () => (
     <View style={styles.stepContent}>
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>위치명</Text>
-        <TextInput
-          style={styles.textInput}
-          placeholder="위치명을 입력해주세요 (예: 화성교육청)"
-          value={formData.location}
-          onChangeText={(text) => setFormData({ ...formData, location: text })}
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>주소</Text>
         <View style={styles.addressRow}>
           <TextInput
             style={[styles.textInput, styles.addressInput]}
-            placeholder="주소를 입력하거나 검색해주세요"
+            placeholder={
+              Platform.OS === "web"
+                ? "주소를 입력하거나 검색해주세요 (예: 경기도 화성시 화성교육청)"
+                : "주소를 입력해주세요 (예: 경기도 화성시 화성교육청)"
+            }
             value={formData.address}
             onChangeText={(text) => setFormData({ ...formData, address: text })}
           />
-          <Pressable
-            style={[
-              styles.addressSearchButton,
-              { backgroundColor: colors.primary },
-            ]}
-            onPress={() => setShowAddressSearch(true)}
-          >
-            <Ionicons name="search" size={20} color="white" />
-          </Pressable>
-        </View>
-
-        {/* 주소 검색 WebView (모바일) */}
-        {showAddressSearch && Platform.OS !== "web" && (
-          <View
-            style={{
-              marginTop: 12,
-              borderWidth: 1,
-              borderColor: "#e5e7eb",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                backgroundColor: "#f9fafb",
-                borderBottomWidth: 1,
-                borderBottomColor: "#e5e7eb",
+          {Platform.OS === "web" && (
+            <Pressable
+              style={[
+                styles.addressSearchButton,
+                { backgroundColor: colors.primary },
+              ]}
+              onPress={() => {
+                setShowAddressSearch(true);
               }}
             >
-              <Text
-                style={{ fontSize: 16, fontWeight: "600", color: "#374151" }}
-              >
-                주소 검색
-              </Text>
-              <Pressable onPress={() => setShowAddressSearch(false)}>
-                <Ionicons name="close" size={20} color="#666" />
-              </Pressable>
-            </View>
-            <WebView
-              source={{
-                html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; overflow: hidden; }
-    #wrap { width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <div id="wrap"></div>
-  <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-  <script>
-    (function() {
-      var searchQuery = "${(formData.address || "")
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, " ")
-        .trim()}";
-      new daum.Postcode({
-        oncomplete: function(data) {
-          var addr = data.roadAddress || data.jibunAddress;
-          if (data.buildingName) { addr += ' (' + data.buildingName + ')'; }
-          if (window.ReactNativeWebView) {
-            var message = JSON.stringify({ address: addr });
-            window.ReactNativeWebView.postMessage(message);
-          }
-        },
-        width: '100%',
-        height: '100%'
-      }).embed(document.getElementById('wrap'), { q: searchQuery, autoClose: true });
-    })();
-  </script>
-</body>
-</html>
-                `,
-              }}
-              style={{ width: "100%", height: 480 }}
-              onMessage={(event) => {
-                try {
-                  const data = JSON.parse(event.nativeEvent.data);
-                  if (data.address) {
-                    setFormData((prev) => ({ ...prev, address: data.address }));
-                    setShowAddressSearch(false);
-                  }
-                } catch {}
-              }}
-              javaScriptEnabled
-              domStorageEnabled
-              originWhitelist={["*"]}
-              scalesPageToFit={false}
-              scrollEnabled
-              nestedScrollEnabled
-            />
-          </View>
-        )}
+              <Ionicons name="search" size={20} color="white" />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <View style={styles.inputGroup}>
@@ -1611,6 +1658,47 @@ export default function MultiStepScheduleModal({
           numberOfLines={3}
         />
       </View>
+
+      {/* 주소 검색 모달 (별도 Modal로 분리) */}
+      <Modal
+        visible={showAddressSearch}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAddressSearch(false)}
+      >
+        <View style={styles.addressSearchModalOverlay}>
+          <View style={styles.addressSearchModalContent}>
+            <View style={styles.addressSearchModalHeader}>
+              <Text style={styles.addressSearchModalTitle}>주소 검색</Text>
+              <Pressable
+                onPress={() => setShowAddressSearch(false)}
+                style={styles.addressSearchModalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </Pressable>
+            </View>
+            {Platform.OS === "web" ? (
+              <View
+                style={styles.addressSearchWebContainer}
+                data-testid="address-search-web-container"
+              >
+                {webAddressSearchReady ? null : (
+                  <Text style={{ padding: 16, color: "#666" }}>
+                    주소 검색 서비스를 불러오는 중...
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <View style={styles.addressSearchWebContainer}>
+                <Text style={{ padding: 16, color: "#666" }}>
+                  앱에서는 현재 주소 검색을 지원하지 않습니다. 입력란에 직접
+                  입력해주세요.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 
@@ -2418,5 +2506,40 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     textAlign: "center",
     lineHeight: 20,
+  },
+  addressSearchModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  addressSearchModalContent: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: "80%",
+    maxHeight: 600,
+    overflow: "hidden",
+  },
+  addressSearchModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  addressSearchModalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  addressSearchModalCloseButton: {
+    padding: 4,
+  },
+  addressSearchWebContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

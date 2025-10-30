@@ -173,6 +173,10 @@ function NavigationWrapper() {
         {/* 기타 */}
         <Stack.Screen name="files" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+        <Stack.Screen
+          name="address-search"
+          options={{ headerShown: false, presentation: "modal" }}
+        />
       </Stack>
     </NavigationThemeProvider>
   );
