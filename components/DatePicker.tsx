@@ -35,10 +35,9 @@ export default function DatePicker({
     if (isNaN(date.getTime())) return "";
 
     if (mode === "time") {
-      return date.toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const h = date.getHours().toString().padStart(2, "0");
+      const m = date.getMinutes().toString().padStart(2, "0");
+      return `${h}:${m}`;
     }
     return date.toLocaleDateString("ko-KR");
   };
@@ -62,9 +61,19 @@ export default function DatePicker({
   }, [value]);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
-    // 모든 플랫폼에서 임시 날짜만 업데이트
-    if (selectedDate) {
-      setTempDate(selectedDate);
+    if (!selectedDate) return;
+    setTempDate(selectedDate);
+
+    // 즉시 상위 상태 반영 (iOS/Android 공통)
+    if (mode === "time") {
+      const hours = selectedDate.getHours().toString().padStart(2, "0");
+      const minutes = selectedDate.getMinutes().toString().padStart(2, "0");
+      onDateChange(`${hours}:${minutes}`);
+    } else {
+      const year = selectedDate.getFullYear();
+      const month = (selectedDate.getMonth() + 1).toString().padStart(2, "0");
+      const day = selectedDate.getDate().toString().padStart(2, "0");
+      onDateChange(`${year}-${month}-${day}`);
     }
   };
 

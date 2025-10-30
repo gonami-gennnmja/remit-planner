@@ -1232,13 +1232,29 @@ export default function MultiStepScheduleModal({
             label="시작일 *"
             value={formData.startDate}
             onDateChange={(date) => {
-              if (dayjs(date).isAfter(dayjs(formData.endDate))) {
-                setFormData({ ...formData, startDate: date, endDate: date });
+              const newStartDate = date;
+              const currentEndDate = formData.endDate;
+              const isSameDate = dayjs(newStartDate).isSame(
+                dayjs(currentEndDate),
+                "day"
+              );
+
+              if (dayjs(newStartDate).isAfter(dayjs(currentEndDate))) {
+                setFormData({
+                  ...formData,
+                  startDate: newStartDate,
+                  endDate: newStartDate,
+                  uniformTime: true, // 같은 날짜일 때는 항상 uniformTime을 true로
+                });
               } else {
-                setFormData({ ...formData, startDate: date });
+                setFormData({
+                  ...formData,
+                  startDate: newStartDate,
+                  uniformTime: isSameDate ? true : formData.uniformTime, // 같은 날짜면 true
+                });
               }
               if (!formData.allDay && !formData.uniformTime) {
-                ensureScheduleTimesForRange(date, formData.endDate);
+                ensureScheduleTimesForRange(newStartDate, currentEndDate);
               }
             }}
             placeholder="시작일 선택"
@@ -1254,9 +1270,18 @@ export default function MultiStepScheduleModal({
                 Alert.alert("오류", "종료일은 시작일보다 늦어야 합니다.");
                 return;
               }
-              setFormData({ ...formData, endDate: date });
+              const newEndDate = date;
+              const isSameDate = dayjs(formData.startDate).isSame(
+                dayjs(newEndDate),
+                "day"
+              );
+              setFormData({
+                ...formData,
+                endDate: newEndDate,
+                uniformTime: isSameDate ? true : formData.uniformTime, // 같은 날짜면 true
+              });
               if (!formData.allDay && !formData.uniformTime) {
-                ensureScheduleTimesForRange(formData.startDate, date);
+                ensureScheduleTimesForRange(formData.startDate, newEndDate);
               }
             }}
             placeholder="종료일 선택"
@@ -1287,51 +1312,55 @@ export default function MultiStepScheduleModal({
 
       {!formData.allDay && (
         <>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>매일 시간 동일</Text>
-            <Pressable
-              onPress={() => {
-                const next = !formData.uniformTime;
-                setFormData({ ...formData, uniformTime: next });
-                if (!next && formData.startDate !== formData.endDate) {
-                  ensureScheduleTimesForRange(
-                    formData.startDate,
-                    formData.endDate
-                  );
-                }
-              }}
-              style={[
-                styles.toggle,
-                {
-                  backgroundColor: formData.uniformTime
-                    ? colors.primary
-                    : "#cbd5e1",
-                },
-              ]}
-            >
-              <View
+          {formData.startDate !== formData.endDate && (
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>매일 시간 동일</Text>
+              <Pressable
+                onPress={() => {
+                  const next = !formData.uniformTime;
+                  setFormData({ ...formData, uniformTime: next });
+                  if (!next) {
+                    ensureScheduleTimesForRange(
+                      formData.startDate,
+                      formData.endDate
+                    );
+                  }
+                }}
                 style={[
-                  styles.toggleThumb,
-                  { marginLeft: formData.uniformTime ? 20 : 0 },
+                  styles.toggle,
+                  {
+                    backgroundColor: formData.uniformTime
+                      ? colors.primary
+                      : "#cbd5e1",
+                  },
                 ]}
-              />
-            </Pressable>
-          </View>
+              >
+                <View
+                  style={[
+                    styles.toggleThumb,
+                    { marginLeft: formData.uniformTime ? 20 : 0 },
+                  ]}
+                />
+              </Pressable>
+            </View>
+          )}
 
           {formData.uniformTime ? (
             <View style={styles.dateTimeRow}>
               <View style={styles.dateCol}>
                 <DatePicker
                   label="시작시간"
-                  value={`2000-01-01 ${formData.startTime}`}
+                  value={`2000-01-01 ${formData.startTime || "09:00"}`}
                   onDateChange={(date) => {
-                    setTimeout(() => {
-                      const selectedStartTime = dayjs(date).format("HH:mm");
-                      setFormData((prev) => ({
-                        ...prev,
-                        startTime: selectedStartTime,
-                      }));
-                    }, 0);
+                    // DatePicker의 time 모드는 이미 "HH:mm" 형식 문자열을 반환합니다
+                    const selectedStartTime =
+                      typeof date === "string" && date.includes(":")
+                        ? date
+                        : dayjs(date).format("HH:mm");
+                    setFormData((prev) => ({
+                      ...prev,
+                      startTime: selectedStartTime,
+                    }));
                   }}
                   placeholder="시작시간 선택"
                   mode="time"
@@ -1340,15 +1369,17 @@ export default function MultiStepScheduleModal({
               <View style={styles.dateCol}>
                 <DatePicker
                   label="종료시간"
-                  value={`2000-01-02 ${formData.endTime}`}
+                  value={`2000-01-01 ${formData.endTime || "18:00"}`}
                   onDateChange={(date) => {
-                    setTimeout(() => {
-                      const selectedEndTime = dayjs(date).format("HH:mm");
-                      setFormData((prev) => ({
-                        ...prev,
-                        endTime: selectedEndTime,
-                      }));
-                    }, 0);
+                    // DatePicker의 time 모드는 이미 "HH:mm" 형식 문자열을 반환합니다
+                    const selectedEndTime =
+                      typeof date === "string" && date.includes(":")
+                        ? date
+                        : dayjs(date).format("HH:mm");
+                    setFormData((prev) => ({
+                      ...prev,
+                      endTime: selectedEndTime,
+                    }));
                   }}
                   placeholder="종료시간 선택"
                   mode="time"
@@ -1390,13 +1421,18 @@ export default function MultiStepScheduleModal({
                       <View style={styles.dateCol}>
                         <DatePicker
                           label="시작시간"
-                          value={`2000-01-01 ${t.startTime}`}
+                          value={`2000-01-01 ${t.startTime || "09:00"}`}
                           onDateChange={(date) => {
+                            // DatePicker의 time 모드는 이미 "HH:mm" 형식 문자열을 반환합니다
+                            const selectedStartTime =
+                              typeof date === "string" && date.includes(":")
+                                ? date
+                                : dayjs(date).format("HH:mm");
                             setTimeout(() => {
                               updateScheduleTime(
                                 t.workDate,
                                 "startTime",
-                                dayjs(date).format("HH:mm")
+                                selectedStartTime
                               );
                             }, 0);
                           }}
@@ -1407,13 +1443,18 @@ export default function MultiStepScheduleModal({
                       <View style={styles.dateCol}>
                         <DatePicker
                           label="종료시간"
-                          value={`2000-01-01 ${t.endTime}`}
+                          value={`2000-01-01 ${t.endTime || "18:00"}`}
                           onDateChange={(date) => {
+                            // DatePicker의 time 모드는 이미 "HH:mm" 형식 문자열을 반환합니다
+                            const selectedEndTime =
+                              typeof date === "string" && date.includes(":")
+                                ? date
+                                : dayjs(date).format("HH:mm");
                             setTimeout(() => {
                               updateScheduleTime(
                                 t.workDate,
                                 "endTime",
-                                dayjs(date).format("HH:mm")
+                                selectedEndTime
                               );
                             }, 0);
                           }}
