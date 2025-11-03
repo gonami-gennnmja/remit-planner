@@ -500,7 +500,7 @@ export default function MultiStepScheduleModal({
   const goToNextStep = () => {
     if (currentStep < STEPS.REVIEW) {
       let nextStep: Step;
-      
+
       // 개인 스케줄인 경우 4, 5, 6단계를 건너뛰기
       if (formData.scheduleType === "personal") {
         if (currentStep === STEPS.LOCATION) {
@@ -513,7 +513,7 @@ export default function MultiStepScheduleModal({
         // 업무 스케줄은 모든 단계 진행
         nextStep = (currentStep + 1) as Step;
       }
-      
+
       setCurrentStep(nextStep);
       saveDraft(nextStep);
     }
@@ -523,7 +523,7 @@ export default function MultiStepScheduleModal({
   const goToPreviousStep = () => {
     if (currentStep > STEPS.BASIC_INFO) {
       let prevStep: Step;
-      
+
       // 개인 스케줄인 경우 4, 5, 6단계를 건너뛰기
       if (formData.scheduleType === "personal") {
         if (currentStep === STEPS.REVIEW) {
@@ -536,7 +536,7 @@ export default function MultiStepScheduleModal({
         // 업무 스케줄은 모든 단계 진행
         prevStep = (currentStep - 1) as Step;
       }
-      
+
       setCurrentStep(prevStep);
     }
   };
