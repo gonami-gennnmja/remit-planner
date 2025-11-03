@@ -487,7 +487,18 @@ export default function MultiStepScheduleModal({
           (formData.contractAmount !== undefined && formData.contractAmount > 0)
         );
       case STEPS.WORKERS:
-        return true; // 근로자는 선택사항
+        // 근로자 선택이 없으면 통과
+        if (pickedWorkers.length === 0) return true;
+        
+        // 선택된 근로자 중 날짜가 전체 비활성화된 근로자가 있는지 확인
+        for (const worker of pickedWorkers) {
+          const assignments = workerAssignments[worker.workerId] || [];
+          const enabledDates = assignments.filter((d) => d.enabled);
+          if (enabledDates.length === 0) {
+            return false;
+          }
+        }
+        return true;
       case STEPS.DOCUMENTS:
         return true; // 첨부파일은 선택사항
       case STEPS.REVIEW:
@@ -945,18 +956,14 @@ export default function MultiStepScheduleModal({
       }
 
       // 근로자 배치 저장 (선택/배치 정보가 있는 경우에만)
-      console.log("📋 총 선택된 근로자 수:", pickedWorkers.length);
       if (pickedWorkers.length > 0) {
         for (const w of pickedWorkers) {
           const isWorkerUniformTime = workerUniformTime[w.workerId] ?? true;
           const daily = workerAssignments[w.workerId] || [];
           const enabledDates = daily.filter((d) => d.enabled);
 
-          console.log(`👤 근로자 ID: ${w.workerId}, 활성화된 날짜 수: ${enabledDates.length}`);
-          
           // 참여 날짜가 없으면 건너뜀
           if (enabledDates.length === 0) {
-            console.log(`⚠️ 근로자 ${w.workerId}는 활성화된 날짜가 없어 저장 건너뜀`);
             continue;
           }
 
@@ -970,7 +977,6 @@ export default function MultiStepScheduleModal({
           const scheduleWorkerId = `sw_${Date.now()}_${Math.random()
             .toString(36)
             .substr(2, 9)}`;
-          console.log(`💾 근로자 ${w.workerId} 저장 시작, scheduleWorkerId: ${scheduleWorkerId}`);
           // 근로자-스케줄 연결 생성
           await db.createScheduleWorker({
             id: scheduleWorkerId,
@@ -2103,7 +2109,7 @@ export default function MultiStepScheduleModal({
         ]);
         setWorkerUniformTime((prev) => ({ ...prev, [worker.id]: true }));
 
-        // 모든 날짜를 초기화하되 enabled=false로 시작 (사용자가 선택하도록)
+        // 모든 날짜를 초기화하고 기본적으로 모두 활성화
         const initializeWorkerDates = () => {
           const assignments: WorkerDailyAssignment[] = [];
           let d = dayjs(formData.startDate);
@@ -2117,7 +2123,7 @@ export default function MultiStepScheduleModal({
 
             assignments.push({
               workDate,
-              enabled: false, // 기본적으로 선택 안됨 (사용자가 직접 선택)
+              enabled: true, // 기본적으로 모두 활성화
               startTime:
                 scheduleTime?.startTime ||
                 (formData.uniformTime ? formData.startTime : "09:00"),
