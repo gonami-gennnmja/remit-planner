@@ -90,6 +90,7 @@ npm run web
 ### 빠른 링크
 
 - **[📖 문서 가이드](./docs/README.md)** - 상황별 문서 찾기
+- **[🚀 배포 가이드](./docs/deployment/)** - CI/CD, EAS Build, 배포 자동화
 - **[🔐 인증 문서](./docs/auth/)** - 로그인, 회원가입, 소셜 로그인
 - **[🗄️ 데이터베이스 문서](./docs/database/)** - 스키마, 마이그레이션, Supabase
 - **[🔒 보안 문서](./docs/security/)** - RLS, 사용자 격리, 보안 검증

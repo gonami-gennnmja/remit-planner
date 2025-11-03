@@ -9,11 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "extra": {
-      "eas": {
-        "projectId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-      },
       "supabaseUrl": "YOUR_SUPABASE_URL",
-      "supabaseAnonKey": "YOUR_SUPABASE_ANON_KEY"
+      "supabaseAnonKey": "YOUR_SUPABASE_ANON_KEY",
+      "router": {},
+      "eas": {
+        "projectId": "cbb3e6f7-71b4-46e1-b739-e2e24cf90fa6"
+      }
     },
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -21,9 +22,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.banban.halfhalf"
     },
     "android": {
+      "package": "com.banban.halfhalf",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"

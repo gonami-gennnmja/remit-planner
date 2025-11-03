@@ -8,6 +8,7 @@
 docs/
 ├── auth/           # 인증 및 사용자 관리 관련 문서
 ├── database/       # 데이터베이스 설정 및 마이그레이션 문서
+├── deployment/     # 배포 및 CI/CD 관련 문서
 ├── guides/         # 일반 설정 및 가이드 문서
 ├── security/       # 보안 및 사용자 격리 관련 문서
 ├── setup/          # 초기 설정 및 구성 관련 문서
@@ -27,6 +28,7 @@ docs/
 4. **[guides/SUPABASE_SETUP_INSTRUCTIONS.md](./guides/SUPABASE_SETUP_INSTRUCTIONS.md)** - Supabase 상세 설정
 5. **[guides/DEVELOPMENT_COMMANDS_GUIDE.md](./guides/DEVELOPMENT_COMMANDS_GUIDE.md)** - 앱 실행 및 개발 명령어
 6. **[setup/APP_ICON_SETUP_GUIDE.md](./setup/APP_ICON_SETUP_GUIDE.md)** - 앱 아이콘 설정
+7. **[deployment/DEPLOYMENT_PIPELINE_GUIDE.md](./deployment/DEPLOYMENT_PIPELINE_GUIDE.md)** - 배포 파이프라인 설정 (선택사항)
 
 ### 💻 **macOS/Windows 환경 설정 문제가 있는 경우**
 
@@ -74,6 +76,16 @@ docs/
 1. **[setup/APP_ICON_SETUP_GUIDE.md](./setup/APP_ICON_SETUP_GUIDE.md)** - 앱 아이콘 변경
 2. **[setup/TERMS_AND_PRIVACY_GUIDE.md](./setup/TERMS_AND_PRIVACY_GUIDE.md)** - 이용약관 및 개인정보처리방침 페이지
 
+### 🚢 **앱을 배포하거나 CI/CD를 설정하는 경우**
+
+1. **[deployment/DEPLOYMENT_PIPELINE_GUIDE.md](./deployment/DEPLOYMENT_PIPELINE_GUIDE.md)** - 배포 파이프라인 완전 가이드
+   - EAS Build 설정
+   - GitHub Actions CI/CD
+   - OTA 업데이트
+   - 앱스토어 제출
+2. **[deployment/QUICK_DEPLOYMENT_GUIDE.md](./deployment/QUICK_DEPLOYMENT_GUIDE.md)** - 빠른 배포 참조
+3. **[guides/DEVELOPMENT_COMMANDS_GUIDE.md](./guides/DEVELOPMENT_COMMANDS_GUIDE.md)** - 빌드 명령어 참고
+
 ### 🐛 **버그를 수정하거나 업데이트를 확인하는 경우**
 
 1. **[updates/REALTIME_VALIDATION_UPDATE.md](./updates/REALTIME_VALIDATION_UPDATE.md)** - 실시간 유효성 검사 업데이트
@@ -105,6 +117,22 @@ docs/
 - **DATABASE_MIGRATION_GUIDE.md** - 일반 마이그레이션 절차
 - **DATABASE_LEVEL_SECURITY_SETUP_GUIDE.md** - RLS 설정
 - **DATABASE_OPERATIONS_USER_ISOLATION_COMPLETE.md** - 사용자 격리 완료 문서
+
+### 📂 deployment/ (배포 및 CI/CD 관련)
+
+- **FINAL_DEPLOYMENT_SETUP.md** - 최종 설정 완료
+- **DEPLOYMENT_SETUP_SUMMARY.md** - 배포 설정 요약
+- **DEPLOYMENT_PIPELINE_GUIDE.md** - 배포 파이프라인 완전 가이드
+- **QUICK_DEPLOYMENT_GUIDE.md** - 빠른 배포 가이드
+- **DEPLOYMENT_CHECKLIST.md** - 배포 전 체크리스트
+- **NEXT_STEPS.md** - 다음 단계 간단 정리
+- **BUILD_TROUBLESHOOTING.md** - 빌드 문제 해결
+- **POWERSHELL_COMMANDS.md** - PowerShell 명령어
+- **EAS_FIX_INSTRUCTIONS.md** - EAS 설정 문제 해결
+- **ENV_VARIABLES_EXPLAINED.md** - 환경 변수 설정 가이드
+- **GITHUB_SECRETS_SETUP.md** - GitHub Secrets 설정 방법
+- **TEST_BUILD_WITHOUT_DEV_ACCOUNT.md** - 무료 테스트 빌드
+- **IOS_BUILD_ACCOUNT_REQUIREMENTS.md** - iOS 계정 요구사항
 
 ### 📂 security/ (보안 관련)
 
@@ -152,11 +180,11 @@ docs/
 
 새로운 문서를 추가하거나 기존 문서를 수정할 때는 다음 규칙을 따라주세요:
 
-1. **적절한 폴더에 배치**: auth, database, security, setup, updates 중 하나
+1. **적절한 폴더에 배치**: auth, database, deployment, guides, security, setup, updates 중 하나
 2. **명확한 파일명**: 대문자와 언더스코어 사용 (예: NEW_FEATURE_GUIDE.md)
 3. **이 README 업데이트**: 새 문서를 추가했다면 이 파일에 링크 추가
 4. **일관된 형식**: 제목, 목차, 단계별 설명, 예제 코드 포함
 
 ---
 
-**최종 업데이트**: 2025-10-21
+**최종 업데이트**: 2025-11-03

@@ -7,7 +7,15 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "create-admin-account": "ts-node scripts/create-admin-account.ts"
+    "create-admin-account": "ts-node scripts/create-admin-account.ts",
+    "build:android": "eas build --platform android --profile production",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:all": "eas build --platform all --profile production",
+    "build:preview": "eas build --platform all --profile preview",
+    "update": "eas update --branch production",
+    "submit:ios": "eas submit --platform ios",
+    "submit:android": "eas submit --platform android",
+    "export:web": "expo export:web"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
@@ -16,8 +24,6 @@
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "^8.4.5",
     "@react-native-community/slider": "^5.0.1",
-    "@react-native-firebase/app": "^23.4.1",
-    "@react-native-firebase/messaging": "^23.4.1",
     "@react-native-picker/picker": "^2.11.4",
     "@react-navigation/native": "^7.1.8",
     "@shopify/flash-list": "^2.1.0",
