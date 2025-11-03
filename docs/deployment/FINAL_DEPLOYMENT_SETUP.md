@@ -15,9 +15,9 @@
 
 ### 수정된 파일
 
-1. **package.json** - 배포 명령어 추가
-2. **app.json** - Bundle ID 및 versionCode 추가
-3. **README.md** - 배포 가이드 링크
+1. **package.json** - 배포 명령어 추가, Firebase 제거
+2. **app.json** - Bundle ID 추가, versionCode 제거 (EAS 자동 관리)
+3. **README.md** - 배포 가이드 링크 업데이트
 4. **docs/README.md** - deployment 섹션 추가
 
 ### 삭제된 파일

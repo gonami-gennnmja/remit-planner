@@ -127,6 +127,8 @@ docs/
 - **DEPLOYMENT_CHECKLIST.md** - 배포 전 체크리스트
 - **NEXT_STEPS.md** - 다음 단계 간단 정리
 - **BUILD_TROUBLESHOOTING.md** - 빌드 문제 해결
+- **CURRENT_BUILD_ISSUES.md** - 현재 빌드 문제 현황
+- **IMAGE_FILES_FIX.md** - 이미지 파일 형식 문제
 - **POWERSHELL_COMMANDS.md** - PowerShell 명령어
 - **EAS_FIX_INSTRUCTIONS.md** - EAS 설정 문제 해결
 - **ENV_VARIABLES_EXPLAINED.md** - 환경 변수 설정 가이드

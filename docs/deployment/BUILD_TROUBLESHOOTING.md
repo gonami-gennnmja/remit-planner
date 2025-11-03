@@ -192,3 +192,62 @@ eas build --platform android --profile preview --clear-cache
 ---
 
 **요약**: Firebase 제거 후 `npm install` 재실행!
+
+---
+
+## 🆘 긴급: Gradle 빌드 계속 실패 시
+
+### EAS 로그 확인 필수!
+
+빌드 실패 시 **무조건** EAS 대시보드에서 로그를 확인하세요:
+
+1. 터미널에 나온 빌드 URL 클릭
+2. "Run gradlew" 단계 클릭
+3. 실제 오류 메시지 확인
+4. 오류 메시지를 Google에 검색
+
+**공통 해결책**:
+
+#### React Native Worklets 제거 (필요시)
+
+```bash
+npm uninstall react-native-worklets
+```
+
+#### Gradle 버전 문제
+
+`android/build.gradle` 파일이 없다면 Expo가 자동 관리합니다.
+`eas.json`에 추가:
+
+```json
+{
+  "build": {
+    "preview": {
+      "android": {
+        "gradleCommand": ":app:assembleRelease"
+      }
+    }
+  }
+}
+```
+
+#### 의존성 충돌
+
+```bash
+npx expo-doctor
+```
+
+**주의**: `react-native-calendars`의 하위 의존성 중복은 대부분 무시해도 됩니다.
+
+#### 최후의 수단: 깨끗한 빌드
+
+```bash
+# 모든 것을 삭제
+Remove-Item -Recurse -Force node_modules,package-lock.json,.expo -ErrorAction SilentlyContinue
+
+# 재설치
+npm install
+
+# 빌드
+eas build --platform android --profile preview --clear-cache
+```
