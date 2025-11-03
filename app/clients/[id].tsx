@@ -750,28 +750,22 @@ export default function ClientDetailScreen() {
         visible={showContactModal}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={() => setShowContactModal(false)}
       >
         <View style={styles.modalContainer}>
           <CommonHeader
             title={editingContact ? "담당자 수정" : "담당자 추가"}
             showBackButton={false}
+            compact={true}
+            leftButton={{
+              icon: "close",
+              onPress: () => setShowContactModal(false),
+            }}
             rightButton={{
               icon: "checkmark",
               onPress: handleSaveContact,
             }}
           />
-          <Pressable
-            style={{
-              position: "absolute",
-              left: 16,
-              top: 16,
-              zIndex: 1,
-              padding: 8,
-            }}
-            onPress={() => setShowContactModal(false)}
-          >
-            <Ionicons name="close" size={24} color="#fff" />
-          </Pressable>
 
           <ScrollView style={styles.modalContent}>
             <View style={styles.formSection}>

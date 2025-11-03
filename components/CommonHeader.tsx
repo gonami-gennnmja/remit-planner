@@ -17,6 +17,7 @@ interface CommonHeaderProps {
     onPress: () => void;
     label?: string;
   };
+  compact?: boolean;
 }
 
 export default function CommonHeader({
@@ -24,6 +25,7 @@ export default function CommonHeader({
   showBackButton = true,
   leftButton,
   rightButton,
+  compact = false,
 }: CommonHeaderProps) {
   const { colors, isDark } = useTheme();
 
@@ -31,6 +33,7 @@ export default function CommonHeader({
     <View
       style={[
         styles.header,
+        compact && styles.headerCompact,
         {
           backgroundColor: colors.surface,
           borderBottomColor: colors.border,
@@ -99,6 +102,10 @@ const styles = {
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
+  },
+  headerCompact: {
+    paddingTop: Platform.OS === "ios" ? 20 : 10,
+    paddingBottom: 12,
   },
   headerContent: {
     flexDirection: "row" as const,

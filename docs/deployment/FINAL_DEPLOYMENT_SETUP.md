@@ -43,18 +43,21 @@ npm install
 
 ```bash
 git add .
-git commit -m "Add deployment pipeline: EAS Build + GitHub Actions CI/CD"
+git commit -m "Complete deployment pipeline: EAS Build + GitHub Actions + Image fixes + First successful build"
 git push origin main
 ```
 
-### 3. 빌드 실행 (선택사항)
+### 3. 빌드 실행 ✅ (이미 성공!)
 
-```bash
-# Android Preview 빌드
-eas build --platform android --profile preview --clear-cache
+**첫 번째 빌드가 완료되었습니다!** 🎉
+
+다운로드 링크:
+
+```
+https://expo.dev/accounts/gainnam/projects/banban-halfhalf/builds/25e84219-d758-411a-b318-504b9013dd67
 ```
 
-또는
+추가 빌드:
 
 ```bash
 npm run build:preview

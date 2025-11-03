@@ -57,15 +57,18 @@ git commit -m "Setup complete deployment pipeline: EAS Build + GitHub Actions + 
 git push origin main
 ```
 
-### 2. 추가 빌드 (선택사항)
+### 2. iOS 빌드 (선택사항)
+
+**⚠️ 주의**: iOS 빌드는 Apple Developer 계정($99/년)이 필요합니다!
+
+현재는 **Expo Go**로만 iOS 테스트 가능:
 
 ```bash
-# iOS 빌드 (개발자 계정 필요)
-eas build --platform ios --profile preview
-
-# 전체 빌드
-eas build --platform all --profile preview
+npm start
+# QR 코드를 iOS의 Expo Go 앱으로 스캔
 ```
+
+독립 iOS 앱 파일이 필요하면: [IOS_BUILD_ACCOUNT_REQUIREMENTS.md](./IOS_BUILD_ACCOUNT_REQUIREMENTS.md) 참고
 
 ### 3. 프로덕션 빌드
 
@@ -86,8 +89,34 @@ npm run build:all
 
 ---
 
-## 🎊 축하합니다!
+## 🎊 빌드 성공! 🎉
 
-배포 파이프라인이 완벽하게 설정되었습니다! 🎉
+**첫 번째 빌드 완료!** ✅
 
-이제 언제든지 `eas build` 명령어 하나로 빌드할 수 있습니다! 🚀
+Android Preview 빌드가 성공했습니다!
+
+다운로드 링크:
+
+```
+https://expo.dev/accounts/gainnam/projects/banban-halfhalf/builds/25e84219-d758-411a-b318-504b9013dd67
+```
+
+---
+
+## 📱 앱 설치 방법
+
+### 방법 1: QR 코드 스캔
+
+터미널에 표시된 QR 코드를 Android 기기에서 스캔하세요.
+
+### 방법 2: 링크 직접 열기
+
+위 링크를 Android 기기 브라우저에서 열어 앱을 설치하세요.
+
+---
+
+## 🎉 축하합니다!
+
+배포 파이프라인이 완벽하게 설정되었습니다! 🚀
+
+이제 언제든지 `eas build` 명령어 하나로 빌드할 수 있습니다!

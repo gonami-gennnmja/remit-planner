@@ -39,6 +39,12 @@ export default function RevenueManagementScreen() {
     "all" | "received" | "pending" | "overdue"
   >("all");
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>("month");
+  const [customStartDate, setCustomStartDate] = useState<string>(
+    dayjs().startOf("month").format("YYYY-MM-DD")
+  );
+  const [customEndDate, setCustomEndDate] = useState<string>(
+    dayjs().endOf("month").format("YYYY-MM-DD")
+  );
 
   const loadRevenueData = async () => {
     try {
@@ -81,6 +87,19 @@ export default function RevenueManagementScreen() {
               scheduleDate.isSameOrBefore(today.endOf("year"))
             );
           });
+          break;
+        case "custom":
+          {
+            const start = dayjs(customStartDate).startOf("day");
+            const end = dayjs(customEndDate).endOf("day");
+            schedules = allSchedules.filter((s) => {
+              const scheduleDate = dayjs(s.startDate);
+              return (
+                scheduleDate.isSameOrAfter(start) &&
+                scheduleDate.isSameOrBefore(end)
+              );
+            });
+          }
           break;
       }
 
@@ -207,7 +226,13 @@ export default function RevenueManagementScreen() {
           <PeriodSelector
             selectedPeriod={selectedPeriod}
             onPeriodChange={setSelectedPeriod}
-            showCustomRange={false}
+            startDate={customStartDate}
+            endDate={customEndDate}
+            onStartDateChange={setCustomStartDate}
+            onEndDateChange={setCustomEndDate}
+            showCustomRange={true}
+            onSearch={loadRevenueData}
+            showSearchButton={selectedPeriod === "custom"}
           />
         </View>
 
