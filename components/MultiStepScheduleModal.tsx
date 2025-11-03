@@ -489,7 +489,7 @@ export default function MultiStepScheduleModal({
       case STEPS.WORKERS:
         // 근로자 선택이 없으면 통과
         if (pickedWorkers.length === 0) return true;
-        
+
         // 선택된 근로자 중 날짜가 전체 비활성화된 근로자가 있는지 확인
         for (const worker of pickedWorkers) {
           const assignments = workerAssignments[worker.workerId] || [];
