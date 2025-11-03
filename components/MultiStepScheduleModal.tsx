@@ -945,14 +945,20 @@ export default function MultiStepScheduleModal({
       }
 
       // 근로자 배치 저장 (선택/배치 정보가 있는 경우에만)
+      console.log("📋 총 선택된 근로자 수:", pickedWorkers.length);
       if (pickedWorkers.length > 0) {
         for (const w of pickedWorkers) {
           const isWorkerUniformTime = workerUniformTime[w.workerId] ?? true;
           const daily = workerAssignments[w.workerId] || [];
           const enabledDates = daily.filter((d) => d.enabled);
 
+          console.log(`👤 근로자 ID: ${w.workerId}, 활성화된 날짜 수: ${enabledDates.length}`);
+          
           // 참여 날짜가 없으면 건너뜀
-          if (enabledDates.length === 0) continue;
+          if (enabledDates.length === 0) {
+            console.log(`⚠️ 근로자 ${w.workerId}는 활성화된 날짜가 없어 저장 건너뜀`);
+            continue;
+          }
 
           // 실제 참여 날짜 범위 계산
           const sortedDates = enabledDates
@@ -964,6 +970,7 @@ export default function MultiStepScheduleModal({
           const scheduleWorkerId = `sw_${Date.now()}_${Math.random()
             .toString(36)
             .substr(2, 9)}`;
+          console.log(`💾 근로자 ${w.workerId} 저장 시작, scheduleWorkerId: ${scheduleWorkerId}`);
           // 근로자-스케줄 연결 생성
           await db.createScheduleWorker({
             id: scheduleWorkerId,
