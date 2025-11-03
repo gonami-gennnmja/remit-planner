@@ -22,16 +22,6 @@ import {
   View,
 } from "react-native";
 
-const STEPS = {
-  BASIC_INFO: 1,
-  DATE_TIME: 2,
-  LOCATION: 3,
-  CONTRACT: 4,
-  WORKERS: 5,
-  DOCUMENTS: 6,
-  REVIEW: 7,
-} as const;
-
 export default function ClientDetailScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams();
@@ -874,7 +864,6 @@ export default function ClientDetailScreen() {
           );
           setSchedules(clientSchedules);
         }}
-        initialStep={STEPS.CONTRACT}
         initialClientId={id as string}
       />
     </View>
