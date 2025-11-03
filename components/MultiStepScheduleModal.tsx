@@ -823,12 +823,12 @@ export default function MultiStepScheduleModal({
         hasAttachments: false,
         memo: "",
         scheduleType: "business",
-        clientId: undefined,
+        clientId: initialClientId || undefined,
         contractAmount: 0,
         contractType: "written",
         contractContent: "",
       });
-      setCurrentStep(STEPS.BASIC_INFO);
+      setCurrentStep(initialStep);
       // 근로자 관련 상태 초기화
       setPickedWorkers([]);
       setWorkerAssignments({});
