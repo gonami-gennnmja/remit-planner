@@ -4,11 +4,12 @@ import { Text } from "@/components/Themed";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { useResponsive } from "@/hooks/useResponsive";
-import { Client, Schedule, ScheduleCategory } from "@/models/types";
+import { Client, Schedule, ScheduleCategory, Worker } from "@/models/types";
 import { createScheduleActivity } from "@/utils/activityUtils";
 import { getCurrentSupabaseUser } from "@/utils/supabaseAuth";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -44,8 +45,9 @@ const STEPS = {
   DATE_TIME: 2,
   LOCATION: 3,
   CONTRACT: 4,
-  DOCUMENTS: 5,
-  REVIEW: 6,
+  WORKERS: 5,
+  DOCUMENTS: 6,
+  REVIEW: 7,
 } as const;
 
 type Step = (typeof STEPS)[keyof typeof STEPS];
@@ -323,6 +325,16 @@ export default function MultiStepScheduleModal({
     Array<{ id: string; name: string; color: string }>
   >([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [allWorkers, setAllWorkers] = useState<Worker[]>([]);
+  const [workerSearchQuery, setWorkerSearchQuery] = useState("");
+  const [showAddWorkerForm, setShowAddWorkerForm] = useState(false);
+  const [newWorkerName, setNewWorkerName] = useState("");
+  const [newWorkerPhone, setNewWorkerPhone] = useState("");
+  // 근로자별 날짜 추가 DatePicker 상태
+  const [showDatePickerForWorker, setShowDatePickerForWorker] = useState<
+    string | null
+  >(null);
+  const [tempDateForWorker, setTempDateForWorker] = useState<Date>(new Date());
 
   // 카테고리 추가 UI 상태
   const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
@@ -338,9 +350,36 @@ export default function MultiStepScheduleModal({
   const [showAddressSearch, setShowAddressSearch] = useState(false);
   const [showClientSelector, setShowClientSelector] = useState(false);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [showAddClientForm, setShowAddClientForm] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
   const [webAddressSearchReady, setWebAddressSearchReady] = useState(false);
   // iOS 초기 진입 시 1 -> 2단계 레이아웃 재계산을 위한 키
   const [dateStepKey, setDateStepKey] = useState(0);
+
+  // 근로자 배치(선택/일자별 시간)
+  type WorkerDailyAssignment = {
+    workDate: string;
+    enabled: boolean;
+    startTime: string;
+    endTime: string;
+  };
+  const [pickedWorkers, setPickedWorkers] = useState<
+    Array<{
+      workerId: string;
+      hourlyWage?: number;
+      startTime?: string;
+      endTime?: string;
+      uniformTime?: boolean;
+    }>
+  >([]);
+  const [workerAssignments, setWorkerAssignments] = useState<
+    Record<string, WorkerDailyAssignment[]>
+  >({});
+  // 각 근로자별 uniformTime 설정
+  const [workerUniformTime, setWorkerUniformTime] = useState<
+    Record<string, boolean>
+  >({});
 
   // 일별 시간 편집 헬퍼
   const ensureScheduleTimesForRange = (start: string, end: string) => {
@@ -417,6 +456,8 @@ export default function MultiStepScheduleModal({
         return "장소 정보";
       case STEPS.CONTRACT:
         return "계약 정보";
+      case STEPS.WORKERS:
+        return "근로자 배치";
       case STEPS.DOCUMENTS:
         return "첨부파일";
       case STEPS.REVIEW:
@@ -440,6 +481,8 @@ export default function MultiStepScheduleModal({
           formData.scheduleType === "personal" ||
           (formData.contractAmount !== undefined && formData.contractAmount > 0)
         );
+      case STEPS.WORKERS:
+        return true; // 근로자는 선택사항
       case STEPS.DOCUMENTS:
         return true; // 첨부파일은 선택사항
       case STEPS.REVIEW:
@@ -754,9 +797,19 @@ export default function MultiStepScheduleModal({
         contractContent: "",
       });
       setCurrentStep(STEPS.BASIC_INFO);
+      // 근로자 관련 상태 초기화
+      setPickedWorkers([]);
+      setWorkerAssignments({});
+      setWorkerUniformTime({});
+      setWorkerSearchQuery("");
+      setShowAddWorkerForm(false);
+      setNewWorkerName("");
+      setNewWorkerPhone("");
+      setShowDatePickerForWorker(null);
       loadDraft();
       loadCategories();
       loadClients();
+      loadWorkers();
     }
   }, [visible, initialStartDate, initialEndDate, initialIsMultiDay]);
 
@@ -774,9 +827,31 @@ export default function MultiStepScheduleModal({
     try {
       const db = getDatabase();
       const clientList = await db.getAllClients();
-      setClients(clientList);
+      // 최신순으로 정렬 (맨 위에 최신 거래처가 오도록)
+      const sortedClients = [...clientList].sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+      });
+      setClients(sortedClients);
     } catch (error) {
       console.error("❌ Failed to load clients:", error);
+    }
+  };
+
+  const loadWorkers = async () => {
+    try {
+      const db = getDatabase();
+      const workerList = await db.getAllWorkers();
+      // 최신순으로 정렬 (맨 위에 최신 근로자가 오도록)
+      const sortedWorkers = [...workerList].sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+      });
+      setAllWorkers(sortedWorkers);
+    } catch (error) {
+      console.error("❌ Failed to load workers:", error);
     }
   };
 
@@ -827,6 +902,81 @@ export default function MultiStepScheduleModal({
           contractStatus: "draft" as const,
         };
         await db.createScheduleContract(contract);
+      }
+
+      // 근로자 배치 저장 (선택/배치 정보가 있는 경우에만)
+      try {
+        if (pickedWorkers.length > 0) {
+          for (const w of pickedWorkers) {
+            const isWorkerUniformTime = workerUniformTime[w.workerId] ?? true;
+            const daily = workerAssignments[w.workerId] || [];
+            const enabledDates = daily.filter((d) => d.enabled);
+
+            // 참여 날짜가 없으면 건너뜀
+            if (enabledDates.length === 0) continue;
+
+            // 실제 참여 날짜 범위 계산
+            const sortedDates = enabledDates
+              .map((d) => d.workDate)
+              .sort((a, b) => (a < b ? -1 : 1));
+            const actualStartDate = sortedDates[0];
+            const actualEndDate = sortedDates[sortedDates.length - 1];
+
+            const scheduleWorkerId = `sw_${Date.now()}_${Math.random()
+              .toString(36)
+              .substr(2, 9)}`;
+            // 근로자-스케줄 연결 생성
+            await db.createScheduleWorker({
+              id: scheduleWorkerId,
+              scheduleId,
+              workerId: w.workerId,
+              workStartDate: actualStartDate, // 실제 참여 시작일
+              workEndDate: actualEndDate, // 실제 참여 종료일
+              uniformTime: isWorkerUniformTime,
+              hourlyWage: w.hourlyWage ?? undefined,
+              fuelAllowance: 0,
+              otherAllowance: 0,
+              overtimeEnabled: false,
+              nightShiftEnabled: false,
+              taxWithheld: true,
+              wagePaid: false,
+              fuelPaid: false,
+              otherPaid: false,
+            });
+
+            // 선택된 모든 날짜에 대해 workPeriod 생성
+            for (const d of enabledDates) {
+              const workPeriodId = `wp_${Date.now()}_${Math.random()
+                .toString(36)
+                .substr(2, 9)}`;
+
+              let periodStartTime: string;
+              let periodEndTime: string;
+
+              if (isWorkerUniformTime) {
+                // uniformTime이 true면 선택된 시간 사용 (모든 날짜 동일)
+                periodStartTime = w.startTime || formData.startTime || "09:00";
+                periodEndTime = w.endTime || formData.endTime || "18:00";
+              } else {
+                // uniformTime이 false면 각 날짜별 시간 사용
+                periodStartTime = d.startTime;
+                periodEndTime = d.endTime;
+              }
+
+              await db.createWorkPeriod({
+                id: workPeriodId,
+                scheduleWorkerId,
+                workDate: d.workDate,
+                startTime: periodStartTime,
+                endTime: periodEndTime,
+                breakDuration: 0,
+                overtimeHours: 0,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to save worker assignments:", e);
       }
 
       // 활동 생성
@@ -887,6 +1037,8 @@ export default function MultiStepScheduleModal({
         return renderLocationStep();
       case STEPS.CONTRACT:
         return renderContractStep();
+      case STEPS.WORKERS:
+        return renderWorkersStep();
       case STEPS.DOCUMENTS:
         return renderDocumentsStep();
       case STEPS.REVIEW:
@@ -1747,13 +1899,19 @@ export default function MultiStepScheduleModal({
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>계약금액 *</Text>
+          <Text style={styles.inputLabel}>계약금액 * (원)</Text>
           <TextInput
             style={styles.textInput}
             placeholder="계약금액을 입력하세요"
-            value={formData.contractAmount?.toString() || ""}
+            value={
+              formData.contractAmount && formData.contractAmount > 0
+                ? formData.contractAmount.toLocaleString()
+                : ""
+            }
             onChangeText={(text) => {
-              const amount = parseInt(text.replace(/[^0-9]/g, "")) || 0;
+              // 숫자만 추출
+              const numericValue = text.replace(/[^0-9]/g, "");
+              const amount = numericValue ? parseInt(numericValue, 10) : 0;
               setFormData({ ...formData, contractAmount: amount });
             }}
             keyboardType="numeric"
@@ -1831,6 +1989,1007 @@ export default function MultiStepScheduleModal({
     );
   };
 
+  // 근로자 배치 스텝
+  const renderWorkersStep = () => {
+    // 개인 스케줄인 경우 근로자 배치는 건너뛰기
+    if (formData.scheduleType === "personal") {
+      return (
+        <View style={styles.stepContent}>
+          <View style={styles.skipStepContainer}>
+            <Ionicons name="person-outline" size={64} color={colors.primary} />
+            <Text style={styles.skipStepTitle}>개인 스케줄</Text>
+            <Text style={styles.skipStepSubtitle}>
+              개인 스케줄에는 근로자 배치가 필요하지 않습니다.
+            </Text>
+            <Text style={styles.skipStepDescription}>
+              회식, 약속, 개인 일정 등은 근로자 없이 진행됩니다.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    const filteredWorkers = allWorkers.filter((w) =>
+      workerSearchQuery
+        ? w.name.toLowerCase().includes(workerSearchQuery.toLowerCase())
+        : true
+    );
+
+    // 선택된 근로자 확인
+    const isWorkerSelected = (workerId: string) => {
+      return pickedWorkers.some((pw) => pw.workerId === workerId);
+    };
+
+    // 근로자 선택/해제
+    const toggleWorker = (worker: Worker) => {
+      if (isWorkerSelected(worker.id)) {
+        // 제거
+        setPickedWorkers((prev) =>
+          prev.filter((pw) => pw.workerId !== worker.id)
+        );
+        setWorkerAssignments((prev) => {
+          const next = { ...prev };
+          delete next[worker.id];
+          return next;
+        });
+        setWorkerUniformTime((prev) => {
+          const next = { ...prev };
+          delete next[worker.id];
+          return next;
+        });
+      } else {
+        // 추가
+        const defaultStartTime = formData.uniformTime
+          ? formData.startTime
+          : formData.scheduleTimes[0]?.startTime || "09:00";
+        const defaultEndTime = formData.uniformTime
+          ? formData.endTime
+          : formData.scheduleTimes[0]?.endTime || "18:00";
+
+        setPickedWorkers((prev) => [
+          ...prev,
+          {
+            workerId: worker.id,
+            hourlyWage: worker.hourlyWage,
+            startTime: defaultStartTime,
+            endTime: defaultEndTime,
+            uniformTime: true,
+          },
+        ]);
+        setWorkerUniformTime((prev) => ({ ...prev, [worker.id]: true }));
+
+        // 모든 날짜를 초기화하되 enabled=false로 시작 (사용자가 선택하도록)
+        const initializeWorkerDates = () => {
+          const assignments: WorkerDailyAssignment[] = [];
+          let d = dayjs(formData.startDate);
+          const last = dayjs(formData.endDate);
+
+          while (d.isSameOrBefore(last, "day")) {
+            const workDate = d.format("YYYY-MM-DD");
+            const scheduleTime = formData.scheduleTimes.find(
+              (st) => st.workDate === workDate
+            );
+
+            assignments.push({
+              workDate,
+              enabled: false, // 기본적으로 선택 안됨 (사용자가 직접 선택)
+              startTime:
+                scheduleTime?.startTime ||
+                (formData.uniformTime ? formData.startTime : "09:00"),
+              endTime:
+                scheduleTime?.endTime ||
+                (formData.uniformTime ? formData.endTime : "18:00"),
+            });
+            d = d.add(1, "day");
+          }
+
+          return assignments;
+        };
+
+        const assignments = initializeWorkerDates();
+        setWorkerAssignments((prev) => ({
+          ...prev,
+          [worker.id]: assignments,
+        }));
+      }
+    };
+
+    // 근로자 시급 업데이트
+    const updateWorkerWage = (workerId: string, text: string) => {
+      const amount = parseInt(text.replace(/[^0-9]/g, "")) || 0;
+      setPickedWorkers((prev) =>
+        prev.map((pw) =>
+          pw.workerId === workerId ? { ...pw, hourlyWage: amount } : pw
+        )
+      );
+    };
+
+    // 근로자 uniformTime 토글
+    const toggleWorkerUniformTime = (workerId: string) => {
+      const current = workerUniformTime[workerId] ?? true;
+      const next = !current;
+      setWorkerUniformTime((prev) => ({ ...prev, [workerId]: next }));
+
+      // uniformTime이 false로 변경될 때 기존 날짜 설정은 유지 (enabled 상태 그대로)
+      // assignments는 이미 초기화되어 있으므로 변경 없음
+
+      setPickedWorkers((prev) =>
+        prev.map((pw) =>
+          pw.workerId === workerId ? { ...pw, uniformTime: next } : pw
+        )
+      );
+    };
+
+    // 근로자 통일 시간 업데이트
+    const updateWorkerUniformTimes = (
+      workerId: string,
+      type: "startTime" | "endTime",
+      value: string
+    ) => {
+      setPickedWorkers((prev) =>
+        prev.map((pw) =>
+          pw.workerId === workerId ? { ...pw, [type]: value } : pw
+        )
+      );
+    };
+
+    // 근로자 일별 시간 업데이트
+    const updateWorkerDailyTime = (
+      workerId: string,
+      workDate: string,
+      type: "startTime" | "endTime",
+      value: string
+    ) => {
+      setWorkerAssignments((prev) => {
+        const assignments = prev[workerId] || [];
+        const updated = assignments.map((a) =>
+          a.workDate === workDate ? { ...a, [type]: value } : a
+        );
+        return { ...prev, [workerId]: updated };
+      });
+    };
+
+    // 근로자 일별 활성화/비활성화
+    const toggleWorkerDailyEnabled = (workerId: string, workDate: string) => {
+      setWorkerAssignments((prev) => {
+        const assignments = prev[workerId] || [];
+        const updated = assignments.map((a) =>
+          a.workDate === workDate ? { ...a, enabled: !a.enabled } : a
+        );
+        return { ...prev, [workerId]: updated };
+      });
+    };
+
+    // 근로자 날짜 추가
+    const addWorkerDate = (workerId: string, date: string) => {
+      setWorkerAssignments((prev) => {
+        const assignments = prev[workerId] || [];
+        // 이미 존재하는 날짜인지 확인
+        const exists = assignments.some((a) => a.workDate === date);
+        if (exists) {
+          Alert.alert("알림", "이미 추가된 날짜입니다.");
+          return prev;
+        }
+
+        // 스케줄 시간에서 기본값 가져오기 (있으면)
+        const scheduleTime = formData.scheduleTimes.find(
+          (st) => st.workDate === date
+        );
+        const defaultStartTime =
+          scheduleTime?.startTime ||
+          (formData.uniformTime ? formData.startTime : "09:00");
+        const defaultEndTime =
+          scheduleTime?.endTime ||
+          (formData.uniformTime ? formData.endTime : "18:00");
+
+        const newAssignment: WorkerDailyAssignment = {
+          workDate: date,
+          enabled: true,
+          startTime: defaultStartTime,
+          endTime: defaultEndTime,
+        };
+
+        // 날짜순으로 정렬하여 추가
+        const updated = [...assignments, newAssignment].sort((a, b) => {
+          return a.workDate.localeCompare(b.workDate);
+        });
+
+        return { ...prev, [workerId]: updated };
+      });
+      setShowDatePickerForWorker(null);
+    };
+
+    return (
+      <View style={styles.stepContent}>
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>근로자 검색</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="근로자 이름으로 검색"
+            value={workerSearchQuery}
+            onChangeText={setWorkerSearchQuery}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>근로자 선택</Text>
+          <ScrollView style={{ maxHeight: 300 }}>
+            {filteredWorkers.length === 0 ? (
+              <View style={{ padding: 16, alignItems: "center" }}>
+                <Text style={{ color: "#9ca3af" }}>
+                  {workerSearchQuery
+                    ? "검색 결과가 없습니다"
+                    : "등록된 근로자가 없습니다"}
+                </Text>
+              </View>
+            ) : (
+              filteredWorkers.map((worker) => {
+                const selected = isWorkerSelected(worker.id);
+                const picked = pickedWorkers.find(
+                  (pw) => pw.workerId === worker.id
+                );
+                const isUniformTime = workerUniformTime[worker.id] ?? true;
+                const dailyAssignments = workerAssignments[worker.id] || [];
+
+                return (
+                  <View key={worker.id} style={{ marginBottom: 12 }}>
+                    <Pressable
+                      style={[
+                        styles.workerItem,
+                        {
+                          borderColor: selected ? colors.primary : "#e5e7eb",
+                          borderWidth: selected ? 2 : 1,
+                          backgroundColor: selected ? "#f0f9ff" : "#fff",
+                        },
+                      ]}
+                      onPress={() => toggleWorker(worker)}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Ionicons
+                            name={
+                              selected ? "checkmark-circle" : "ellipse-outline"
+                            }
+                            size={20}
+                            color={selected ? colors.primary : "#9ca3af"}
+                          />
+                          <Text style={styles.workerName}>{worker.name}</Text>
+                        </View>
+                        {worker.phone && (
+                          <Text style={styles.workerSub}>{worker.phone}</Text>
+                        )}
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: 4 }}>
+                        <TextInput
+                          style={[
+                            styles.wageInput,
+                            { opacity: selected ? 1 : 0.5 },
+                          ]}
+                          value={
+                            picked?.hourlyWage
+                              ? picked.hourlyWage.toLocaleString()
+                              : ""
+                          }
+                          onChangeText={(t) => updateWorkerWage(worker.id, t)}
+                          placeholder="시급"
+                          keyboardType="numeric"
+                          editable={selected}
+                        />
+                      </View>
+                    </Pressable>
+
+                    {/* 선택된 근로자의 시간 설정 */}
+                    {selected && (
+                      <View
+                        style={{
+                          marginTop: 8,
+                          padding: 12,
+                          backgroundColor: "#f9fafb",
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: "#e5e7eb",
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: 12,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: "600",
+                              color: "#374151",
+                            }}
+                          >
+                            근무 시간 설정
+                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: "#6b7280",
+                              }}
+                            >
+                              {isUniformTime ? "동일 시간" : "일별 시간"}
+                            </Text>
+                            <Pressable
+                              onPress={() => toggleWorkerUniformTime(worker.id)}
+                              style={[
+                                styles.toggle,
+                                {
+                                  backgroundColor: isUniformTime
+                                    ? colors.primary
+                                    : "#cbd5e1",
+                                },
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.toggleThumb,
+                                  { marginLeft: isUniformTime ? 16 : 0 },
+                                ]}
+                              />
+                            </Pressable>
+                          </View>
+                        </View>
+
+                        {/* 날짜 선택 (uniformTime 상관없이 항상 표시) */}
+                        <View style={{ marginBottom: 12 }}>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: "600",
+                              color: "#374151",
+                              marginBottom: 8,
+                            }}
+                          >
+                            참여 날짜 선택
+                          </Text>
+                          {dailyAssignments.length > 0 ? (
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                flexWrap: "wrap",
+                                gap: 8,
+                                alignItems: "center",
+                              }}
+                            >
+                              {dailyAssignments.map((assignment) => (
+                                <Pressable
+                                  key={assignment.workDate}
+                                  onPress={() =>
+                                    toggleWorkerDailyEnabled(
+                                      worker.id,
+                                      assignment.workDate
+                                    )
+                                  }
+                                  style={[
+                                    {
+                                      paddingHorizontal: 12,
+                                      paddingVertical: 8,
+                                      borderRadius: 8,
+                                      borderWidth: 2,
+                                      backgroundColor: assignment.enabled
+                                        ? "#f0f9ff"
+                                        : "#f9fafb",
+                                      borderColor: assignment.enabled
+                                        ? colors.primary
+                                        : "#e5e7eb",
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: "500",
+                                      color: assignment.enabled
+                                        ? colors.primary
+                                        : "#9ca3af",
+                                    }}
+                                  >
+                                    {dayjs(assignment.workDate).format("MM/DD")}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                              <Pressable
+                                onPress={() => {
+                                  setTempDateForWorker(new Date());
+                                  setShowDatePickerForWorker(worker.id);
+                                }}
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 8,
+                                  borderWidth: 2,
+                                  borderColor: colors.primary,
+                                  backgroundColor: "#f0f9ff",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Ionicons
+                                  name="add"
+                                  size={20}
+                                  color={colors.primary}
+                                />
+                              </Pressable>
+                            </View>
+                          ) : (
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 8,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  color: "#9ca3af",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                날짜를 추가해주세요.
+                              </Text>
+                              <Pressable
+                                onPress={() => {
+                                  setTempDateForWorker(new Date());
+                                  setShowDatePickerForWorker(worker.id);
+                                }}
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 8,
+                                  borderWidth: 2,
+                                  borderColor: colors.primary,
+                                  backgroundColor: "#f0f9ff",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Ionicons
+                                  name="add"
+                                  size={20}
+                                  color={colors.primary}
+                                />
+                              </Pressable>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* 시간 설정 */}
+                        {isUniformTime ? (
+                          <View>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                fontWeight: "600",
+                                color: "#374151",
+                                marginBottom: 8,
+                              }}
+                            >
+                              근무 시간 (선택된 모든 날짜에 동일하게 적용)
+                            </Text>
+                            <View style={styles.dateTimeRow}>
+                              <View style={styles.dateCol}>
+                                <DatePicker
+                                  label="시작시간"
+                                  value={`2000-01-01 ${
+                                    picked?.startTime || "09:00"
+                                  }`}
+                                  onDateChange={(date) => {
+                                    const time =
+                                      typeof date === "string" &&
+                                      date.includes(":")
+                                        ? date
+                                        : dayjs(date).format("HH:mm");
+                                    updateWorkerUniformTimes(
+                                      worker.id,
+                                      "startTime",
+                                      time
+                                    );
+                                    // 모든 enabled된 날짜의 시간도 함께 업데이트
+                                    setWorkerAssignments((prev) => {
+                                      const assignments = prev[worker.id] || [];
+                                      const updated = assignments.map((a) =>
+                                        a.enabled
+                                          ? { ...a, startTime: time }
+                                          : a
+                                      );
+                                      return { ...prev, [worker.id]: updated };
+                                    });
+                                  }}
+                                  placeholder="시작시간"
+                                  mode="time"
+                                />
+                              </View>
+                              <View style={styles.dateCol}>
+                                <DatePicker
+                                  label="종료시간"
+                                  value={`2000-01-01 ${
+                                    picked?.endTime || "18:00"
+                                  }`}
+                                  onDateChange={(date) => {
+                                    const time =
+                                      typeof date === "string" &&
+                                      date.includes(":")
+                                        ? date
+                                        : dayjs(date).format("HH:mm");
+                                    updateWorkerUniformTimes(
+                                      worker.id,
+                                      "endTime",
+                                      time
+                                    );
+                                    // 모든 enabled된 날짜의 시간도 함께 업데이트
+                                    setWorkerAssignments((prev) => {
+                                      const assignments = prev[worker.id] || [];
+                                      const updated = assignments.map((a) =>
+                                        a.enabled ? { ...a, endTime: time } : a
+                                      );
+                                      return { ...prev, [worker.id]: updated };
+                                    });
+                                  }}
+                                  placeholder="종료시간"
+                                  mode="time"
+                                />
+                              </View>
+                            </View>
+                          </View>
+                        ) : (
+                          <View>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                fontWeight: "600",
+                                color: "#374151",
+                                marginBottom: 8,
+                              }}
+                            >
+                              일자별 근무 시간 설정
+                            </Text>
+                            {dailyAssignments.length > 0 &&
+                            dailyAssignments.filter((a) => a.enabled).length >
+                              0 ? (
+                              dailyAssignments
+                                .filter((a) => a.enabled)
+                                .map((assignment) => (
+                                  <View
+                                    key={assignment.workDate}
+                                    style={{
+                                      marginBottom: 12,
+                                      padding: 10,
+                                      backgroundColor: "#fff",
+                                      borderRadius: 6,
+                                      borderWidth: 1,
+                                      borderColor: "#e5e7eb",
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: "600",
+                                        color: "#374151",
+                                        marginBottom: 8,
+                                      }}
+                                    >
+                                      {dayjs(assignment.workDate).format(
+                                        "MM월 DD일 (ddd)"
+                                      )}
+                                    </Text>
+                                    <View style={styles.dateTimeRow}>
+                                      <View style={styles.dateCol}>
+                                        <DatePicker
+                                          label="시작시간"
+                                          value={`2000-01-01 ${assignment.startTime}`}
+                                          onDateChange={(date) => {
+                                            const time =
+                                              typeof date === "string" &&
+                                              date.includes(":")
+                                                ? date
+                                                : dayjs(date).format("HH:mm");
+                                            updateWorkerDailyTime(
+                                              worker.id,
+                                              assignment.workDate,
+                                              "startTime",
+                                              time
+                                            );
+                                          }}
+                                          placeholder="시작시간"
+                                          mode="time"
+                                        />
+                                      </View>
+                                      <View style={styles.dateCol}>
+                                        <DatePicker
+                                          label="종료시간"
+                                          value={`2000-01-01 ${assignment.endTime}`}
+                                          onDateChange={(date) => {
+                                            const time =
+                                              typeof date === "string" &&
+                                              date.includes(":")
+                                                ? date
+                                                : dayjs(date).format("HH:mm");
+                                            updateWorkerDailyTime(
+                                              worker.id,
+                                              assignment.workDate,
+                                              "endTime",
+                                              time
+                                            );
+                                          }}
+                                          placeholder="종료시간"
+                                          mode="time"
+                                        />
+                                      </View>
+                                    </View>
+                                  </View>
+                                ))
+                            ) : (
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  color: "#9ca3af",
+                                  textAlign: "center",
+                                  padding: 16,
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                참여 날짜를 선택해주세요.
+                              </Text>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })
+            )}
+
+            {/* 신규 근로자 추가 폼 */}
+            {showAddWorkerForm ? (
+              <View
+                style={{
+                  padding: 12,
+                  backgroundColor: "#f9fafb",
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.primary,
+                  marginTop: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#374151",
+                    marginBottom: 12,
+                  }}
+                >
+                  신규 근로자 추가
+                </Text>
+                <View style={{ marginBottom: 8 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 4 }]}>
+                    이름 *
+                  </Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="이름을 입력하세요"
+                    value={newWorkerName}
+                    onChangeText={setNewWorkerName}
+                  />
+                </View>
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 4 }]}>
+                    연락처 *
+                  </Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="연락처를 입력하세요"
+                    value={newWorkerPhone}
+                    onChangeText={setNewWorkerPhone}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 8,
+                  }}
+                >
+                  <Pressable
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      backgroundColor: "#e5e7eb",
+                      alignItems: "center",
+                    }}
+                    onPress={() => {
+                      setShowAddWorkerForm(false);
+                      setNewWorkerName("");
+                      setNewWorkerPhone("");
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: "#374151",
+                      }}
+                    >
+                      취소
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      backgroundColor: colors.primary,
+                      alignItems: "center",
+                    }}
+                    onPress={async () => {
+                      if (!newWorkerName.trim() || !newWorkerPhone.trim()) {
+                        Alert.alert("오류", "이름과 연락처는 필수입니다.");
+                        return;
+                      }
+
+                      try {
+                        const db = getDatabase();
+                        const currentUser = await getCurrentSupabaseUser();
+
+                        if (!currentUser) {
+                          Alert.alert("오류", "로그인이 필요합니다.");
+                          return;
+                        }
+
+                        // 전화번호에서 숫자만 추출
+                        const cleanPhone = newWorkerPhone.replace(
+                          /[^0-9]/g,
+                          ""
+                        );
+
+                        const newWorker: Worker = {
+                          id: `worker_${Date.now()}`,
+                          userId: currentUser.id,
+                          name: newWorkerName.trim(),
+                          phone: cleanPhone,
+                          hourlyWage: 0, // 기본값
+                          fuelAllowance: 0,
+                          otherAllowance: 0,
+                        };
+
+                        await db.createWorker(newWorker);
+                        await loadWorkers();
+
+                        // 폼 초기화 및 닫기
+                        setShowAddWorkerForm(false);
+                        setNewWorkerName("");
+                        setNewWorkerPhone("");
+
+                        Alert.alert("성공", "근로자가 추가되었습니다.");
+                      } catch (error) {
+                        console.error("Failed to add worker:", error);
+                        Alert.alert("오류", "근로자 추가에 실패했습니다.");
+                      }
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: "white",
+                      }}
+                    >
+                      추가
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => setShowAddWorkerForm(true)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 12,
+                  paddingHorizontal: 8,
+                  borderTopWidth: 1,
+                  borderTopColor: "#f3f4f6",
+                  marginTop: 8,
+                }}
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "500",
+                    color: colors.primary,
+                  }}
+                >
+                  신규 근로자 추가
+                </Text>
+              </Pressable>
+            )}
+          </ScrollView>
+        </View>
+
+        {pickedWorkers.length > 0 && (
+          <View style={[styles.inputGroup, { marginTop: 16 }]}>
+            <Text style={styles.inputLabel}>
+              선택된 근로자 ({pickedWorkers.length}명)
+            </Text>
+            {pickedWorkers.map((pw) => {
+              const worker = allWorkers.find((w) => w.id === pw.workerId);
+              if (!worker) return null;
+              return (
+                <View
+                  key={pw.workerId}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: 12,
+                    backgroundColor: "#f9fafb",
+                    borderRadius: 8,
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "500" }}>
+                    {worker.name}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: "#6b7280" }}>
+                    {pw.hourlyWage?.toLocaleString() || 0}원/시간
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* 날짜 추가 DatePicker (바로 표시) */}
+        {showDatePickerForWorker && Platform.OS === "android" && (
+          <DateTimePicker
+            value={tempDateForWorker}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              if (
+                event.type === "set" &&
+                selectedDate &&
+                showDatePickerForWorker
+              ) {
+                const selectedDateStr =
+                  dayjs(selectedDate).format("YYYY-MM-DD");
+                addWorkerDate(showDatePickerForWorker, selectedDateStr);
+              }
+              setShowDatePickerForWorker(null);
+            }}
+          />
+        )}
+        {showDatePickerForWorker && Platform.OS === "ios" && (
+          <Modal
+            visible={!!showDatePickerForWorker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowDatePickerForWorker(null)}
+          >
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                justifyContent: "flex-end",
+              }}
+            >
+              <Pressable
+                style={{ flex: 1 }}
+                onPress={() => setShowDatePickerForWorker(null)}
+              />
+              <View
+                style={{
+                  backgroundColor: "white",
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  paddingTop: 20,
+                  paddingBottom: Platform.OS === "ios" ? 40 : 20,
+                  paddingHorizontal: 20,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 20,
+                  }}
+                >
+                  <Pressable
+                    onPress={() => setShowDatePickerForWorker(null)}
+                    style={{ padding: 4 }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        color: "#666",
+                      }}
+                    >
+                      취소
+                    </Text>
+                  </Pressable>
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "600",
+                      color: "#111827",
+                    }}
+                  >
+                    날짜 선택
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      if (showDatePickerForWorker) {
+                        const selectedDateStr =
+                          dayjs(tempDateForWorker).format("YYYY-MM-DD");
+                        addWorkerDate(showDatePickerForWorker, selectedDateStr);
+                      }
+                    }}
+                    style={{ padding: 4 }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: colors.primary,
+                      }}
+                    >
+                      완료
+                    </Text>
+                  </Pressable>
+                </View>
+                <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                  <DateTimePicker
+                    value={tempDateForWorker}
+                    mode="date"
+                    display="spinner"
+                    onChange={(event, selectedDate) => {
+                      if (selectedDate) {
+                        setTempDateForWorker(selectedDate);
+                      }
+                    }}
+                    textColor="#000000"
+                    style={{ width: "100%", height: 216 }}
+                    themeVariant="light"
+                  />
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
+      </View>
+    );
+  };
+
   // 첨부파일 스텝
   const renderDocumentsStep = () => (
     <View style={styles.stepContent}>
@@ -1901,25 +3060,122 @@ export default function MultiStepScheduleModal({
       </View>
 
       {formData.scheduleType === "business" && (
-        <View style={styles.reviewSection}>
-          <Text style={styles.reviewTitle}>계약 정보</Text>
-          <View style={styles.reviewItem}>
-            <Text style={styles.reviewLabel}>계약금액</Text>
-            <Text style={styles.reviewValue}>
-              {formData.contractAmount?.toLocaleString()}원
-            </Text>
+        <>
+          <View style={styles.reviewSection}>
+            <Text style={styles.reviewTitle}>계약 정보</Text>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>계약금액</Text>
+              <Text style={styles.reviewValue}>
+                {formData.contractAmount?.toLocaleString()}원
+              </Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>계약 유형</Text>
+              <Text style={styles.reviewValue}>
+                {formData.contractType === "written"
+                  ? "서면"
+                  : formData.contractType === "verbal"
+                  ? "구두"
+                  : "텍스트"}
+              </Text>
+            </View>
           </View>
-          <View style={styles.reviewItem}>
-            <Text style={styles.reviewLabel}>계약 유형</Text>
-            <Text style={styles.reviewValue}>
-              {formData.contractType === "written"
-                ? "서면"
-                : formData.contractType === "verbal"
-                ? "구두"
-                : "텍스트"}
-            </Text>
-          </View>
-        </View>
+
+          {pickedWorkers.length > 0 && (
+            <View style={styles.reviewSection}>
+              <Text style={styles.reviewTitle}>근로자 배치</Text>
+              {pickedWorkers.map((pw) => {
+                const worker = allWorkers.find((w) => w.id === pw.workerId);
+                if (!worker) return null;
+                const isUniformTime = workerUniformTime[pw.workerId] ?? true;
+                const dailyAssignments = workerAssignments[pw.workerId] || [];
+
+                return (
+                  <View
+                    key={pw.workerId}
+                    style={{
+                      marginBottom: 16,
+                      padding: 12,
+                      backgroundColor: "#f9fafb",
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: "#e5e7eb",
+                    }}
+                  >
+                    <View style={styles.reviewItem}>
+                      <Text style={styles.reviewLabel}>이름</Text>
+                      <Text style={styles.reviewValue}>{worker.name}</Text>
+                    </View>
+                    <View style={styles.reviewItem}>
+                      <Text style={styles.reviewLabel}>시급</Text>
+                      <Text style={styles.reviewValue}>
+                        {pw.hourlyWage?.toLocaleString() || 0}원/시간
+                      </Text>
+                    </View>
+                    <View style={styles.reviewItem}>
+                      <Text style={styles.reviewLabel}>시간 설정</Text>
+                      <Text style={styles.reviewValue}>
+                        {isUniformTime ? "동일 시간" : "일별 시간"}
+                      </Text>
+                    </View>
+                    {isUniformTime ? (
+                      <View style={styles.reviewItem}>
+                        <Text style={styles.reviewLabel}>근무 시간</Text>
+                        <Text style={styles.reviewValue}>
+                          {pw.startTime || formData.startTime} ~{" "}
+                          {pw.endTime || formData.endTime}
+                        </Text>
+                      </View>
+                    ) : (
+                      dailyAssignments.filter((a) => a.enabled).length > 0 && (
+                        <View style={{ marginTop: 8 }}>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#6b7280",
+                              marginBottom: 8,
+                            }}
+                          >
+                            일별 근무 시간:
+                          </Text>
+                          {dailyAssignments
+                            .filter((a) => a.enabled)
+                            .map((a) => (
+                              <View
+                                key={a.workDate}
+                                style={{
+                                  flexDirection: "row",
+                                  justifyContent: "space-between",
+                                  marginBottom: 4,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: "#6b7280",
+                                  }}
+                                >
+                                  {dayjs(a.workDate).format("MM/DD")}
+                                </Text>
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: "#374151",
+                                  }}
+                                >
+                                  {a.startTime} ~ {a.endTime}
+                                </Text>
+                              </View>
+                            ))}
+                        </View>
+                      )
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -2124,6 +3380,180 @@ export default function MultiStepScheduleModal({
                       </Text>
                     </Pressable>
                   ))}
+
+                {/* 신규 거래처 추가 폼 */}
+                {showAddClientForm ? (
+                  <View
+                    style={{
+                      padding: 12,
+                      backgroundColor: "#f9fafb",
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: colors.primary,
+                      marginTop: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: "#374151",
+                        marginBottom: 12,
+                      }}
+                    >
+                      신규 거래처 추가
+                    </Text>
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={[styles.inputLabel, { marginBottom: 4 }]}>
+                        거래처명 *
+                      </Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="거래처명을 입력하세요"
+                        value={newClientName}
+                        onChangeText={setNewClientName}
+                      />
+                    </View>
+                    <View style={{ marginBottom: 12 }}>
+                      <Text style={[styles.inputLabel, { marginBottom: 4 }]}>
+                        연락처 *
+                      </Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="연락처를 입력하세요"
+                        value={newClientPhone}
+                        onChangeText={setNewClientPhone}
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        gap: 8,
+                      }}
+                    >
+                      <Pressable
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          borderRadius: 8,
+                          backgroundColor: "#e5e7eb",
+                          alignItems: "center",
+                        }}
+                        onPress={() => {
+                          setShowAddClientForm(false);
+                          setNewClientName("");
+                          setNewClientPhone("");
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color: "#374151",
+                          }}
+                        >
+                          취소
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          borderRadius: 8,
+                          backgroundColor: colors.primary,
+                          alignItems: "center",
+                        }}
+                        onPress={async () => {
+                          if (!newClientName.trim() || !newClientPhone.trim()) {
+                            Alert.alert(
+                              "오류",
+                              "거래처명과 연락처는 필수입니다."
+                            );
+                            return;
+                          }
+
+                          try {
+                            const db = getDatabase();
+                            const currentUser = await getCurrentSupabaseUser();
+
+                            if (!currentUser) {
+                              Alert.alert("오류", "로그인이 필요합니다.");
+                              return;
+                            }
+
+                            const newClient: Client = {
+                              id: `client_${Date.now()}`,
+                              userId: currentUser.id,
+                              name: newClientName.trim(),
+                              phone: newClientPhone.trim(),
+                            };
+
+                            await db.createClient(newClient);
+                            await loadClients();
+
+                            // 새로 추가된 거래처를 자동으로 선택
+                            setFormData((prev) => ({
+                              ...prev,
+                              clientId: newClient.id,
+                            }));
+
+                            // 폼 초기화 및 닫기
+                            setShowAddClientForm(false);
+                            setNewClientName("");
+                            setNewClientPhone("");
+                            setShowClientSelector(false);
+
+                            Alert.alert("성공", "거래처가 추가되었습니다.");
+                          } catch (error) {
+                            console.error("Failed to add client:", error);
+                            Alert.alert("오류", "거래처 추가에 실패했습니다.");
+                          }
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color: "white",
+                          }}
+                        >
+                          추가
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => setShowAddClientForm(true)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      paddingVertical: 12,
+                      paddingHorizontal: 8,
+                      borderTopWidth: 1,
+                      borderTopColor: "#f3f4f6",
+                      marginTop: 8,
+                    }}
+                  >
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "500",
+                        color: colors.primary,
+                      }}
+                    >
+                      신규 거래처 추가
+                    </Text>
+                  </Pressable>
+                )}
               </ScrollView>
             </Pressable>
           </Pressable>
@@ -2330,17 +3760,17 @@ const styles = StyleSheet.create({
     color: "#374151",
   },
   toggle: {
-    width: 50,
-    height: 30,
-    borderRadius: 15,
+    width: 40,
+    height: 24,
+    borderRadius: 12,
     padding: 2,
     flexDirection: "row",
     alignItems: "center",
   },
   toggleThumb: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: "white",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -2541,5 +3971,38 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  workerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    borderColor: "#e5e7eb",
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  workerName: {
+    fontSize: 16,
+    color: "#111827",
+    fontWeight: "600",
+  },
+  workerSub: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+  wageInput: {
+    width: 110,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "#f9fafb",
+    textAlign: "right",
+    fontSize: 14,
   },
 });

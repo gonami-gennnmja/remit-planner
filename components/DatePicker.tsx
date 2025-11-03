@@ -179,15 +179,19 @@ export default function DatePicker({
                       </Text>
                     </Pressable>
                   </View>
-                  <DateTimePicker
-                    value={tempDate || new Date()}
-                    mode={mode}
-                    display={Platform.OS === "ios" ? "spinner" : "spinner"}
-                    onChange={handleDateChange}
-                    minimumDate={minDate ? new Date(minDate) : undefined}
-                    maximumDate={maxDate ? new Date(maxDate) : undefined}
-                    style={styles.picker}
-                  />
+                  <View style={styles.pickerContainer}>
+                    <DateTimePicker
+                      value={tempDate || new Date()}
+                      mode={mode}
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      onChange={handleDateChange}
+                      minimumDate={minDate ? new Date(minDate) : undefined}
+                      maximumDate={maxDate ? new Date(maxDate) : undefined}
+                      textColor="#000000"
+                      style={styles.picker}
+                      themeVariant="light"
+                    />
+                  </View>
                 </View>
               </View>
             </Modal>
@@ -279,7 +283,17 @@ const styles = StyleSheet.create({
     color: Theme.colors.primary || "#3b82f6",
     fontWeight: "600",
   },
+  pickerContainer: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    paddingVertical: 20,
+    minHeight: 216,
+  },
   picker: {
-    height: 200,
+    width: "100%",
+    height: Platform.OS === "ios" ? 216 : 200,
+    backgroundColor: "#fff",
   },
 });

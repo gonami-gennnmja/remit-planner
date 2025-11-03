@@ -44,6 +44,9 @@ export const ContractModal: React.FC<ContractModalProps> = ({
 
   const [attachments, setAttachments] = useState<ContractDocument[]>([]);
   const [loading, setLoading] = useState(false);
+  // missing selectors' states
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [showStatusSelector, setShowStatusSelector] = useState(false);
 
   useEffect(() => {
     if (visible) {

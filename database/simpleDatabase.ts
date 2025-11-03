@@ -1,8 +1,62 @@
 // Simple in-memory database for both web and native
-import { Notification, NotificationSettings } from '@/models/types';
+import { ContractDocument, DocumentCategory, Notification, NotificationSettings, ScheduleContract, ScheduleDocument } from '@/models/types';
 import { IDatabase } from './interface';
 
 class SimpleDatabase implements IDatabase {
+	createDocumentCategory(category: DocumentCategory): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getDocumentCategory(id: string): Promise<DocumentCategory | null> {
+		throw new Error('Method not implemented.');
+	}
+	getAllDocumentCategories(): Promise<DocumentCategory[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateDocumentCategory(id: string, category: Partial<DocumentCategory>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteDocumentCategory(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createScheduleContract(contract: ScheduleContract): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getScheduleContract(id: string): Promise<ScheduleContract | null> {
+		throw new Error('Method not implemented.');
+	}
+	getScheduleContracts(scheduleId: string): Promise<ScheduleContract[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateScheduleContract(id: string, contract: Partial<ScheduleContract>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteScheduleContract(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	createContractDocument(document: ContractDocument): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	getContractDocument(id: string): Promise<ContractDocument | null> {
+		throw new Error('Method not implemented.');
+	}
+	getContractDocuments(contractId: string): Promise<ContractDocument[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateContractDocument(id: string, document: Partial<ContractDocument>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteContractDocument(id: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getScheduleDocument(id: string): Promise<ScheduleDocument | null> {
+		throw new Error('Method not implemented.');
+	}
+	getScheduleDocumentsByCategory(scheduleId: string, categoryId: string): Promise<ScheduleDocument[]> {
+		throw new Error('Method not implemented.');
+	}
+	updateScheduleDocument(id: string, document: Partial<ScheduleDocument>): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	markActivityAsRead(activityId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -54,7 +108,7 @@ class SimpleDatabase implements IDatabase {
 	createScheduleDocument(document: { id: string; scheduleId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; }): Promise<string> {
 		throw new Error('Method not implemented.');
 	}
-	getScheduleDocuments(scheduleId: string): Promise<Array<{ id: string; scheduleId: string; fileName: string; fileUrl: string; filePath: string; fileType: string; fileSize?: number; uploadedAt: string; }>> {
+	getScheduleDocuments(scheduleId: string): Promise<ScheduleDocument[]> {
 		throw new Error('Method not implemented.');
 	}
 	deleteScheduleDocument(documentId: string): Promise<void> {

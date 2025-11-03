@@ -17,6 +17,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   documentType = "other",
 }) => {
   const [uploading, setUploading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<any[]>([]);
 
   const handleFilePick = async () => {
     try {
@@ -61,6 +62,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         description: "",
       };
 
+      // 선택된 파일 목록에 추가
+      const newFiles = [...selectedFiles, fileData].slice(0, maxFiles);
+      setSelectedFiles(newFiles);
       onFileSelect(fileData);
     } catch (error) {
       console.error("Error picking file:", error);
@@ -94,12 +98,17 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  const removeFile = (fileId: string) => {
+    const updatedFiles = selectedFiles.filter((f) => f.id !== fileId);
+    setSelectedFiles(updatedFiles);
+  };
+
   return (
     <View style={styles.container}>
       <Pressable
         style={[styles.uploadButton, uploading && styles.uploadButtonDisabled]}
         onPress={handleFilePick}
-        disabled={uploading}
+        disabled={uploading || selectedFiles.length >= maxFiles}
       >
         <Ionicons
           name={uploading ? "hourglass-outline" : "cloud-upload-outline"}
@@ -112,9 +121,41 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             uploading && styles.uploadButtonTextDisabled,
           ]}
         >
-          {uploading ? "업로드 중..." : "파일 선택"}
+          {uploading
+            ? "업로드 중..."
+            : selectedFiles.length >= maxFiles
+            ? `최대 ${maxFiles}개 선택됨`
+            : "파일 선택"}
         </Text>
       </Pressable>
+
+      {selectedFiles.length > 0 && (
+        <View style={styles.filesList}>
+          {selectedFiles.map((file) => (
+            <View key={file.id} style={styles.fileItem}>
+              <Ionicons
+                name={getFileIcon(file.fileType)}
+                size={20}
+                color="#3b82f6"
+              />
+              <View style={styles.fileInfo}>
+                <Text style={styles.fileName} numberOfLines={1}>
+                  {file.fileName}
+                </Text>
+                <Text style={styles.fileSize}>
+                  {formatFileSize(file.fileSize)}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => removeFile(file.id)}
+                style={styles.removeButton}
+              >
+                <Ionicons name="close-circle" size={20} color="#ef4444" />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
 
       <Text style={styles.helpText}>
         지원 형식: {acceptedTypes.join(", ")} (최대 {maxFiles}개, 10MB 이하)
@@ -157,5 +198,35 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
     marginTop: 8,
+  },
+  filesList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  fileItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f9ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    borderRadius: 8,
+    padding: 12,
+    gap: 12,
+  },
+  fileInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e40af",
+  },
+  fileSize: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  removeButton: {
+    padding: 4,
   },
 });
