@@ -323,6 +323,7 @@ export default function MultiStepScheduleModal({
   const [draftData, setDraftData] = useState<DraftSchedule | null>(null);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [lastAutoSave, setLastAutoSave] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // 카테고리 및 클라이언트 데이터
   const [categories, setCategories] = useState<
@@ -889,12 +890,19 @@ export default function MultiStepScheduleModal({
 
   // 최종 저장
   const handleSave = async () => {
+    // 이미 저장 중이면 중복 실행 방지
+    if (isSaving) {
+      return;
+    }
+
     try {
+      setIsSaving(true);
       const db = getDatabase();
       const currentUser = await getCurrentSupabaseUser();
 
       if (!currentUser) {
         Alert.alert("오류", "로그인이 필요합니다.");
+        setIsSaving(false);
         return;
       }
 
@@ -937,78 +945,74 @@ export default function MultiStepScheduleModal({
       }
 
       // 근로자 배치 저장 (선택/배치 정보가 있는 경우에만)
-      try {
-        if (pickedWorkers.length > 0) {
-          for (const w of pickedWorkers) {
-            const isWorkerUniformTime = workerUniformTime[w.workerId] ?? true;
-            const daily = workerAssignments[w.workerId] || [];
-            const enabledDates = daily.filter((d) => d.enabled);
+      if (pickedWorkers.length > 0) {
+        for (const w of pickedWorkers) {
+          const isWorkerUniformTime = workerUniformTime[w.workerId] ?? true;
+          const daily = workerAssignments[w.workerId] || [];
+          const enabledDates = daily.filter((d) => d.enabled);
 
-            // 참여 날짜가 없으면 건너뜀
-            if (enabledDates.length === 0) continue;
+          // 참여 날짜가 없으면 건너뜀
+          if (enabledDates.length === 0) continue;
 
-            // 실제 참여 날짜 범위 계산
-            const sortedDates = enabledDates
-              .map((d) => d.workDate)
-              .sort((a, b) => (a < b ? -1 : 1));
-            const actualStartDate = sortedDates[0];
-            const actualEndDate = sortedDates[sortedDates.length - 1];
+          // 실제 참여 날짜 범위 계산
+          const sortedDates = enabledDates
+            .map((d) => d.workDate)
+            .sort((a, b) => (a < b ? -1 : 1));
+          const actualStartDate = sortedDates[0];
+          const actualEndDate = sortedDates[sortedDates.length - 1];
 
-            const scheduleWorkerId = `sw_${Date.now()}_${Math.random()
+          const scheduleWorkerId = `sw_${Date.now()}_${Math.random()
+            .toString(36)
+            .substr(2, 9)}`;
+          // 근로자-스케줄 연결 생성
+          await db.createScheduleWorker({
+            id: scheduleWorkerId,
+            scheduleId,
+            workerId: w.workerId,
+            workStartDate: actualStartDate, // 실제 참여 시작일
+            workEndDate: actualEndDate, // 실제 참여 종료일
+            uniformTime: isWorkerUniformTime,
+            hourlyWage: w.hourlyWage ?? undefined,
+            fuelAllowance: 0,
+            otherAllowance: 0,
+            overtimeEnabled: false,
+            nightShiftEnabled: false,
+            taxWithheld: true,
+            wagePaid: false,
+            fuelPaid: false,
+            otherPaid: false,
+          });
+
+          // 선택된 모든 날짜에 대해 workPeriod 생성
+          for (const d of enabledDates) {
+            const workPeriodId = `wp_${Date.now()}_${Math.random()
               .toString(36)
               .substr(2, 9)}`;
-            // 근로자-스케줄 연결 생성
-            await db.createScheduleWorker({
-              id: scheduleWorkerId,
-              scheduleId,
-              workerId: w.workerId,
-              workStartDate: actualStartDate, // 실제 참여 시작일
-              workEndDate: actualEndDate, // 실제 참여 종료일
-              uniformTime: isWorkerUniformTime,
-              hourlyWage: w.hourlyWage ?? undefined,
-              fuelAllowance: 0,
-              otherAllowance: 0,
-              overtimeEnabled: false,
-              nightShiftEnabled: false,
-              taxWithheld: true,
-              wagePaid: false,
-              fuelPaid: false,
-              otherPaid: false,
-            });
 
-            // 선택된 모든 날짜에 대해 workPeriod 생성
-            for (const d of enabledDates) {
-              const workPeriodId = `wp_${Date.now()}_${Math.random()
-                .toString(36)
-                .substr(2, 9)}`;
+            let periodStartTime: string;
+            let periodEndTime: string;
 
-              let periodStartTime: string;
-              let periodEndTime: string;
-
-              if (isWorkerUniformTime) {
-                // uniformTime이 true면 선택된 시간 사용 (모든 날짜 동일)
-                periodStartTime = w.startTime || formData.startTime || "09:00";
-                periodEndTime = w.endTime || formData.endTime || "18:00";
-              } else {
-                // uniformTime이 false면 각 날짜별 시간 사용
-                periodStartTime = d.startTime;
-                periodEndTime = d.endTime;
-              }
-
-              await db.createWorkPeriod({
-                id: workPeriodId,
-                scheduleWorkerId,
-                workDate: d.workDate,
-                startTime: periodStartTime,
-                endTime: periodEndTime,
-                breakDuration: 0,
-                overtimeHours: 0,
-              });
+            if (isWorkerUniformTime) {
+              // uniformTime이 true면 선택된 시간 사용 (모든 날짜 동일)
+              periodStartTime = w.startTime || formData.startTime || "09:00";
+              periodEndTime = w.endTime || formData.endTime || "18:00";
+            } else {
+              // uniformTime이 false면 각 날짜별 시간 사용
+              periodStartTime = d.startTime;
+              periodEndTime = d.endTime;
             }
+
+            await db.createWorkPeriod({
+              id: workPeriodId,
+              scheduleWorkerId,
+              workDate: d.workDate,
+              startTime: periodStartTime,
+              endTime: periodEndTime,
+              breakDuration: 0,
+              overtimeHours: 0,
+            });
           }
         }
-      } catch (e) {
-        console.error("Failed to save worker assignments:", e);
       }
 
       // 활동 생성
@@ -1025,6 +1029,7 @@ export default function MultiStepScheduleModal({
         {
           text: "확인",
           onPress: () => {
+            setIsSaving(false);
             onSave();
             onClose();
           },
@@ -1033,6 +1038,7 @@ export default function MultiStepScheduleModal({
     } catch (error) {
       console.error("Failed to create schedule:", error);
       Alert.alert("오류", "일정 추가에 실패했습니다.");
+      setIsSaving(false);
     }
   };
 
@@ -3330,11 +3336,14 @@ export default function MultiStepScheduleModal({
                 <Pressable
                   style={[
                     styles.saveButton,
-                    { backgroundColor: colors.primary },
+                    { backgroundColor: isSaving ? "#cbd5e1" : colors.primary },
                   ]}
                   onPress={handleSave}
+                  disabled={isSaving}
                 >
-                  <Text style={styles.saveButtonText}>일정 저장</Text>
+                  <Text style={styles.saveButtonText}>
+                    {isSaving ? "저장 중..." : "일정 저장"}
+                  </Text>
                 </Pressable>
               )}
             </View>
