@@ -37,6 +37,8 @@ interface MultiStepScheduleModalProps {
   initialEndDate?: string;
   initialIsMultiDay?: boolean;
   modalType?: "bottomSheet" | "centerPopup";
+  initialStep?: Step;
+  initialClientId?: string;
 }
 
 // 스텝 정의
@@ -282,6 +284,8 @@ export default function MultiStepScheduleModal({
   initialEndDate,
   initialIsMultiDay = false,
   modalType = "centerPopup",
+  initialStep = STEPS.BASIC_INFO,
+  initialClientId,
 }: MultiStepScheduleModalProps) {
   const { screenData, isMobile, isTablet, isDesktop, getResponsiveValue } =
     useResponsive();
@@ -289,7 +293,7 @@ export default function MultiStepScheduleModal({
   const router = useRouter();
 
   // 현재 스텝 상태
-  const [currentStep, setCurrentStep] = useState<Step>(STEPS.BASIC_INFO);
+  const [currentStep, setCurrentStep] = useState<Step>(initialStep);
 
   // 현재 스텝 상태
   const [formData, setFormData] = useState<ScheduleFormData>({
@@ -309,7 +313,7 @@ export default function MultiStepScheduleModal({
     hasAttachments: false,
     memo: "",
     scheduleType: "business", // 기본값은 업무 스케줄
-    clientId: undefined,
+    clientId: initialClientId || undefined,
     contractAmount: 0,
     contractType: "written",
     contractContent: "",

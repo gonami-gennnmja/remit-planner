@@ -1,5 +1,6 @@
 import CommonHeader from "@/components/CommonHeader";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import MultiStepScheduleModal from "@/components/MultiStepScheduleModal";
 import { Theme } from "@/constants/Theme";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
@@ -20,6 +21,16 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+const STEPS = {
+  BASIC_INFO: 1,
+  DATE_TIME: 2,
+  LOCATION: 3,
+  CONTRACT: 4,
+  WORKERS: 5,
+  DOCUMENTS: 6,
+  REVIEW: 7,
+} as const;
 
 export default function ClientDetailScreen() {
   const { colors } = useTheme();
@@ -49,6 +60,7 @@ export default function ClientDetailScreen() {
     memo: "",
     isPrimary: false,
   });
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   useEffect(() => {
     const loadClientData = async () => {
@@ -546,8 +558,7 @@ export default function ClientDetailScreen() {
             <Pressable
               style={styles.addButton}
               onPress={() => {
-                // TODO: 새 행사 추가 기능
-                Alert.alert("알림", "새 행사 추가 기능은 준비 중입니다.");
+                setShowScheduleModal(true);
               }}
             >
               <Ionicons name="add" size={20} color={Theme.colors.primary} />
@@ -847,6 +858,25 @@ export default function ClientDetailScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* 행사 추가 모달 */}
+      <MultiStepScheduleModal
+        visible={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onSave={async () => {
+          setShowScheduleModal(false);
+          // 스케줄 목록 새로고침
+          const db = getDatabase();
+          await db.init();
+          const allSchedules = await db.getAllSchedules();
+          const clientSchedules = allSchedules.filter(
+            (schedule) => schedule.clientId === id
+          );
+          setSchedules(clientSchedules);
+        }}
+        initialStep={STEPS.CONTRACT}
+        initialClientId={id as string}
+      />
     </View>
   );
 }
