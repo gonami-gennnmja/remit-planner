@@ -40,9 +40,22 @@ CREATE TABLE IF NOT EXISTS schedules (
   contract_amount INTEGER DEFAULT 0,
   client_id TEXT,
   memo TEXT,
+  -- 반복 스케줄 관련 필드
+  is_recurring BOOLEAN DEFAULT false,
+  recurrence_type TEXT CHECK (recurrence_type IN ('daily', 'weekly', 'monthly', 'yearly')),
+  recurrence_interval INTEGER DEFAULT 1,
+  recurrence_end_type TEXT CHECK (recurrence_end_type IN ('never', 'date', 'count')),
+  recurrence_end_date TEXT,
+  recurrence_count INTEGER,
+  recurrence_days_of_week TEXT DEFAULT '[]', -- JSON 배열 (weekly용, 0=일요일, 6=토요일)
+  recurrence_day_of_month INTEGER, -- 월의 날짜 (monthly용, 1-31)
+  recurrence_month_of_year INTEGER, -- 월 (yearly용, 1-12)
+  parent_schedule_id TEXT, -- 원본 스케줄 ID (반복 인스턴스인 경우)
+  recurrence_exceptions TEXT DEFAULT '[]', -- JSON 배열 (예외 날짜들, YYYY-MM-DD 형식)
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+  FOREIGN KEY (parent_schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
 );
 
   -- Schedule times table (일별 시간 설정)
@@ -268,6 +281,8 @@ CREATE TABLE IF NOT EXISTS schedules (
   CREATE INDEX IF NOT EXISTS idx_schedules_start_date ON schedules(start_date);
   CREATE INDEX IF NOT EXISTS idx_schedules_contract_amount ON schedules(contract_amount);
   CREATE INDEX IF NOT EXISTS idx_schedules_schedule_type ON schedules(schedule_type);
+  CREATE INDEX IF NOT EXISTS idx_schedules_is_recurring ON schedules(is_recurring);
+  CREATE INDEX IF NOT EXISTS idx_schedules_parent_schedule_id ON schedules(parent_schedule_id);
   CREATE INDEX IF NOT EXISTS idx_schedule_times_schedule_id ON schedule_times(schedule_id);
   CREATE INDEX IF NOT EXISTS idx_schedule_workers_user_id ON schedule_workers(user_id);
   CREATE INDEX IF NOT EXISTS idx_schedule_workers_schedule ON schedule_workers(schedule_id);

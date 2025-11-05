@@ -142,7 +142,10 @@ export async function addScheduleToCalendar(
 
 		const eventDescription = buildEventDescription(schedule);
 
-		const eventId = await Calendar.createEventAsync(calendar.id, {
+		// 반복 규칙 생성 (반복 스케줄인 경우)
+		const recurrenceRule = buildRecurrenceRule(schedule);
+
+		const eventData: any = {
 			title: schedule.title,
 			startDate: startDateTime,
 			endDate: endDateTime,
@@ -155,7 +158,14 @@ export async function addScheduleToCalendar(
 					method: Calendar.AlarmMethod.ALERT,
 				},
 			],
-		});
+		};
+
+		// 반복 규칙이 있으면 추가
+		if (recurrenceRule) {
+			eventData.recurrenceRule = recurrenceRule;
+		}
+
+		const eventId = await Calendar.createEventAsync(calendar.id, eventData);
 
 		eventIds.push(eventId);
 
@@ -170,6 +180,79 @@ export async function addScheduleToCalendar(
 			error: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.',
 		};
 	}
+}
+
+/**
+ * 반복 규칙 생성
+ * expo-calendar의 RecurrenceRule 형식으로 변환
+ */
+function buildRecurrenceRule(schedule: Schedule): Calendar.RecurrenceRule | null {
+	if (!schedule.isRecurring || !schedule.recurrenceType) {
+		return null;
+	}
+
+	const rule: Calendar.RecurrenceRule = {
+		frequency: mapRecurrenceFrequency(schedule.recurrenceType),
+		interval: schedule.recurrenceInterval || 1,
+	};
+
+	// 종료 조건 설정
+	if (schedule.recurrenceEndType === 'date' && schedule.recurrenceEndDate) {
+		rule.endDate = dayjs(schedule.recurrenceEndDate).toDate();
+	} else if (schedule.recurrenceEndType === 'count' && schedule.recurrenceCount) {
+		rule.occurrence = schedule.recurrenceCount;
+	}
+	// 'never'인 경우 endDate나 occurrence를 설정하지 않음
+
+	// 주간 반복인 경우 요일 설정
+	if (schedule.recurrenceType === 'weekly' && schedule.recurrenceDaysOfWeek) {
+		rule.daysOfTheWeek = schedule.recurrenceDaysOfWeek.map(day => ({
+			dayOfTheWeek: mapDayOfWeek(day),
+		}));
+	}
+
+	// 월간 반복인 경우 날짜 설정
+	if (schedule.recurrenceType === 'monthly' && schedule.recurrenceDayOfMonth) {
+		rule.daysOfTheMonth = [schedule.recurrenceDayOfMonth];
+	}
+
+	// 연간 반복인 경우 월 설정
+	if (schedule.recurrenceType === 'yearly' && schedule.recurrenceMonthOfYear) {
+		rule.monthsOfTheYear = [schedule.recurrenceMonthOfYear];
+	}
+
+	return rule;
+}
+
+/**
+ * 반복 타입을 expo-calendar의 Frequency로 매핑
+ */
+function mapRecurrenceFrequency(
+	type: 'daily' | 'weekly' | 'monthly' | 'yearly'
+): Calendar.Frequency {
+	switch (type) {
+		case 'daily':
+			return Calendar.Frequency.DAILY;
+		case 'weekly':
+			return Calendar.Frequency.WEEKLY;
+		case 'monthly':
+			return Calendar.Frequency.MONTHLY;
+		case 'yearly':
+			return Calendar.Frequency.YEARLY;
+		default:
+			return Calendar.Frequency.DAILY;
+	}
+}
+
+/**
+ * 요일 숫자를 expo-calendar의 DayOfTheWeek로 매핑
+ * 0=일요일, 1=월요일, ..., 6=토요일
+ */
+function mapDayOfWeek(day: number): Calendar.DayOfTheWeek {
+	// expo-calendar는 1=일요일, 2=월요일, ..., 7=토요일 사용
+	// 우리는 0=일요일, 1=월요일, ..., 6=토요일 사용
+	const expoDay = day === 0 ? 1 : day + 1;
+	return expoDay as Calendar.DayOfTheWeek;
 }
 
 /**

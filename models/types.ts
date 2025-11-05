@@ -168,6 +168,18 @@ export type Schedule = {
   revenueStatus: 'received' | 'pending' | 'overdue'; // 수급 상태
   revenueDueDate?: string; // 수급 마감일 (endDate + 14일)
   memo?: string; // 메모
+  // 반복 스케줄 관련 필드
+  isRecurring?: boolean; // 반복 스케줄 여부
+  recurrenceType?: 'daily' | 'weekly' | 'monthly' | 'yearly'; // 반복 타입
+  recurrenceInterval?: number; // 반복 간격 (예: 2주마다 = 2)
+  recurrenceEndType?: 'never' | 'date' | 'count'; // 종료 조건
+  recurrenceEndDate?: string; // 종료 날짜 (recurrenceEndType이 'date'일 때)
+  recurrenceCount?: number; // 반복 횟수 (recurrenceEndType이 'count'일 때)
+  recurrenceDaysOfWeek?: number[]; // 요일 배열 (weekly용, 0=일요일, 6=토요일)
+  recurrenceDayOfMonth?: number; // 월의 날짜 (monthly용, 1-31)
+  recurrenceMonthOfYear?: number; // 월 (yearly용, 1-12)
+  parentScheduleId?: string; // 원본 스케줄 ID (반복 인스턴스인 경우)
+  recurrenceExceptions?: string[]; // 예외 날짜들 (YYYY-MM-DD 형식)
   createdAt?: string;
   updatedAt?: string;
   // 기존 호환성을 위한 필드들
