@@ -112,7 +112,7 @@ export default function TodayScheduleModal({
               const periods = getWorkPeriods(schedule);
               return (
                 <Pressable
-                  key={schedule.id}
+                  key={schedule.instanceId ?? schedule.id}
                   style={[
                     styles.scheduleCard,
                     {

@@ -484,7 +484,10 @@ export default function ScheduleReportsScreen() {
             </View>
           ) : (
             periodSchedules.slice(0, 10).map((schedule) => (
-              <View key={schedule.id} style={styles.scheduleItem}>
+              <View
+                key={schedule.instanceId ?? schedule.id}
+                style={styles.scheduleItem}
+              >
                 <View style={styles.scheduleItemHeader}>
                   <Text style={styles.scheduleItemTitle}>{schedule.title}</Text>
                   <Text style={styles.scheduleItemDate}>

@@ -1098,7 +1098,7 @@ export default function MainScreen() {
                 {getTodaySchedules().length > 0 ? (
                   getTodaySchedules().map((schedule) => (
                     <Pressable
-                      key={schedule.id}
+                      key={schedule.instanceId ?? schedule.id}
                       style={[
                         styles.scheduleCard,
                         isWeb && styles.scheduleCardWeb,

@@ -189,9 +189,19 @@ export const KOREAN_BANKS: BankInfo[] = [
 ];
 
 // 계좌번호로 은행 감지 (3-4자리로 판단)
-export function detectBankFromAccount(accountNumber: string): BankInfo | null {
+export function detectBankFromAccount(accountNumber: string | null | undefined): BankInfo | null {
+  // null이나 undefined 체크
+  if (!accountNumber) {
+    return null;
+  }
+
   // 하이픈 제거하고 숫자만 추출
   const cleaned = accountNumber.replace(/[^0-9]/g, '');
+
+  // 숫자가 없으면 null 반환
+  if (!cleaned) {
+    return null;
+  }
 
   for (const bank of KOREAN_BANKS) {
     if (bank.accountPattern.test(cleaned)) {
@@ -212,7 +222,12 @@ export function getBankOptions(): Array<{ label: string; value: string; bank: Ba
 }
 
 // 계좌번호 포맷팅 (은행별 형식 적용)
-export function formatAccountNumber(accountNumber: string, bankCode?: string): string {
+export function formatAccountNumber(accountNumber: string | null | undefined, bankCode?: string): string {
+  // null이나 undefined 체크
+  if (!accountNumber) {
+    return '';
+  }
+
   // 숫자만 추출
   const numbers = accountNumber.replace(/[^0-9]/g, '');
 

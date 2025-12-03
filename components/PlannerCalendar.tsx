@@ -471,7 +471,7 @@ export default function PlannerCalendar({
             marks[dateStr] = { dots: [], marked: true };
           }
           marks[dateStr].dots.push({
-            key: schedule.id,
+            key: schedule.instanceId ?? schedule.id,
             color: getCategoryColor(schedule.category, colors),
             selectedDotColor: getCategoryColor(schedule.category, colors),
           });
@@ -1833,7 +1833,7 @@ export default function PlannerCalendar({
 
                       return (
                         <Pressable
-                          key={schedule.id}
+                          key={schedule.instanceId ?? schedule.id}
                           style={{
                             backgroundColor: "#ffffff", // Apple Compact white surface
                             borderRadius: 14, // Apple Compact card border radius
@@ -2142,7 +2142,7 @@ export default function PlannerCalendar({
 
                       return (
                         <Pressable
-                          key={schedule.id}
+                          key={schedule.instanceId ?? schedule.id}
                           style={{
                             backgroundColor: "#ffffff", // Apple Compact white surface
                             borderRadius: 14, // Apple Compact card border radius
@@ -2433,7 +2433,7 @@ export default function PlannerCalendar({
 
                                 return (
                                   <Pressable
-                                    key={schedule.id}
+                                    key={schedule.instanceId ?? schedule.id}
                                     onPress={() => onSchedulePress(schedule.id)}
                                     style={{
                                       position: "absolute",

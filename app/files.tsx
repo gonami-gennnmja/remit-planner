@@ -1,4 +1,6 @@
 import { useTheme } from "@/contexts/ThemeContext";
+import { pickAndUploadDocument } from "@/utils/fileUpload";
+import { getCurrentSupabaseUser } from "@/utils/supabaseAuth";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -23,7 +25,7 @@ interface ClientDocument {
   filePath: string;
   fileType: string;
   fileSize?: number;
-  uploadedAt: string;
+  uploadedAt?: string;
 }
 
 interface ScheduleDocument {
@@ -34,7 +36,7 @@ interface ScheduleDocument {
   filePath: string;
   fileType: string;
   fileSize?: number;
-  uploadedAt: string;
+  uploadedAt?: string;
 }
 
 export default function FilesScreen() {
@@ -149,10 +151,87 @@ export default function FilesScreen() {
     setShowUploadModal(true);
   };
 
+  const handleFileSelect = async () => {
+    try {
+      const user = await getCurrentSupabaseUser();
+      if (!user) {
+        Alert.alert("오류", "로그인이 필요합니다.");
+        return;
+      }
+
+      // 폴더 경로 설정
+      let folder = "";
+      let bucket = "remit-planner-files";
+
+      if (selectedTab === "client" && selectedClient) {
+        const client = clients.find((c) => c.id === selectedClient);
+        folder = `clients/${client?.name || selectedClient}`;
+      } else if (selectedTab === "schedule" && selectedSchedule) {
+        const schedule = schedules.find((s) => s.id === selectedSchedule);
+        folder = `schedules/${schedule?.title || selectedSchedule}`;
+      } else {
+        Alert.alert("알림", "거래처 또는 스케줄을 선택해주세요.");
+        return;
+      }
+
+      // 파일 선택 및 업로드
+      const result = await pickAndUploadDocument({
+        bucket,
+        folder,
+        fileType: "document",
+        maxSize: 50, // 50MB
+      });
+
+      if (result.success && result.url && result.path) {
+        // DB에 문서 정보 저장
+        const db = getDatabase();
+        await db.init();
+        const fileName = result.path.split("/").pop() || "uploaded_file";
+        const fileExtension = fileName.split(".").pop()?.toLowerCase() || "";
+
+        if (selectedTab === "client" && selectedClient) {
+          await db.createClientDocument({
+            id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            clientId: selectedClient,
+            fileName,
+            fileUrl: result.url,
+            filePath: result.path,
+            fileType: fileExtension,
+          });
+
+          // 문서 목록 새로고침
+          const clientDocs = await db.getClientDocuments(selectedClient);
+          setClientDocuments(clientDocs);
+        } else if (selectedTab === "schedule" && selectedSchedule) {
+          await db.createScheduleDocument({
+            id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            scheduleId: selectedSchedule,
+            fileName,
+            fileUrl: result.url,
+            filePath: result.path,
+            fileType: fileExtension,
+            documentType: "other",
+          });
+
+          // 문서 목록 새로고침
+          const scheduleDocs = await db.getScheduleDocuments(selectedSchedule);
+          setScheduleDocuments(scheduleDocs);
+        }
+
+        Alert.alert("성공", "파일이 업로드되었습니다.");
+        setShowUploadModal(false);
+      } else {
+        Alert.alert("오류", result.error || "파일 업로드에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Failed to upload file:", error);
+      Alert.alert("오류", "파일 업로드 중 오류가 발생했습니다.");
+    }
+  };
+
   const handleFileUpload = async () => {
-    // TODO: 실제 파일 업로드 구현
-    Alert.alert("알림", "파일 업로드 기능은 준비 중입니다.");
-    setShowUploadModal(false);
+    // 파일 선택 및 업로드 실행
+    await handleFileSelect();
   };
 
   // 필터링된 거래처 목록
@@ -241,7 +320,9 @@ export default function FilesScreen() {
                   <Text style={styles.documentName}>{doc.fileName}</Text>
                   <Text style={styles.documentMeta}>
                     {formatFileSize(doc.fileSize)} •{" "}
-                    {new Date(doc.uploadedAt).toLocaleDateString()}
+                    {doc.uploadedAt
+                      ? new Date(doc.uploadedAt).toLocaleDateString()
+                      : "날짜 없음"}
                   </Text>
                 </View>
               </View>
@@ -301,7 +382,9 @@ export default function FilesScreen() {
                   <Text style={styles.documentName}>{doc.fileName}</Text>
                   <Text style={styles.documentMeta}>
                     {formatFileSize(doc.fileSize)} •{" "}
-                    {new Date(doc.uploadedAt).toLocaleDateString()}
+                    {doc.uploadedAt
+                      ? new Date(doc.uploadedAt).toLocaleDateString()
+                      : "날짜 없음"}
                   </Text>
                 </View>
               </View>
@@ -427,9 +510,9 @@ export default function FilesScreen() {
                 schedules.find((s) => s.id === selectedSchedule)?.title || ""
               }`}
         </Text>
-        <Pressable style={styles.fileSelectButton}>
+        <Pressable style={styles.fileSelectButton} onPress={handleFileSelect}>
           <Ionicons name="folder-open" size={24} color={colors.primary} />
-          <Text style={styles.fileSelectButtonText}>파일 선택</Text>
+          <Text style={styles.fileSelectButtonText}>파일 선택 및 업로드</Text>
         </Pressable>
       </FormModal>
     </View>

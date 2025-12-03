@@ -263,45 +263,32 @@ export default function UnpaidDetailsScreen() {
           text: "확인",
           onPress: async () => {
             try {
-              // TODO: 실제 지급 완료 처리 (DB 업데이트)
+              // 실제 지급 완료 처리 (DB 업데이트)
+              const db = getDatabase();
+              await db.init();
+
+              // scheduleWorkerId 찾기
+              const scheduleWorkers = await db.getScheduleWorkers(schedule.id);
+              const scheduleWorker = scheduleWorkers.find(
+                (sw: any) => sw.worker.id === worker.id
+              );
+
+              if (scheduleWorker && scheduleWorker.scheduleWorkerId) {
+                const updateData: any = {};
+                if (type === "wage") updateData.wagePaid = true;
+                if (type === "fuel") updateData.fuelPaid = true;
+                if (type === "other") updateData.otherPaid = true;
+
+                await db.updateScheduleWorker(
+                  scheduleWorker.scheduleWorkerId,
+                  updateData
+                );
+              }
+
               Alert.alert("지급 완료", `${typeName} 지급이 완료되었습니다.`);
 
-              // UI에서 즉시 업데이트
-              setScheduleGroups((prev) => {
-                return prev
-                  .map((group) => {
-                    if (group.schedule.id === schedule.id) {
-                      const updatedWorkers = group.workers
-                        .map((workerData) => {
-                          if (workerData.worker.id === worker.id) {
-                            const updatedWorker = { ...workerData };
-                            if (type === "wage")
-                              updatedWorker.isWagePaid = true;
-                            if (type === "fuel")
-                              updatedWorker.isFuelPaid = true;
-                            if (type === "other")
-                              updatedWorker.isOtherPaid = true;
-
-                            // 전체 지급 완료 여부 재계산
-                            updatedWorker.isAllPaid =
-                              updatedWorker.isWagePaid &&
-                              (updatedWorker.fuelAllowance === 0 ||
-                                updatedWorker.isFuelPaid) &&
-                              (updatedWorker.otherAllowance === 0 ||
-                                updatedWorker.isOtherPaid);
-
-                            return updatedWorker;
-                          }
-                          return workerData;
-                        })
-                        .filter((workerData) => !workerData.isAllPaid); // 전체 지급 완료된 근로자는 제거
-
-                      return { ...group, workers: updatedWorkers };
-                    }
-                    return group;
-                  })
-                  .filter((group) => group.workers.length > 0); // 근로자가 없는 스케줄은 제거
-              });
+              // 데이터 새로고침 (UI 자동 업데이트)
+              await loadUnpaidData();
             } catch (error) {
               Alert.alert("오류", "지급 처리 중 오류가 발생했습니다.");
             }

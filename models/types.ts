@@ -180,6 +180,9 @@ export type Schedule = {
   recurrenceMonthOfYear?: number; // 월 (yearly용, 1-12)
   parentScheduleId?: string; // 원본 스케줄 ID (반복 인스턴스인 경우)
   recurrenceExceptions?: string[]; // 예외 날짜들 (YYYY-MM-DD 형식)
+  recurrenceOccurrenceIndex?: number; // 전개된 인스턴스 인덱스
+  recurrenceOccurrenceDate?: string; // 전개된 특정 날짜 (YYYY-MM-DD)
+  instanceId?: string; // 반복 인스턴스 구분용 ID
   createdAt?: string;
   updatedAt?: string;
   // 기존 호환성을 위한 필드들

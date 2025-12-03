@@ -207,31 +207,31 @@ export default function PerformanceAnalysisScreen() {
           }
         });
 
-        // 수익 계산 (거래처가 있는 스케줄)
-        if (schedule.clientId) {
+        // 수익 계산 (거래처가 있는 업무 스케줄)
+        if (schedule.clientId && schedule.scheduleType === "business") {
           const scheduleEndDate = dayjs(schedule.endDate);
           const isScheduleEnded = scheduleEndDate.isBefore(today, "day");
 
           if (isScheduleEnded) {
-            const REVENUE_PER_SCHEDULE = 500000; // 스케줄당 수익 (예시)
+            const scheduleRevenue = schedule.contractAmount || 0;
 
             if (isThisMonth) {
-              currentRevenue += REVENUE_PER_SCHEDULE;
+              currentRevenue += scheduleRevenue;
             }
             if (isLastMonth) {
-              lastMonthRevenue += REVENUE_PER_SCHEDULE;
+              lastMonthRevenue += scheduleRevenue;
             }
             if (isLastYearSameMonth) {
-              lastYearSameMonthRevenue += REVENUE_PER_SCHEDULE;
+              lastYearSameMonthRevenue += scheduleRevenue;
             }
             if (isThisWeek) {
-              thisWeekRevenue += REVENUE_PER_SCHEDULE;
+              thisWeekRevenue += scheduleRevenue;
             }
             if (isLastWeek) {
-              lastWeekRevenue += REVENUE_PER_SCHEDULE;
+              lastWeekRevenue += scheduleRevenue;
             }
             if (isLast3Months) {
-              avg3MonthRevenue += REVENUE_PER_SCHEDULE;
+              avg3MonthRevenue += scheduleRevenue;
             }
           }
         }

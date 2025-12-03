@@ -1,5 +1,5 @@
 import CommonHeader from "@/components/CommonHeader";
-import FileUpload from "@/components/FileUpload";
+import { FileUpload } from "@/components/FileUpload";
 import { Text } from "@/components/Themed";
 import { useI18n } from "@/contexts/LocalizationContext";
 import {

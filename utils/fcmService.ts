@@ -2,6 +2,7 @@ import { getDatabase } from '@/database/platformDatabase';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 export class FCMService {
@@ -116,7 +117,7 @@ export class FCMService {
 						const schedule = await db.getSchedule(relatedId);
 						if (schedule) {
 							console.log('스케줄 상세 화면으로 이동 (미지급 급여):', relatedId);
-							// TODO: router.push(`/schedule/${relatedId}`);
+							router.push(`/schedule/${relatedId}` as any);
 						} else {
 							alert("존재하지 않는 스케줄입니다.");
 						}
@@ -128,7 +129,7 @@ export class FCMService {
 						const client = await db.getClient(relatedId);
 						if (client) {
 							console.log('거래처 상세 화면으로 이동:', relatedId);
-							// TODO: router.push(`/client/${relatedId}`);
+							router.push(`/clients/${relatedId}` as any);
 						} else {
 							alert("존재하지 않는 거래처입니다.");
 						}
@@ -140,7 +141,7 @@ export class FCMService {
 						const schedule = await db.getSchedule(relatedId);
 						if (schedule) {
 							console.log('스케줄 상세 화면으로 이동:', relatedId);
-							// TODO: router.push(`/schedule/${relatedId}`);
+							router.push(`/schedule/${relatedId}` as any);
 						} else {
 							alert("존재하지 않는 스케줄입니다.");
 						}
@@ -149,7 +150,7 @@ export class FCMService {
 				case 'worker':
 					// 근로자 관련 - 근로자 관리로 이동
 					console.log('근로자 관리 화면으로 이동');
-					// TODO: router.push('/workers');
+					router.push('/worker/index' as any);
 					break;
 				default:
 					console.log('알 수 없는 알림 타입:', type);

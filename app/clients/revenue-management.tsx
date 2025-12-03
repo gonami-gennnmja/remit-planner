@@ -4,7 +4,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import PeriodSelector, { PeriodType } from "@/components/PeriodSelector";
 import { Text } from "@/components/Themed";
 import { Theme } from "@/constants/Theme";
-import { database } from "@/database";
+import { getDatabase } from "@/database/platformDatabase";
 import { Client, Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
@@ -51,8 +51,10 @@ export default function RevenueManagementScreen() {
       setLoading(true);
 
       // 모든 스케줄과 거래처 가져오기
-      const allSchedules = await database.getAllSchedules();
-      const clients = await database.getAllClients();
+      const db = getDatabase();
+      await db.init();
+      const allSchedules = await db.getAllSchedules();
+      const clients = await db.getAllClients();
 
       // 기간 필터링
       const today = dayjs();
@@ -120,7 +122,7 @@ export default function RevenueManagementScreen() {
           const isOverdue = daysSinceEnd >= 14;
 
           let status: "received" | "pending" | "overdue";
-          if (schedule.collected) {
+          if (schedule.revenueStatus === "received") {
             status = "received";
           } else if (isOverdue) {
             status = "overdue";
@@ -171,15 +173,19 @@ export default function RevenueManagementScreen() {
 
   const markAsReceived = async (revenueId: string) => {
     try {
-      // 스케줄의 collected 상태를 true로 업데이트
+      // 스케줄의 revenue_status를 'received'로 업데이트
       const revenueItem = revenueData.find((item) => item.id === revenueId);
-      if (revenueItem) {
-        // TODO: 실제 데이터베이스 업데이트
-        // await database.updateSchedule(revenueItem.schedule.id, { collected: true });
+      if (revenueItem && revenueItem.schedule) {
+        const db = getDatabase();
+        await db.init();
+        await db.updateSchedule(revenueItem.schedule.id, {
+          revenueStatus: "received",
+        });
         Alert.alert("수입 확인", "수입 확인이 완료되었습니다.");
         await loadRevenueData();
       }
     } catch (error) {
+      console.error("Failed to mark revenue as received:", error);
       Alert.alert("오류", "수입 확인 처리 중 오류가 발생했습니다.");
     }
   };

@@ -248,8 +248,23 @@ export default function ClientDetailScreen() {
     setContacts(updatedContacts);
     setShowContactModal(false);
 
-    // TODO: 담당자 정보를 별도 테이블에 저장하는 기능 구현 필요
-    // 현재는 로컬 상태로만 관리
+    // 담당자 정보를 데이터베이스에 저장
+    try {
+      const db = getDatabase();
+      await db.updateClient(id as string, {
+        contacts: updatedContacts,
+      });
+      // 클라이언트 정보 새로고침
+      const updatedClient = await db.getClient(id as string);
+      if (updatedClient) {
+        setClient(updatedClient);
+      }
+    } catch (error) {
+      console.error("Failed to save contact:", error);
+      Alert.alert("오류", "담당자 정보 저장 중 오류가 발생했습니다.");
+      // 실패 시 이전 상태로 복원
+      setContacts(contacts);
+    }
   };
 
   const handleDeleteContact = (contactId: string) => {
@@ -261,12 +276,31 @@ export default function ClientDetailScreen() {
       {
         text: "삭제",
         style: "destructive",
-        onPress: () => {
-          const updatedContacts = contacts.filter((c) => c.id !== contactId);
-          setContacts(updatedContacts);
+        onPress: async () => {
+          try {
+            const updatedContacts = contacts.filter((c) => c.id !== contactId);
+            setContacts(updatedContacts);
 
-          // TODO: 담당자 정보를 별도 테이블에서 삭제하는 기능 구현 필요
-          // 현재는 로컬 상태로만 관리
+            // 담당자 정보를 데이터베이스에서 삭제
+            const db = getDatabase();
+            await db.updateClient(id as string, {
+              contacts: updatedContacts,
+            });
+            // 클라이언트 정보 새로고침
+            const updatedClient = await db.getClient(id as string);
+            if (updatedClient) {
+              setClient(updatedClient);
+            }
+          } catch (error) {
+            console.error("Failed to delete contact:", error);
+            Alert.alert("오류", "담당자 삭제 중 오류가 발생했습니다.");
+            // 실패 시 이전 상태로 복원
+            const db = getDatabase();
+            const clientData = await db.getClient(id as string);
+            if (clientData) {
+              setContacts(clientData.contacts || []);
+            }
+          }
         },
       },
     ]);
@@ -558,7 +592,7 @@ export default function ClientDetailScreen() {
           {schedules.length > 0 ? (
             schedules.map((schedule) => (
               <Pressable
-                key={schedule.id}
+                key={schedule.instanceId ?? schedule.id}
                 style={styles.scheduleItem}
                 onPress={() => handleSchedulePress(schedule.id)}
               >

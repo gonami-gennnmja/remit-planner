@@ -340,7 +340,7 @@ export default function ScheduleListScreen() {
           >
             {filteredSchedules.map((schedule) => (
               <Pressable
-                key={schedule.id}
+                key={schedule.instanceId ?? schedule.id}
                 style={styles.scheduleCard}
                 onPress={() => router.push(`/schedule/${schedule.id}`)}
               >

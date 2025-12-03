@@ -802,7 +802,7 @@ export default function WorkersScreen({
                             : (sorted.schedules || []).slice(0, 5)) || []
                         ).map((schedule, index) => (
                           <Pressable
-                            key={index}
+                            key={schedule.instanceId ?? schedule.id}
                             style={styles.scheduleTag}
                             onPress={() =>
                               handleScheduleTagPress(schedule.title, worker)
@@ -1842,7 +1842,7 @@ export default function WorkersScreen({
                   )
                   .map((schedule) => (
                     <Pressable
-                      key={schedule.id}
+                      key={schedule.instanceId ?? schedule.id}
                       style={[
                         styles.scheduleItem,
                         selectedSchedules.includes(schedule.id) &&

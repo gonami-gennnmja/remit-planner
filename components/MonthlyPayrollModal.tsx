@@ -159,7 +159,7 @@ export default function MonthlyPayrollModal({
               <Text style={styles.sectionTitle}>계산된 스케줄</Text>
               {selectedSchedules.map((schedule) => (
                 <Pressable
-                  key={schedule.id}
+                  key={schedule.instanceId ?? schedule.id}
                   style={styles.scheduleCard}
                   onPress={() => {
                     onClose();

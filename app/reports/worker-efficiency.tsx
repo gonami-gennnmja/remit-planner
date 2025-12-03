@@ -135,6 +135,7 @@ export default function WorkerEfficiencyReportsScreen() {
           schedules: number;
           grossPay: number;
           netPay: number;
+          revenue: number;
         }
       >();
 
@@ -146,12 +147,18 @@ export default function WorkerEfficiencyReportsScreen() {
           schedules: 0,
           grossPay: 0,
           netPay: 0,
+          revenue: 0,
         });
       });
 
       // 스케줄별 데이터 집계
-      const REVENUE_PER_SCHEDULE = 500000;
       filteredSchedules.forEach((schedule) => {
+        // 업무 스케줄의 매출 계산
+        const scheduleRevenue =
+          schedule.scheduleType === "business" && schedule.contractAmount
+            ? schedule.contractAmount
+            : 0;
+
         schedule.workers?.forEach((workerInfo) => {
           const workerData = workerMap.get(workerInfo.worker.id);
           if (!workerData) return;
@@ -192,6 +199,7 @@ export default function WorkerEfficiencyReportsScreen() {
           workerData.schedules += 1;
           workerData.grossPay += grossPay;
           workerData.netPay += safeNumber(netPay);
+          workerData.revenue += scheduleRevenue;
         });
       });
 
@@ -202,9 +210,7 @@ export default function WorkerEfficiencyReportsScreen() {
         .filter((data) => data.schedules > 0)
         .map((data) => {
           const efficiencyScore =
-            data.hours > 0
-              ? safeNumber((REVENUE_PER_SCHEDULE * data.schedules) / data.hours)
-              : 0;
+            data.hours > 0 ? safeNumber(data.revenue / data.hours) : 0;
           const participationRate =
             filteredSchedules.length > 0
               ? safeNumber((data.schedules / filteredSchedules.length) * 100)

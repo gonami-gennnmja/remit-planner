@@ -3,6 +3,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { getDatabase } from "@/database/platformDatabase";
 import { Client } from "@/models/types";
 import { formatPhoneNumber } from "@/utils/bankUtils";
+import { getCurrentSupabaseUser } from "@/utils/supabaseAuth";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -88,10 +89,17 @@ export default function ClientsScreen() {
     }
 
     try {
+      const user = await getCurrentSupabaseUser();
+      if (!user) {
+        Alert.alert("오류", "로그인이 필요합니다.");
+        return;
+      }
+
       const db = getDatabase();
+      await db.init();
       const newClient: Client = {
         id: Date.now().toString(),
-        userId: "current-user", // TODO: 실제 사용자 ID로 변경
+        userId: user.id,
         name: addData.name.trim(),
         contactPerson: addData.contactPerson.trim() || undefined,
         phone: addData.phone.trim(),

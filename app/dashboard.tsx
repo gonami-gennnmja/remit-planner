@@ -248,24 +248,28 @@ export default function DashboardScreen() {
             }
           }
 
-          // 수익 계산 (거래처가 있는 스케줄)
-          if (schedule.clientId && isScheduleEnded) {
-            const REVENUE_PER_SCHEDULE = 500000; // 스케줄당 수익 (예시)
+          // 수익 계산 (거래처가 있는 업무 스케줄)
+          if (
+            schedule.clientId &&
+            schedule.scheduleType === "business" &&
+            isScheduleEnded
+          ) {
+            const scheduleRevenue = schedule.contractAmount || 0;
 
             if (isThisMonth) {
-              monthRevenue += REVENUE_PER_SCHEDULE;
+              monthRevenue += scheduleRevenue;
             }
             if (isLastMonth) {
-              lastMonthRevenue += REVENUE_PER_SCHEDULE;
+              lastMonthRevenue += scheduleRevenue;
             }
             if (isLastYearSameMonth) {
-              lastYearSameMonthRevenue += REVENUE_PER_SCHEDULE;
+              lastYearSameMonthRevenue += scheduleRevenue;
             }
             if (isLast3Months) {
-              avg3MonthRevenue += REVENUE_PER_SCHEDULE;
+              avg3MonthRevenue += scheduleRevenue;
             }
 
-            totalReceivable += REVENUE_PER_SCHEDULE;
+            totalReceivable += scheduleRevenue;
           }
         });
       });
@@ -300,7 +304,9 @@ export default function DashboardScreen() {
             }, 0)
           );
         }, 0),
-        totalRevenue: 0, // TODO: 거래처 매출 데이터 연동 시 계산
+        totalRevenue: allSchedules
+          .filter((s) => s.scheduleType === "business" && s.contractAmount)
+          .reduce((sum, s) => sum + (s.contractAmount || 0), 0),
         totalPayroll: allSchedules.reduce((sum, s) => {
           return (
             sum +
@@ -388,12 +394,12 @@ export default function DashboardScreen() {
           scheduleDate.isSameOrBefore(monthEnd);
 
         if (isInMonth) {
-          // 수익 계산 (거래처가 있는 스케줄)
-          if (schedule.clientId) {
+          // 수익 계산 (거래처가 있는 업무 스케줄)
+          if (schedule.clientId && schedule.scheduleType === "business") {
             const scheduleEndDate = dayjs(schedule.endDate);
             const isScheduleEnded = scheduleEndDate.isBefore(today, "day");
             if (isScheduleEnded) {
-              revenue += 500000; // 스케줄당 수익
+              revenue += schedule.contractAmount || 0;
             }
           }
 
@@ -456,12 +462,12 @@ export default function DashboardScreen() {
         if (isInWeek) {
           scheduleCount++;
 
-          // 수익 계산
-          if (schedule.clientId) {
+          // 수익 계산 (거래처가 있는 업무 스케줄)
+          if (schedule.clientId && schedule.scheduleType === "business") {
             const scheduleEndDate = dayjs(schedule.endDate);
             const isScheduleEnded = scheduleEndDate.isBefore(today, "day");
             if (isScheduleEnded) {
-              revenue += 500000;
+              revenue += schedule.contractAmount || 0;
             }
           }
 
@@ -827,7 +833,7 @@ export default function DashboardScreen() {
           ) : (
             thisWeekSchedules.slice(0, 5).map((schedule) => (
               <Pressable
-                key={schedule.id}
+                key={schedule.instanceId ?? schedule.id}
                 style={styles.scheduleItem}
                 onPress={() => router.push(`/schedule/${schedule.id}` as any)}
               >

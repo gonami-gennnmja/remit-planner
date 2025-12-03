@@ -140,10 +140,10 @@ export default function ClientReportsScreen() {
         }
       >();
 
-      const REVENUE_PER_SCHEDULE = 500000;
-
       filteredSchedules.forEach((schedule) => {
-        if (!schedule.clientId) return;
+        if (!schedule.clientId || schedule.scheduleType !== "business") return;
+
+        const scheduleRevenue = schedule.contractAmount || 0;
 
         let clientData = clientMap.get(schedule.clientId);
         if (!clientData) {
@@ -160,7 +160,7 @@ export default function ClientReportsScreen() {
         }
 
         clientData.schedules.push(schedule);
-        clientData.totalRevenue += REVENUE_PER_SCHEDULE;
+        clientData.totalRevenue += scheduleRevenue;
 
         // 거래처 정보 추출
         const titleParts = schedule.title.split(" ");
@@ -172,10 +172,10 @@ export default function ClientReportsScreen() {
         const scheduleEnd = dayjs(schedule.endDate);
         const daysSinceEnd = today.diff(scheduleEnd, "day");
 
-        if (daysSinceEnd >= 14 && !schedule.collected) {
-          clientData.uncollectedAmount += REVENUE_PER_SCHEDULE;
-        } else if (schedule.collected) {
-          clientData.paidAmount += REVENUE_PER_SCHEDULE;
+        if (daysSinceEnd >= 14 && schedule.revenueStatus !== "received") {
+          clientData.uncollectedAmount += scheduleRevenue;
+        } else if (schedule.revenueStatus === "received") {
+          clientData.paidAmount += scheduleRevenue;
         }
 
         // 근로자 수집

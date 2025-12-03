@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { ContractDocument, DocumentCategory, Notification, NotificationSettings, PayrollCalculation, ScheduleContract, ScheduleDocument, ScheduleTime, WorkPeriod } from '@/models/types'
+import { getOccurrenceForDate, getOccurrencesInRange } from '@/utils/recurrenceUtils'
+import dayjs from 'dayjs'
 import { IDatabase } from './interface'
 
 // React Native용 UUID 생성 함수
@@ -267,6 +269,17 @@ export class SupabaseRepository implements IDatabase {
 				schedule_type: schedule.scheduleType || 'business', // Added schedule_type
 				contract_amount: schedule.contractAmount || 0,
 				memo: schedule.memo,
+				is_recurring: !!schedule.isRecurring,
+				recurrence_type: schedule.recurrenceType ?? null,
+				recurrence_interval: schedule.recurrenceInterval ?? 1,
+				recurrence_end_type: schedule.recurrenceEndType ?? null,
+				recurrence_end_date: schedule.recurrenceEndDate ?? null,
+				recurrence_count: schedule.recurrenceCount ?? null,
+				recurrence_days_of_week: schedule.recurrenceDaysOfWeek ? JSON.stringify(schedule.recurrenceDaysOfWeek) : '[]',
+				recurrence_day_of_month: schedule.recurrenceDayOfMonth ?? null,
+				recurrence_month_of_year: schedule.recurrenceMonthOfYear ?? null,
+				parent_schedule_id: schedule.parentScheduleId ?? null,
+				recurrence_exceptions: schedule.recurrenceExceptions ? JSON.stringify(schedule.recurrenceExceptions) : '[]',
 			}])
 			.select()
 
@@ -360,26 +373,73 @@ export class SupabaseRepository implements IDatabase {
 	async getSchedulesByDateRange(startDate: string, endDate: string): Promise<any[]> {
 		const user = await this.getCurrentUser()
 
-		const { data, error } = await supabase
+		const result: any[] = []
+		const workersCache = new Map<string, any[]>()
+
+		const fetchWorkers = async (scheduleId: string) => {
+			if (!workersCache.has(scheduleId)) {
+				const workers = await this.getScheduleWorkers(scheduleId)
+				workersCache.set(scheduleId, workers)
+			}
+			return workersCache.get(scheduleId) || []
+		}
+
+		const { data: nonRecurring, error: nonRecurringError } = await supabase
 			.from('schedules')
 			.select('*')
+			.eq('user_id', user.id)
+			.eq('is_recurring', false)
 			.gte('start_date', startDate)
 			.lte('end_date', endDate)
-			.eq('user_id', user.id)
 			.order('start_date', { ascending: true })
 
-		if (error) {
-			console.error('Error getting schedules by date range:', error)
+		if (nonRecurringError) {
+			console.error('Error getting non-recurring schedules by date range:', nonRecurringError)
 			return []
 		}
 
-		const result = []
-		for (const schedule of data) {
-			const workers = await this.getScheduleWorkers(schedule.id)
+		for (const schedule of nonRecurring || []) {
+			const workers = await fetchWorkers(schedule.id)
 			result.push({
 				...this.transformScheduleFromDB(schedule),
-				workers
+				instanceId: schedule.id,
+				workers,
 			})
+		}
+
+		const { data: recurring, error: recurringError } = await supabase
+			.from('schedules')
+			.select('*')
+			.eq('user_id', user.id)
+			.eq('is_recurring', true)
+			.lte('start_date', endDate)
+
+		if (recurringError) {
+			console.error('Error getting recurring schedules by date range:', recurringError)
+			return result
+		}
+
+		for (const schedule of recurring || []) {
+			const transformed = this.transformScheduleFromDB(schedule)
+			const occurrences = getOccurrencesInRange(transformed, startDate, endDate)
+			if (!occurrences || occurrences.length === 0) {
+				continue
+			}
+
+			const workers = await fetchWorkers(schedule.id)
+
+			for (const occurrence of occurrences) {
+				const adjustedWorkers = this.shiftWorkersForOccurrence(workers, transformed.startDate, occurrence.occurrenceStartDate)
+
+				result.push({
+					...transformed,
+					startDate: occurrence.occurrenceStartDate,
+					endDate: occurrence.occurrenceEndDate,
+					recurrenceOccurrenceIndex: occurrence.occurrenceIndex,
+					instanceId: `${schedule.id}::${occurrence.occurrenceStartDate}`,
+					workers: adjustedWorkers,
+				})
+			}
 		}
 
 		return result
@@ -388,27 +448,60 @@ export class SupabaseRepository implements IDatabase {
 	async getTodaySchedules(date: string): Promise<any[]> {
 		const user = await this.getCurrentUser()
 
-		// 특정 날짜가 포함되는 일정만 가져오기
-		// start_date <= date <= end_date 조건
-		const { data, error } = await supabase
+		const result: any[] = []
+
+		const { data: nonRecurring, error: nonRecurringError } = await supabase
 			.from('schedules')
 			.select('*')
+			.eq('user_id', user.id)
+			.eq('is_recurring', false)
 			.lte('start_date', date)
 			.gte('end_date', date)
-			.eq('user_id', user.id)
 			.order('start_date', { ascending: true })
 
-		if (error) {
-			console.error('Error getting today schedules:', error)
+		if (nonRecurringError) {
+			console.error('Error getting non-recurring schedules:', nonRecurringError)
 			return []
 		}
 
-		const result = []
-		for (const schedule of data) {
+		for (const schedule of nonRecurring || []) {
 			const workers = await this.getScheduleWorkers(schedule.id)
 			result.push({
 				...this.transformScheduleFromDB(schedule),
-				workers
+				workers,
+			})
+		}
+
+		const { data: recurring, error: recurringError } = await supabase
+			.from('schedules')
+			.select('*')
+			.eq('user_id', user.id)
+			.eq('is_recurring', true)
+			.lte('start_date', date)
+
+		if (recurringError) {
+			console.error('Error getting recurring schedules:', recurringError)
+			return result
+		}
+
+		for (const schedule of recurring || []) {
+			const transformed = this.transformScheduleFromDB(schedule)
+			const occurrence = getOccurrenceForDate(transformed, date)
+			if (!occurrence) {
+				continue
+			}
+
+			const workers = await this.getScheduleWorkers(schedule.id)
+			const adjustedWorkers = this.shiftWorkersForOccurrence(workers, transformed.startDate, occurrence.occurrenceStartDate)
+
+			result.push({
+				...transformed,
+				startDate: occurrence.occurrenceStartDate,
+				endDate: occurrence.occurrenceEndDate,
+				recurrenceOccurrenceIndex: occurrence.occurrenceIndex,
+				recurrenceOccurrenceDate: date,
+				instanceId: `${schedule.id}::${occurrence.occurrenceStartDate}`,
+				workers: adjustedWorkers,
 			})
 		}
 
@@ -418,17 +511,53 @@ export class SupabaseRepository implements IDatabase {
 	async updateSchedule(id: string, schedule: any): Promise<void> {
 		const user = await this.getCurrentUser()
 
+		const updateData: any = {}
+
+		if (schedule.title !== undefined) updateData.title = schedule.title
+		if (schedule.startDate !== undefined) updateData.start_date = schedule.startDate
+		if (schedule.endDate !== undefined) updateData.end_date = schedule.endDate
+		if (schedule.description !== undefined) updateData.description = schedule.description
+		if (schedule.category !== undefined) updateData.category = schedule.category
+		if (schedule.location !== undefined) updateData.location = schedule.location
+		if (schedule.address !== undefined) updateData.address = schedule.address
+		if (schedule.uniformTime !== undefined) updateData.uniform_time = schedule.uniformTime
+		if (schedule.documentsFolderPath !== undefined) updateData.documents_folder_path = schedule.documentsFolderPath
+		if (schedule.hasAttachments !== undefined) updateData.has_attachments = schedule.hasAttachments
+		if (schedule.scheduleType !== undefined) updateData.schedule_type = schedule.scheduleType
+		if (schedule.contractAmount !== undefined) updateData.contract_amount = schedule.contractAmount
+		if (schedule.memo !== undefined) updateData.memo = schedule.memo
+		if (schedule.allWagesPaid !== undefined) updateData.all_wages_paid = schedule.allWagesPaid
+		if (schedule.revenueStatus !== undefined) updateData.revenue_status = schedule.revenueStatus
+		if (schedule.revenueDueDate !== undefined) updateData.revenue_due_date = schedule.revenueDueDate
+		if (schedule.clientId !== undefined) updateData.client_id = schedule.clientId
+
+		if (schedule.isRecurring !== undefined) updateData.is_recurring = !!schedule.isRecurring
+		if (schedule.recurrenceType !== undefined) updateData.recurrence_type = schedule.recurrenceType ?? null
+		if (schedule.recurrenceInterval !== undefined) updateData.recurrence_interval = schedule.recurrenceInterval ?? 1
+		if (schedule.recurrenceEndType !== undefined) updateData.recurrence_end_type = schedule.recurrenceEndType ?? null
+		if (schedule.recurrenceEndDate !== undefined) updateData.recurrence_end_date = schedule.recurrenceEndDate ?? null
+		if (schedule.recurrenceCount !== undefined) updateData.recurrence_count = schedule.recurrenceCount ?? null
+		if (schedule.recurrenceDaysOfWeek !== undefined) {
+			updateData.recurrence_days_of_week = Array.isArray(schedule.recurrenceDaysOfWeek)
+				? JSON.stringify(schedule.recurrenceDaysOfWeek)
+				: '[]'
+		}
+		if (schedule.recurrenceDayOfMonth !== undefined) updateData.recurrence_day_of_month = schedule.recurrenceDayOfMonth ?? null
+		if (schedule.recurrenceMonthOfYear !== undefined) updateData.recurrence_month_of_year = schedule.recurrenceMonthOfYear ?? null
+		if (schedule.parentScheduleId !== undefined) updateData.parent_schedule_id = schedule.parentScheduleId ?? null
+		if (schedule.recurrenceExceptions !== undefined) {
+			updateData.recurrence_exceptions = Array.isArray(schedule.recurrenceExceptions)
+				? JSON.stringify(schedule.recurrenceExceptions)
+				: '[]'
+		}
+
+		if (Object.keys(updateData).length === 0) {
+			return
+		}
+
 		const { error } = await supabase
 			.from('schedules')
-			.update({
-				title: schedule.title,
-				start_date: schedule.startDate,
-				end_date: schedule.endDate,
-				description: schedule.description,
-				category: schedule.category,
-				address: schedule.address,
-				memo: schedule.memo,
-			})
+			.update(updateData)
 			.eq('id', id)
 			.eq('user_id', user.id)
 
@@ -960,6 +1089,31 @@ export class SupabaseRepository implements IDatabase {
 	}
 
 	private transformScheduleFromDB(dbSchedule: any): any {
+		let recurrenceDaysOfWeek: number[] | undefined
+		let recurrenceExceptions: string[] | undefined
+
+		if (dbSchedule.recurrence_days_of_week) {
+			try {
+				recurrenceDaysOfWeek = JSON.parse(dbSchedule.recurrence_days_of_week)
+				if (!Array.isArray(recurrenceDaysOfWeek)) {
+					recurrenceDaysOfWeek = undefined
+				}
+			} catch {
+				recurrenceDaysOfWeek = undefined
+			}
+		}
+
+		if (dbSchedule.recurrence_exceptions) {
+			try {
+				recurrenceExceptions = JSON.parse(dbSchedule.recurrence_exceptions)
+				if (!Array.isArray(recurrenceExceptions)) {
+					recurrenceExceptions = undefined
+				}
+			} catch {
+				recurrenceExceptions = undefined
+			}
+		}
+
 		return {
 			id: dbSchedule.id,
 			userId: dbSchedule.user_id,
@@ -981,6 +1135,17 @@ export class SupabaseRepository implements IDatabase {
 			memo: dbSchedule.memo,
 			createdAt: dbSchedule.created_at,
 			updatedAt: dbSchedule.updated_at,
+			isRecurring: !!dbSchedule.is_recurring,
+			recurrenceType: dbSchedule.recurrence_type || undefined,
+			recurrenceInterval: dbSchedule.recurrence_interval || undefined,
+			recurrenceEndType: dbSchedule.recurrence_end_type || undefined,
+			recurrenceEndDate: dbSchedule.recurrence_end_date || undefined,
+			recurrenceCount: dbSchedule.recurrence_count || undefined,
+			recurrenceDaysOfWeek,
+			recurrenceDayOfMonth: dbSchedule.recurrence_day_of_month || undefined,
+			recurrenceMonthOfYear: dbSchedule.recurrence_month_of_year || undefined,
+			parentScheduleId: dbSchedule.parent_schedule_id || undefined,
+			recurrenceExceptions,
 		}
 	}
 
@@ -2286,6 +2451,43 @@ export class SupabaseRepository implements IDatabase {
 			description: dbDoc.description,
 			uploadedAt: dbDoc.uploaded_at,
 		}
+	}
+
+	private shiftWorkersForOccurrence(workers: any[], baseStartDate: string, occurrenceStartDate: string): any[] {
+		if (!baseStartDate) {
+			return workers
+		}
+
+		const offsetDays = dayjs(occurrenceStartDate).diff(dayjs(baseStartDate), 'day')
+
+		if (!offsetDays) {
+			return workers
+		}
+
+		return workers.map(worker => {
+			const periods = worker.periods || []
+			const adjustedPeriods = periods.map((period: any) => {
+				if (!period || (!period.start && !period.end)) {
+					return period
+				}
+
+				const adjusted: any = { ...period }
+
+				if (period.start) {
+					adjusted.start = dayjs(period.start).add(offsetDays, 'day').format('YYYY-MM-DDTHH:mm:ssZ')
+				}
+				if (period.end) {
+					adjusted.end = dayjs(period.end).add(offsetDays, 'day').format('YYYY-MM-DDTHH:mm:ssZ')
+				}
+
+				return adjusted
+			})
+
+			return {
+				...worker,
+				periods: adjustedPeriods,
+			}
+		})
 	}
 }
 
