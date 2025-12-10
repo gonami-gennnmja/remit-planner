@@ -108,6 +108,9 @@ export default function DashboardScreen() {
   });
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<
+    Array<{ id: string; name: string; color: string }>
+  >([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -118,6 +121,10 @@ export default function DashboardScreen() {
       setLoading(true);
       const db = getDatabase();
       await db.init();
+
+      // 카테고리 로드
+      const cats = await db.getAllCategories();
+      setCategories(cats);
 
       // 모든 스케줄 로드
       const allSchedules = await db.getAllSchedules();
@@ -848,13 +855,13 @@ export default function DashboardScreen() {
                 <View style={styles.scheduleItemInfo}>
                   <View style={styles.scheduleItemTag}>
                     <Text style={styles.scheduleItemTagText}>
-                      {schedule.category === "education"
-                        ? "교육"
-                        : schedule.category === "event"
-                        ? "이벤트"
-                        : schedule.category === "meeting"
-                        ? "회의"
-                        : "기타"}
+                      {(() => {
+                        if (!schedule.category) return "기타";
+                        const category = categories.find(
+                          (cat) => cat.name === schedule.category
+                        );
+                        return category ? category.name : schedule.category;
+                      })()}
                     </Text>
                   </View>
                   <Text style={styles.scheduleItemWorkers}>

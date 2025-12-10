@@ -3,7 +3,7 @@ import { Theme } from "@/constants/Theme";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDatabase } from "@/database/platformDatabase";
 import { useResponsive } from "@/hooks/useResponsive";
-import { Schedule, ScheduleCategory, Worker } from "@/models/types";
+import { getCategoryColor, Schedule, Worker } from "@/models/types";
 import { createScheduleCompletionActivities } from "@/utils/activityUtils";
 import {
   detectBankFromAccount,
@@ -47,19 +47,6 @@ dayjs.extend(isSameOrBefore);
 interface PlannerCalendarProps {
   onAddSchedulePress?: (date?: string, endDate?: string) => void;
   filter?: string; // 'upcoming' for upcoming schedules only
-}
-
-function getCategoryColor(
-  category: ScheduleCategory,
-  themeColors: any
-): string {
-  const colors: Record<ScheduleCategory, string> = {
-    education: "#8b5cf6",
-    meeting: themeColors.primary,
-    event: "#ef4444",
-    others: "#6b7280",
-  };
-  return colors[category] || colors.others;
 }
 
 // 작은 근로자 카드 컴포넌트
@@ -472,8 +459,8 @@ export default function PlannerCalendar({
           }
           marks[dateStr].dots.push({
             key: schedule.instanceId ?? schedule.id,
-            color: getCategoryColor(schedule.category, colors),
-            selectedDotColor: getCategoryColor(schedule.category, colors),
+            color: getCategoryColor(schedule.category),
+            selectedDotColor: getCategoryColor(schedule.category),
           });
           currentDate = currentDate.add(1, "day");
         }
@@ -487,7 +474,8 @@ export default function PlannerCalendar({
       filteredSchedules.forEach((schedule: Schedule) => {
         const startDate = dayjs(schedule.startDate);
         const endDate = dayjs(schedule.endDate);
-        const color = getCategoryColor(schedule.category, colors);
+        const color = getCategoryColor(schedule.category);
+        const scheduleId = schedule.instanceId ?? schedule.id;
 
         let currentDate = startDate;
         while (currentDate.isSameOrBefore(endDate, "day")) {
@@ -499,31 +487,23 @@ export default function PlannerCalendar({
             marks[dateStr] = { periods: [] };
           }
 
+          // 각 period에 고유한 key와 태그 색상을 추가
+          const periodData: any = {
+            key: `${scheduleId}-${dateStr}`, // 날짜와 일정 ID를 조합하여 고유성 보장
+            color: color, // 태그 색상 그대로 사용
+            textColor: "white",
+          };
+
           if (isFirst && isLast) {
-            marks[dateStr].periods.push({
-              startingDay: true,
-              endingDay: true,
-              color: color,
-              textColor: "white",
-            });
+            periodData.startingDay = true;
+            periodData.endingDay = true;
           } else if (isFirst) {
-            marks[dateStr].periods.push({
-              startingDay: true,
-              color: color,
-              textColor: "white",
-            });
+            periodData.startingDay = true;
           } else if (isLast) {
-            marks[dateStr].periods.push({
-              endingDay: true,
-              color: color,
-              textColor: "white",
-            });
-          } else {
-            marks[dateStr].periods.push({
-              color: color,
-              textColor: "white",
-            });
+            periodData.endingDay = true;
           }
+
+          marks[dateStr].periods.push(periodData);
 
           currentDate = currentDate.add(1, "day");
         }
@@ -1896,8 +1876,7 @@ export default function PlannerCalendar({
                             <View
                               style={{
                                 backgroundColor: getCategoryColor(
-                                  schedule.category,
-                                  colors
+                                  schedule.category
                                 ),
                                 paddingHorizontal: 8,
                                 paddingVertical: 4,
@@ -2205,8 +2184,7 @@ export default function PlannerCalendar({
                             <View
                               style={{
                                 backgroundColor: getCategoryColor(
-                                  schedule.category,
-                                  colors
+                                  schedule.category
                                 ),
                                 paddingHorizontal: 8,
                                 paddingVertical: 4,
@@ -2442,8 +2420,7 @@ export default function PlannerCalendar({
                                       left: `${blockLeft}%`,
                                       width: `${blockWidth}%`,
                                       backgroundColor: getCategoryColor(
-                                        schedule.category,
-                                        colors
+                                        schedule.category
                                       ),
                                       borderRadius: 6,
                                       padding: 4,

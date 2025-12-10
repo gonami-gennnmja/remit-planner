@@ -1,9 +1,10 @@
 import { useTheme } from "@/contexts/ThemeContext";
+import { getDatabase } from "@/database";
 import { Schedule } from "@/models/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   Platform,
@@ -28,6 +29,39 @@ export default function TodayScheduleModal({
   selectedDate,
 }: TodayScheduleModalProps) {
   const { colors } = useTheme();
+  const [categories, setCategories] = useState<
+    Array<{ id: string; name: string; color: string }>
+  >([]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const db = getDatabase();
+        await db.init();
+        const cats = await db.getAllCategories();
+        setCategories(cats);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+      }
+    };
+    loadCategories();
+  }, []);
+
+  const getCategoryText = (categoryName: string | null | undefined) => {
+    if (!categoryName) {
+      return "기타";
+    }
+    const category = categories.find((cat) => cat.name === categoryName);
+    return category ? category.name : categoryName;
+  };
+
+  const getCategoryColor = (categoryName: string | null | undefined) => {
+    if (!categoryName) {
+      return colors.surface;
+    }
+    const category = categories.find((cat) => cat.name === categoryName);
+    return category ? category.color : colors.surface;
+  };
 
   // 오늘 날짜의 스케줄들을 시작시간 순서대로 정렬
   const todaySchedules = schedules
@@ -134,7 +168,9 @@ export default function TodayScheduleModal({
                     <View
                       style={[
                         styles.categoryBadge,
-                        { backgroundColor: colors.surface },
+                        {
+                          backgroundColor: getCategoryColor(schedule.category),
+                        },
                       ]}
                     >
                       <Text
@@ -143,13 +179,7 @@ export default function TodayScheduleModal({
                           { color: colors.textSecondary },
                         ]}
                       >
-                        {schedule.category === "education"
-                          ? "교육"
-                          : schedule.category === "event"
-                          ? "이벤트"
-                          : schedule.category === "meeting"
-                          ? "회의"
-                          : "기타"}
+                        {getCategoryText(schedule.category)}
                       </Text>
                     </View>
                   </View>

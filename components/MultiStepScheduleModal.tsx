@@ -917,6 +917,17 @@ export default function MultiStepScheduleModal({
         return;
       }
 
+      // 카테고리 확인 및 로깅
+      console.log("📝 저장할 카테고리:", formData.category);
+      console.log("📝 formData 전체:", JSON.stringify(formData, null, 2));
+
+      if (!formData.category || formData.category === "") {
+        console.warn("⚠️ 카테고리가 선택되지 않았습니다!");
+        Alert.alert("오류", "카테고리를 선택해주세요.");
+        setIsSaving(false);
+        return;
+      }
+
       const newSchedule: Schedule = {
         id: `schedule-${Date.now()}`,
         userId: currentUser.id,
@@ -924,7 +935,7 @@ export default function MultiStepScheduleModal({
         description: formData.description,
         startDate: formData.startDate,
         endDate: formData.endDate,
-        category: formData.category,
+        category: formData.category, // 카테고리 저장
         location: formData.location,
         address: formData.address,
         uniformTime: formData.uniformTime,
@@ -939,101 +950,149 @@ export default function MultiStepScheduleModal({
         workers: [],
       };
 
-      const scheduleId = await db.createSchedule(newSchedule);
+      console.log("💾 저장할 스케줄:", JSON.stringify(newSchedule, null, 2));
+
+      let scheduleId: string;
+      try {
+        console.log("📤 스케줄 생성 시작...");
+        scheduleId = await db.createSchedule(newSchedule);
+        console.log("✅ 스케줄 생성 완료:", scheduleId);
+      } catch (error: any) {
+        console.error("❌ 스케줄 생성 실패:", error);
+        console.error("❌ 에러 상세:", JSON.stringify(error, null, 2));
+        throw new Error(`스케줄 생성 실패: ${error?.message || error}`);
+      }
 
       // 계약 정보 저장
       if (formData.contractAmount && formData.contractAmount > 0) {
-        const contract = {
-          id: `contract-${Date.now()}`,
-          scheduleId,
-          contractType: formData.contractType || "written",
-          contractDirection: "sent" as const,
-          contractAmount: formData.contractAmount,
-          contractContent: formData.contractContent,
-          contractStatus: "draft" as const,
-        };
-        await db.createScheduleContract(contract);
+        try {
+          console.log("📤 계약 정보 저장 시작...");
+          const contract = {
+            id: `contract-${Date.now()}`,
+            scheduleId,
+            contractType: formData.contractType || "written",
+            contractDirection: "sent" as const,
+            contractAmount: formData.contractAmount,
+            contractContent: formData.contractContent,
+            contractStatus: "draft" as const,
+          };
+          await db.createScheduleContract(contract);
+          console.log("✅ 계약 정보 저장 완료");
+        } catch (error: any) {
+          console.error("❌ 계약 정보 저장 실패:", error);
+          // 계약 정보 저장 실패는 치명적이지 않으므로 계속 진행
+        }
       }
 
       // 근로자 배치 저장 (선택/배치 정보가 있는 경우에만)
       if (pickedWorkers.length > 0) {
-        for (const w of pickedWorkers) {
-          const isWorkerUniformTime = workerUniformTime[w.workerId] ?? true;
-          const daily = workerAssignments[w.workerId] || [];
-          const enabledDates = daily.filter((d) => d.enabled);
+        try {
+          console.log(
+            "📤 근로자 배치 저장 시작...",
+            pickedWorkers.length,
+            "명"
+          );
+          for (const w of pickedWorkers) {
+            const isWorkerUniformTime = workerUniformTime[w.workerId] ?? true;
+            const daily = workerAssignments[w.workerId] || [];
+            const enabledDates = daily.filter((d) => d.enabled);
 
-          // 참여 날짜가 없으면 건너뜀
-          if (enabledDates.length === 0) {
-            continue;
-          }
+            // 참여 날짜가 없으면 건너뜀
+            if (enabledDates.length === 0) {
+              console.log("⏭️ 근로자", w.workerId, "참여 날짜 없음, 건너뜀");
+              continue;
+            }
 
-          // 실제 참여 날짜 범위 계산
-          const sortedDates = enabledDates
-            .map((d) => d.workDate)
-            .sort((a, b) => (a < b ? -1 : 1));
-          const actualStartDate = sortedDates[0];
-          const actualEndDate = sortedDates[sortedDates.length - 1];
+            // 실제 참여 날짜 범위 계산
+            const sortedDates = enabledDates
+              .map((d) => d.workDate)
+              .sort((a, b) => (a < b ? -1 : 1));
+            const actualStartDate = sortedDates[0];
+            const actualEndDate = sortedDates[sortedDates.length - 1];
 
-          const scheduleWorkerId = `sw_${Date.now()}_${Math.random()
-            .toString(36)
-            .substr(2, 9)}`;
-          // 근로자-스케줄 연결 생성
-          await db.createScheduleWorker({
-            id: scheduleWorkerId,
-            scheduleId,
-            workerId: w.workerId,
-            workStartDate: actualStartDate, // 실제 참여 시작일
-            workEndDate: actualEndDate, // 실제 참여 종료일
-            uniformTime: isWorkerUniformTime,
-            hourlyWage: w.hourlyWage ?? undefined,
-            fuelAllowance: 0,
-            otherAllowance: 0,
-            overtimeEnabled: false,
-            nightShiftEnabled: false,
-            taxWithheld: true,
-            wagePaid: false,
-            fuelPaid: false,
-            otherPaid: false,
-          });
-
-          // 선택된 모든 날짜에 대해 workPeriod 생성
-          for (const d of enabledDates) {
-            const workPeriodId = `wp_${Date.now()}_${Math.random()
+            const scheduleWorkerId = `sw_${Date.now()}_${Math.random()
               .toString(36)
               .substr(2, 9)}`;
 
-            let periodStartTime: string;
-            let periodEndTime: string;
+            try {
+              // 근로자-스케줄 연결 생성
+              await db.createScheduleWorker({
+                id: scheduleWorkerId,
+                scheduleId,
+                workerId: w.workerId,
+                workStartDate: actualStartDate,
+                workEndDate: actualEndDate,
+                uniformTime: isWorkerUniformTime,
+                hourlyWage: w.hourlyWage ?? undefined,
+                fuelAllowance: 0,
+                otherAllowance: 0,
+                overtimeEnabled: false,
+                nightShiftEnabled: false,
+                taxWithheld: true,
+                wagePaid: false,
+                fuelPaid: false,
+                otherPaid: false,
+              });
+              console.log("✅ 근로자-스케줄 연결 생성:", w.workerId);
 
-            if (isWorkerUniformTime) {
-              // uniformTime이 true면 선택된 시간 사용 (모든 날짜 동일)
-              periodStartTime = w.startTime || formData.startTime || "09:00";
-              periodEndTime = w.endTime || formData.endTime || "18:00";
-            } else {
-              // uniformTime이 false면 각 날짜별 시간 사용
-              periodStartTime = d.startTime;
-              periodEndTime = d.endTime;
+              // 선택된 모든 날짜에 대해 workPeriod 생성
+              for (const d of enabledDates) {
+                const workPeriodId = `wp_${Date.now()}_${Math.random()
+                  .toString(36)
+                  .substr(2, 9)}`;
+
+                let periodStartTime: string;
+                let periodEndTime: string;
+
+                if (isWorkerUniformTime) {
+                  periodStartTime =
+                    w.startTime || formData.startTime || "09:00";
+                  periodEndTime = w.endTime || formData.endTime || "18:00";
+                } else {
+                  periodStartTime = d.startTime;
+                  periodEndTime = d.endTime;
+                }
+
+                await db.createWorkPeriod({
+                  id: workPeriodId,
+                  scheduleWorkerId,
+                  workDate: d.workDate,
+                  startTime: periodStartTime,
+                  endTime: periodEndTime,
+                  breakDuration: 0,
+                  overtimeHours: 0,
+                });
+              }
+              console.log(
+                "✅ 근로자 근무 기간 생성 완료:",
+                enabledDates.length,
+                "일"
+              );
+            } catch (error: any) {
+              console.error("❌ 근로자 배치 저장 실패:", w.workerId, error);
+              // 개별 근로자 저장 실패는 치명적이지 않으므로 계속 진행
             }
-
-            await db.createWorkPeriod({
-              id: workPeriodId,
-              scheduleWorkerId,
-              workDate: d.workDate,
-              startTime: periodStartTime,
-              endTime: periodEndTime,
-              breakDuration: 0,
-              overtimeHours: 0,
-            });
           }
+          console.log("✅ 근로자 배치 저장 완료");
+        } catch (error: any) {
+          console.error("❌ 근로자 배치 저장 중 오류:", error);
+          // 근로자 배치 저장 실패는 치명적이지 않으므로 계속 진행
         }
       }
 
       // 활동 생성
-      await createScheduleActivity(
-        newSchedule.id,
-        newSchedule.title,
-        newSchedule.description
-      );
+      try {
+        console.log("📤 활동 생성 시작...");
+        await createScheduleActivity(
+          newSchedule.id,
+          newSchedule.title,
+          newSchedule.description
+        );
+        console.log("✅ 활동 생성 완료");
+      } catch (error: any) {
+        console.error("❌ 활동 생성 실패:", error);
+        // 활동 생성 실패는 치명적이지 않으므로 계속 진행
+      }
 
       // 임시저장 삭제
       clearDraft();
@@ -1048,9 +1107,18 @@ export default function MultiStepScheduleModal({
           },
         },
       ]);
-    } catch (error) {
-      console.error("Failed to create schedule:", error);
-      Alert.alert("오류", "일정 추가에 실패했습니다.");
+    } catch (error: any) {
+      console.error("❌ 일정 추가 실패:", error);
+      console.error("❌ 에러 스택:", error?.stack);
+      console.error("❌ 에러 상세:", JSON.stringify(error, null, 2));
+
+      const errorMessage = error?.message || "일정 추가에 실패했습니다.";
+      Alert.alert("오류", errorMessage, [
+        {
+          text: "확인",
+          onPress: () => setIsSaving(false),
+        },
+      ]);
       setIsSaving(false);
     }
   };
@@ -1293,12 +1361,18 @@ export default function MultiStepScheduleModal({
                     borderWidth: formData.category === category.name ? 2 : 0,
                   },
                 ]}
-                onPress={() =>
+                onPress={() => {
+                  console.log(
+                    "🎯 카테고리 선택:",
+                    category.name,
+                    "전체 카테고리:",
+                    category
+                  );
                   setFormData({
                     ...formData,
                     category: category.name as ScheduleCategory,
-                  })
-                }
+                  });
+                }}
               >
                 <View style={styles.categoryTag}>
                   <View
@@ -1328,15 +1402,15 @@ export default function MultiStepScheduleModal({
                 onPress={() => setShowAllCategories(true)}
               >
                 <Text style={{ color: "#374151" }}>
-                  +
-                  {categories.filter((c) =>
-                    categorySearchQuery
-                      ? c.name
-                          .toLowerCase()
-                          .includes(categorySearchQuery.toLowerCase())
-                      : true
-                  ).length - 3}
-                  개 더 보기
+                  {`+${
+                    categories.filter((c) =>
+                      categorySearchQuery
+                        ? c.name
+                            .toLowerCase()
+                            .includes(categorySearchQuery.toLowerCase())
+                        : true
+                    ).length - 3
+                  }개 더 보기`}
                 </Text>
               </Pressable>
             )}
@@ -2889,7 +2963,7 @@ export default function MultiStepScheduleModal({
         {pickedWorkers.length > 0 && (
           <View style={[styles.inputGroup, { marginTop: 16 }]}>
             <Text style={styles.inputLabel}>
-              선택된 근로자 ({pickedWorkers.length}명)
+              {`선택된 근로자 (${pickedWorkers.length}명)`}
             </Text>
             {pickedWorkers.map((pw) => {
               const worker = allWorkers.find((w) => w.id === pw.workerId);
@@ -3275,7 +3349,7 @@ export default function MultiStepScheduleModal({
                     {getStepTitle(currentStep)}
                   </Text>
                   <Text style={styles.headerSubtitle}>
-                    {currentStep} / {Object.keys(STEPS).length} 단계
+                    {`${currentStep} / ${Object.keys(STEPS).length} 단계`}
                   </Text>
                 </View>
               </View>

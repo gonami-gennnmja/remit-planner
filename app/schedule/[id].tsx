@@ -97,6 +97,9 @@ export default function ScheduleDetailScreen() {
   const [detectedBank, setDetectedBank] = useState<any>(null);
   const [showBankSelection, setShowBankSelection] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
+  const [categories, setCategories] = useState<
+    Array<{ id: string; name: string; color: string }>
+  >([]);
 
   // 계약서 관련 상태
   const [contracts, setContracts] = useState<ScheduleContract[]>([]);
@@ -110,6 +113,10 @@ export default function ScheduleDetailScreen() {
       try {
         const db = getDatabase();
         await db.init();
+
+        // 카테고리 로드
+        const cats = await db.getAllCategories();
+        setCategories(cats);
 
         const scheduleData = await db.getSchedule(id as string);
         setSchedule(scheduleData);
@@ -270,7 +277,18 @@ export default function ScheduleDetailScreen() {
     );
   }
 
-  const getCategoryText = (category: string) => {
+  const getCategoryText = (category: string | null | undefined) => {
+    if (!category) {
+      return "기타";
+    }
+
+    // 데이터베이스에서 카테고리 찾기
+    const categoryData = categories.find((cat) => cat.name === category);
+    if (categoryData) {
+      return categoryData.name;
+    }
+
+    // 하드코딩된 기본 카테고리 (하위 호환성)
     switch (category) {
       case "education":
         return "교육";
@@ -279,8 +297,23 @@ export default function ScheduleDetailScreen() {
       case "meeting":
         return "회의";
       default:
-        return "기타";
+        return category; // 카테고리 이름이 있으면 그대로 표시
     }
+  };
+
+  const getCategoryColor = (category: string | null | undefined) => {
+    if (!category) {
+      return "#93c5fd";
+    }
+
+    // 데이터베이스에서 카테고리 찾기
+    const categoryData = categories.find((cat) => cat.name === category);
+    if (categoryData) {
+      return categoryData.color;
+    }
+
+    // 기본 색상 (하위 호환성)
+    return "#93c5fd";
   };
 
   const getWorkPeriods = (schedule: Schedule) => {
@@ -337,7 +370,12 @@ export default function ScheduleDetailScreen() {
         <View style={styles.scheduleCard}>
           <View style={styles.scheduleHeader}>
             <Text style={styles.scheduleTitle}>{schedule.title}</Text>
-            <View style={styles.categoryBadge}>
+            <View
+              style={[
+                styles.categoryBadge,
+                { backgroundColor: getCategoryColor(schedule.category) },
+              ]}
+            >
               <Text style={styles.categoryText}>
                 {getCategoryText(schedule.category)}
               </Text>
@@ -345,9 +383,11 @@ export default function ScheduleDetailScreen() {
           </View>
 
           <Text style={styles.scheduleDate}>
-            {dayjs(schedule.startDate).format("YYYY년 M월 D일")}
-            {schedule.startDate !== schedule.endDate &&
-              ` ~ ${dayjs(schedule.endDate).format("M월 D일")}`}
+            {schedule.startDate !== schedule.endDate
+              ? `${dayjs(schedule.startDate).format(
+                  "YYYY년 M월 D일"
+                )} ~ ${dayjs(schedule.endDate).format("M월 D일")}`
+              : dayjs(schedule.startDate).format("YYYY년 M월 D일")}
           </Text>
 
           {schedule.description && (
@@ -1389,7 +1429,7 @@ export default function ScheduleDetailScreen() {
                   <Text
                     style={{ fontSize: 14, color: Theme.colors.text.secondary }}
                   >
-                    {schedule?.workers?.length || 0}명
+                    {`${schedule?.workers?.length || 0}명`}
                   </Text>
                 </View>
 

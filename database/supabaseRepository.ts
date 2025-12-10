@@ -251,6 +251,14 @@ export class SupabaseRepository implements IDatabase {
 	async createSchedule(schedule: any): Promise<string> {
 		const user = await this.getCurrentUser()
 
+		// 카테고리 확인 및 로깅
+		console.log('💾 DB 저장 - 카테고리:', schedule.category);
+		console.log('💾 DB 저장 - 전체 스케줄:', JSON.stringify(schedule, null, 2));
+
+		if (!schedule.category || schedule.category === '') {
+			console.warn('⚠️ DB 저장 시 카테고리가 없습니다! 기본값 사용하지 않음');
+		}
+
 		const { data, error } = await supabase
 			.from('schedules')
 			.insert([{
@@ -260,7 +268,7 @@ export class SupabaseRepository implements IDatabase {
 				description: schedule.description,
 				start_date: schedule.startDate,
 				end_date: schedule.endDate,
-				category: schedule.category,
+				category: schedule.category || null, // 빈 문자열 대신 null 사용
 				location: schedule.location,
 				address: schedule.address,
 				uniform_time: schedule.uniformTime !== undefined ? schedule.uniformTime : true,
@@ -284,10 +292,12 @@ export class SupabaseRepository implements IDatabase {
 			.select()
 
 		if (error) {
-			console.error('Error creating schedule:', error)
+			console.error('❌ Error creating schedule:', error)
+			console.error('❌ 저장 시도한 카테고리:', schedule.category)
 			throw error
 		}
 
+		console.log('✅ 스케줄 저장 성공:', data[0].id, '카테고리:', data[0].category)
 		return data[0].id
 	}
 

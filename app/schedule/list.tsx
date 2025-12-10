@@ -168,13 +168,19 @@ export default function ScheduleListScreen() {
     }
   };
 
-  const getCategoryText = (categoryId: string) => {
-    const category = categories.find((cat) => cat.id === categoryId);
-    return category ? category.name : "기타";
+  const getCategoryText = (categoryName: string | null | undefined) => {
+    if (!categoryName) {
+      return "기타";
+    }
+    const category = categories.find((cat) => cat.name === categoryName);
+    return category ? category.name : categoryName; // 카테고리 이름이 있으면 그대로 표시
   };
 
-  const getCategoryColor = (categoryId: string) => {
-    const category = categories.find((cat) => cat.id === categoryId);
+  const getCategoryColor = (categoryName: string | null | undefined) => {
+    if (!categoryName) {
+      return "#6b7280";
+    }
+    const category = categories.find((cat) => cat.name === categoryName);
     return category ? category.color : "#6b7280";
   };
 
